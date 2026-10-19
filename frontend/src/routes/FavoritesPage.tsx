@@ -310,11 +310,15 @@ export default function FavoritesPage() {
                     </IconButton>
                   )}
                   items={[
-                    { label: t('Rename'), onSelect: () => setRenameOpen(true) },
+                    ...(localFolderId !== 0
+                      ? [{ label: t('Rename'), onSelect: () => setRenameOpen(true) }]
+                      : []),
                     { label: t('Sort'), onSelect: () => setSortOpen(true) },
                     { label: t('Update Comics Info'), onSelect: () => updateInfo.mutate() },
                     { label: t('Import from file'), onSelect: () => fileRef.current?.click() },
-                    { label: t('Delete Folder'), danger: true, onSelect: () => setDeleteOpen(true) },
+                    ...(localFolderId !== 0
+                      ? [{ label: t('Delete Folder'), danger: true, onSelect: () => setDeleteOpen(true) }]
+                      : []),
                   ]}
                 />
               </>
@@ -412,8 +416,12 @@ export default function FavoritesPage() {
                 {selectMode && selected.size > 0 ? (
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
                     <span className="px-1 text-[12px] font-medium">{selected.size} selected</span>
-                    <Button size="sm" onClick={() => setMoveOpen('move')}>{t('Move to folder')}</Button>
-                    <Button size="sm" onClick={() => setMoveOpen('copy')}>{t('Copy to folder')}</Button>
+                    {localFolderId !== 0 ? (
+                      <>
+                        <Button size="sm" onClick={() => setMoveOpen('move')}>{t('Move to folder')}</Button>
+                        <Button size="sm" onClick={() => setMoveOpen('copy')}>{t('Copy to folder')}</Button>
+                      </>
+                    ) : null}
                     <Button size="sm" onClick={downloadSelected}>
                       <Download className="h-3.5 w-3.5" /> {t('Download')}
                     </Button>

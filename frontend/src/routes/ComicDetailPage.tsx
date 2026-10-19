@@ -322,8 +322,7 @@ export default function ComicDetailPage() {
   }
 
   const canComments =
-    data.commentCount !== 0 &&
-    data.commentCount !== null &&
+    sourceInfo?.capabilities.comments === true &&
     settings.showChapterComments !== false;
   const isDownloaded = Boolean(data.localComicId);
 

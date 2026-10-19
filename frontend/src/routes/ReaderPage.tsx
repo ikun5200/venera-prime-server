@@ -791,7 +791,7 @@ export default function ReaderPage() {
           <p className="truncate text-[13px] font-medium">{title}</p>
           <p className="truncate text-[11px] text-white/60">{chapterTitle}</p>
         </div>
-        {!isLocal ? (
+        {!isLocal && settings.showChapterComments !== false ? (
           <IconButton
             label={t('Chapter Comments')}
             className="text-white hover:bg-white/10 hover:text-white"
@@ -1073,7 +1073,7 @@ export default function ReaderPage() {
       </Drawer>
 
       {/* Chapter comments drawer */}
-      {!isLocal ? (
+      {!isLocal && settings.showChapterComments !== false ? (
         <ChapterCommentsDrawer
           open={commentsOpen}
           onClose={() => setCommentsOpen(false)}
