@@ -1,13 +1,12 @@
 # Progress
 
-Updated: 2026-10-19T16:52Z
+Updated: 2026-10-19T17:05Z
 
 ## Current phase
 
-Phase 7 — GitHub delivery. The multi-stage image builds, compose starts
-healthy, and the container end-to-end flow passes (init, source, search,
-details, reader image, favorite, upload/local read, browser ZIP, user
-isolation and deletion, restart persistence).
+Phase 8 — global audit complete. All phases are delivered; the final
+documentation commit is being pushed and the documentation-triggered workflow
+run is the last check.
 
 ## Completed
 
@@ -43,15 +42,23 @@ isolation and deletion, restart persistence).
 - **Phase 5** — chunked uploads, archive import, local reading, exports,
   browser ZIP download, path traversal/symlink tests, per-user directories.
 
-## In progress
+## Completed in Phase 7/8
 
-- Commit the container fixes, create the GitHub repository, push `main`, wait
-  for the Actions image build, pull the GHCR image and start it.
+- GitHub repository <https://github.com/ikun5200/venera-prime-server> with
+  Conventional Commit history and a clean working tree before the docs commit.
+- GitHub Actions builds and pushes
+  `ghcr.io/ikun5200/venera-prime-server:{latest,sha}` (linux/amd64) with GHA
+  cache. The image pulls and starts healthy on `:8081`.
+- Feature matrix: 333 DONE, 39 BLOCKED with blockers documented.
+- Full live audit on the compose container: auth/admin/isolation, real
+  MangaDex chain and comments, gallery/continuous reader, favorites,
+  downloads/browser ZIP, upload/local read/export, image favorites,
+  statistics, follow updates, source libraries/settings/check, WebDAV,
+  responsive 375/768/1280 with zero horizontal overflow.
 
 ## Next
 
-- Phase 8: feature-matrix audit against the live container, evidence
-  re-verification, final report.
+- Output the final delivery report.
 
 ## Known blockers (see `docs/BLOCKERS.md`)
 

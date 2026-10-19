@@ -246,10 +246,57 @@ Every acceptance item is backed by a reproducible command, output summary and
   avoid flaky crates.io TLS errors in the VM. The Docker context excludes
   `vendor/`, so CI fetches crates normally.
 
-## E-14 — GitHub repository, Actions and image pull
+## E-14 — GitHub repository, Actions and image pull — PASS
 
-- Pending at the time of writing; see the final section after the push.
+- Repository: <https://github.com/ikun5200/venera-prime-server>
+- Final code commit: `c8701fdfbdb03a733ee117c29885ce3d4ce95844` (`fix(frontend): enable source comments and
+  guard shared-folder actions`).
+- Actions run (linux/amd64): <https://github.com/ikun5200/venera-prime-server/actions/runs/39290206225>
+  — `completed success`, 3m59s for the first run; the workflow is
+  `.github/workflows/docker.yml`.
+- Workflow steps: checkout → lowercase owner → setup buildx → login GHCR →
+  build/push `ghcr.io/<owner>/venera-prime-server:{latest,sha}` with
+  `type=gha` cache; permissions `contents: read`, `packages: write`.
+- Image:
+  `ghcr.io/ikun5200/venera-prime-server@sha256:4d0f958ab3f0e72df8d8c454892731e88257f1e333ea68f1f9c727679113df2d`
+  (`linux/amd64`).
+- Pull/run verification:
+  - `docker pull --platform linux/amd64 ghcr.io/ikun5200/venera-prime-server:latest` → success.
+  - `docker run --platform linux/amd64 -p 8081:8080 ...` → `Up (healthy)`.
+  - `GET :8081/api/health` → `{"status":"ok","version":"1.0.0","initialized":false}`.
+- A final documentation-only commit triggers one more workflow run; the Docker
+  context excludes `docs/`, so it builds the same code and image.
 
-## E-15 — Phase 8 audit
+## E-15 — Phase 8 audit — PASS (with documented BLOCKED items)
 
-- Pending; results appended after the container audit.
+- Live audit: the local compose container (`:8080`) and the GHCR image
+  (`:8081`, linux/amd64) were both started and exercised.
+- Feature matrix: 372 rows; **333 DONE, 39 BLOCKED**. Every BLOCKED row has a
+  `B-xxx` entry in `docs/BLOCKERS.md`; no row was deleted or merged.
+- Audited in the real UI/API:
+  - init → login → logout; admin create/disable/delete; last-admin protection.
+  - per-user isolation for sources, favorites, history, read later, image
+    favorites, settings, WebDAV, local comics, uploads and downloads; bob sees
+    no admin data and cross-user source reads return 404.
+  - MangaDex: import → search → details → chapters → image proxy, real
+    comments drawer, favorite, download dialog, browser ZIP.
+  - reader: gallery page turns by button and keyboard, continuous scrolling,
+    settings drawer, chapter drawer, local reader; 375 px reader.
+  - local: chunked upload → import → images/cover → CBZ/PDF/EPUB export.
+  - image favorites photo view, statistics, follow updates, source libraries
+    and catalog install (nhentai), source settings persistence, source check
+    readability, cookie login import/logout, WebDAV upload/download.
+  - responsive audit: 375/768/1280 on every page, `scrollWidth-clientWidth=0`.
+- Audit findings fixed during Phase 8:
+  - Comments button was gated on `commentCount`, which is null for MangaDex;
+    it now uses the source `comments` capability.
+  - The "All favorites" pseudo-folder no longer offers rename/delete/move/copy
+    actions that would target folder 0.
+  - Logs page mobile overflow (long request ids) fixed.
+  - Reader comment button respects `showChapterComments`.
+  - Earlier live-fix list: browser ZIP route order, catalog `fileName`,
+    WebDAV `href` namespace parsing, sqlite runtime symlink, Dart AOT output
+    directory, search option defaults, source `sourceKey` enrichment.
+- Evidence re-verification: backend 38/38 tests, frontend 13/13 tests,
+  frontend typecheck+build, container e2e, GHCR pull/run.
+- Time: 2026-10-19T17:05:00Z

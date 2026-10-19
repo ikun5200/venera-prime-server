@@ -26,7 +26,7 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | HOME-04 | home_page.dart:454 | Data Sync module (Downloading/Upload queued/Uploading/Sync Data, error chip, upload/download buttons) | `/sync` | Upload/download buttons | DONE | E-03/E-04/E-12 |
 | HOME-05 | home_page.dart:601 | History module: count + recent comics | `/history` | Header/cover taps | DONE | E-03/E-04/E-12 |
 | HOME-06 | home_page.dart:713 | Local module: count, recent, task button, Import button | `/local`, `/downloads`, `/local/import` | Open/task/import | DONE | E-03/E-04/E-12 |
-| HOME-07 | home_page.dart:861 | Import dialog: 6 methods, folder select, copy-to-local checkbox, Help/Select | `/local/import` | Method-specific import | DONE | BLOCKED | B-004 
+| HOME-07 | home_page.dart:861 | Import dialog: 6 methods, folder select, copy-to-local checkbox, Help/Select | `/local/import` | Method-specific import | BLOCKED | B-004 |
 | HOME-08 | home_page.dart:1032 | Comic Source module: count, chips, updates badge | `/sources` | Opens source management | DONE | E-03/E-04/E-12 |
 | HOME-09 | home_page.dart:75 | Random comic dialog: From/Folder/Status/Pick | `/random` | Pick random | DONE | E-03/E-04/E-12 |
 | HOME-10 | home_page.dart:210 | Read later module + horizontal preview | `/read-later` | Header/cover taps | DONE | E-03/E-04/E-12 |
@@ -120,7 +120,7 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | FAV-13 | local_favorites_page.dart:671 | Grid tap, long-press range select, context menu | local favorites | Open/select | DONE | E-03/E-04/E-12 |
 | FAV-14 | local_favorites_page.dart:828 | Move/copy folder picker + New Folder + Move/Add | local favorites | Move/copy | DONE | E-03/E-04/E-12 |
 | FAV-15 | local_favorites_page.dart:979 | Reorder page: drag, Information, Reverse | `/favorites/local/:folder/reorder` | Reorder | DONE | E-03/E-04/E-12 |
-| FAV-16 | local_favorites_page.dart:1114 | Sync linked folder: page count selector + Update | `/favorites/local/:folder/sync` | Sync | DONE | BLOCKED | B-010 
+| FAV-16 | local_favorites_page.dart:1114 | Sync linked folder: page count selector + Update | `/favorites/local/:folder/sync` | Sync | BLOCKED | B-010 |
 | FAV-17 | local_favorites_page.dart:1187 | Filter reading status All/UnCompleted/Completed | local favorites | Filter | DONE | E-03/E-04/E-12 |
 | FAV-18 | network_favorites_page.dart:94 | Refresh, Convert to local, Remove comic | `/favorites/network/:key` | Actions | DONE | E-03/E-04/E-12 |
 | FAV-19 | network_favorites_page.dart:231 | Folder tiles, delete folder, Create a folder | `/favorites/network/:key/:folder` | Folder CRUD | DONE | E-03/E-04/E-12 |
@@ -130,7 +130,7 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | FAV-23 | favorite_actions.dart:113 | Select-a-folder add dialog | `/favorites/add` | Add comic | DONE | E-03/E-04/E-12 |
 | FAV-24 | favorite_actions.dart:168 | Update Comics Info background task | `/favorites/update-info` | Refresh metadata | DONE | E-03/E-04/E-12 |
 | FAV-25 | favorite_actions.dart:284 | Sort folders drag-reorder | `/favorites/folders/sort` | Reorder | DONE | E-03/E-04/E-12 |
-| FAV-26 | favorite_actions.dart:332 | Import network folder to local | `/favorites/import-network` | Link/import | DONE | BLOCKED | B-010 
+| FAV-26 | favorite_actions.dart:332 | Import network folder to local | `/favorites/import-network` | Link/import | BLOCKED | B-010 |
 | HIS-01 | history_page.dart:183 | Multi-select: Select All/Deselect/Invert/Delete | `/history` | Batch delete | DONE | E-03/E-04/E-12 |
 | HIS-02 | history_page.dart:222 | Refresh All, Multi-Select, Clear History flyout (Unfavorited/Clear) | `/history` | Refresh/clear | DONE | E-03/E-04/E-12 |
 | HIS-03 | history_page.dart:285 | Bar, task status, search, grid | `/history` | Search/open | DONE | E-03/E-04/E-12 |
@@ -178,7 +178,7 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | SET-16 | explore_settings.dart:203 | Page filter multi-page editor | `/settings/*-pages` | Add/delete/reorder | DONE | E-03/E-04/E-12 |
 | SET-17 | settings/reader.dart:114 | Comic-specific settings enable + clear | `/settings/reading` | Toggle/clear | DONE | E-03/E-04/E-12 |
 | SET-18 | reader.dart:146 | Device-specific settings enable + clear | `/settings/reading` | Toggle/clear | DONE | E-03/E-04/E-12 |
-| SET-19 | reader.dart:176 | Orientation behavior (4 options) | `/settings/reading` | Select | DONE | BLOCKED | B-004 
+| SET-19 | reader.dart:176 | Orientation behavior (4 options) | `/settings/reading` | Select | BLOCKED | B-004 |
 | SET-20 | reader.dart:202 | Tap to turn pages | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
 | SET-21 | reader.dart:212 | Reader background (Theme/White/Gray/Black/Sepia) | `/settings/reading` | Select | DONE | E-03/E-04/E-12 |
 | SET-22 | reader.dart:227 | Page margin toggle | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
@@ -194,69 +194,69 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | SET-32 | reader.dart:374 | Auto page turning interval 1–20s | `/settings/reading` | Slider | DONE | E-03/E-04/E-12 |
 | SET-33 | reader.dart:388 | Images per screen landscape/portrait 1–5 | `/settings/reading` | Select | DONE | E-03/E-04/E-12 |
 | SET-34 | reader.dart:425 | Show single image on first page | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
-| SET-35 | reader.dart:442 | Mouse scroll speed 0.5–3 | `/settings/reading` | Slider | DONE | BLOCKED | B-016 
-| SET-36 | reader.dart:458 | Double tap to zoom | `/settings/reading` | Switch | DONE | BLOCKED | B-016 
-| SET-37 | reader.dart:469 | Long press to zoom | `/settings/reading` | Switch | DONE | BLOCKED | B-016 
-| SET-38 | reader.dart:480 | Long press zoom position | `/settings/reading` | Select | DONE | BLOCKED | B-016 
+| SET-35 | reader.dart:442 | Mouse scroll speed 0.5–3 | `/settings/reading` | Slider | BLOCKED | B-016 |
+| SET-36 | reader.dart:458 | Double tap to zoom | `/settings/reading` | Switch | BLOCKED | B-016 |
+| SET-37 | reader.dart:469 | Long press to zoom | `/settings/reading` | Switch | BLOCKED | B-016 |
+| SET-38 | reader.dart:480 | Long press zoom position | `/settings/reading` | Select | BLOCKED | B-016 |
 | SET-39 | reader.dart:494 | Limit image width | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
-| SET-40 | reader.dart:505 | Turn page by volume keys | `/settings/reading` | Switch | DONE | BLOCKED | B-004 
+| SET-40 | reader.dart:505 | Turn page by volume keys | `/settings/reading` | Switch | BLOCKED | B-004 |
 | SET-41 | reader.dart:516 | Clock & battery info | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
-| SET-42 | reader.dart:526 | Show system status bar | `/settings/reading` | Switch | DONE | BLOCKED | B-004 
+| SET-42 | reader.dart:526 | Show system status bar | `/settings/reading` | Switch | BLOCKED | B-004 |
 | SET-43 | reader.dart:536 | Quick collect image gesture | `/settings/reading` | Select | DONE | E-03/E-04/E-12 |
-| SET-44 | reader.dart:554 | Custom Image Processing + Edit | `/settings/reading/image-processing` | Code editor | DONE | BLOCKED | B-002 
+| SET-44 | reader.dart:554 | Custom Image Processing + Edit | `/settings/reading/image-processing` | Code editor | BLOCKED | B-002 |
 | SET-45 | reader.dart:559 | Images preloaded 1–16 | `/settings/reading` | Slider | DONE | E-03/E-04/E-12 |
 | SET-46 | reader.dart:569 | Show Page Number | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
 | SET-47 | reader.dart:579 | Remove from Read Later when complete | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
 | SET-48 | reader.dart:587 | Show Chapter Comments | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
 | SET-49 | reader.dart:595 | Hide Duplicate Chapters | `/settings/reading` | Switch | DONE | E-03/E-04/E-12 |
-| SET-50 | reader.dart:603 | Show Comments at Chapter End | `/settings/reading` | Switch | DONE | BLOCKED | B-015 
-| SET-51 | reader.dart:758 | Image processing editor: enable, reset, code | `/settings/reading/image-processing` | Edit/save | DONE | BLOCKED | B-002 
+| SET-50 | reader.dart:603 | Show Comments at Chapter End | `/settings/reading` | Switch | BLOCKED | B-015 |
+| SET-51 | reader.dart:758 | Image processing editor: enable, reset, code | `/settings/reading/image-processing` | Edit/save | BLOCKED | B-002 |
 | SET-52 | settings/appearance.dart:16 | Customize home | `/settings/home-layout` | Open | DONE | E-03/E-04/E-12 |
 | SET-53 | appearance.dart:22 | Theme Mode System/Light/Dark | `/settings/appearance` | Select | DONE | E-03/E-04/E-12 |
 | SET-54 | appearance.dart:34 | Theme Color 7 options | `/settings/appearance` | Select | DONE | E-03/E-04/E-12 |
 | SET-55 | settings/local_favorites.dart:16 | Local favorites before network | `/settings/local-favorites` | Switch | DONE | E-03/E-04/E-12 |
 | SET-56 | local_favorites.dart:20 | Auto close favorite panel | `/settings/local-favorites` | Switch | DONE | E-03/E-04/E-12 |
-| SET-57 | local_favorites.dart:24 | Tap favorite folder name action | `/settings/local-favorites` | Select | DONE | BLOCKED | B-016 
+| SET-57 | local_favorites.dart:24 | Tap favorite folder name action | `/settings/local-favorites` | Select | BLOCKED | B-016 |
 | SET-58 | local_favorites.dart:32 | Add new favorite to Start/End | `/settings/local-favorites` | Select | DONE | E-03/E-04/E-12 |
-| SET-59 | local_favorites.dart:40 | Move favorite after reading | `/settings/local-favorites` | Select | DONE | BLOCKED | B-016 
+| SET-59 | local_favorites.dart:40 | Move favorite after reading | `/settings/local-favorites` | Select | BLOCKED | B-016 |
 | SET-60 | local_favorites.dart:49 | Quick Favorite folder | `/settings/local-favorites` | Select | DONE | E-03/E-04/E-12 |
 | SET-61 | local_favorites.dart:59 | Delete all unavailable local favorites | `/settings/local-favorites` | Action | DONE | E-03/E-04/E-12 |
 | SET-62 | local_favorites.dart:79 | Click favorite Detail/Read | `/settings/local-favorites` | Select | DONE | E-03/E-04/E-12 |
 | SET-63 | settings/app.dart:16 | Floating task button + Background tasks | `/settings/app` | Switch/open | DONE | E-03/E-04/E-12 |
-| SET-64 | app.dart:27 | Storage path + Copy | `/settings/app` | Copy | DONE | BLOCKED | B-004 
-| SET-65 | app.dart:39 | Set New Storage Path | `/settings/app` | Set/migrate | DONE | BLOCKED | B-004 
+| SET-64 | app.dart:27 | Storage path + Copy | `/settings/app` | Copy | BLOCKED | B-004 |
+| SET-65 | app.dart:39 | Set New Storage Path | `/settings/app` | Set/migrate | BLOCKED | B-004 |
 | SET-66 | app.dart:77 | Refresh local library | `/settings/app` | Scan | DONE | E-03/E-04/E-12 |
 | SET-67 | app.dart:109 | Cache Size | `/settings/app` | Display | DONE | E-03/E-04/E-12 |
-| SET-68 | cache_retention_setting.dart:17 | Keep unused cache (1/3/7/30/Never) | `/settings/app` | Select | DONE | BLOCKED | B-012 
+| SET-68 | cache_retention_setting.dart:17 | Keep unused cache (1/3/7/30/Never) | `/settings/app` | Select | BLOCKED | B-012 |
 | SET-69 | app.dart:120 | Clear Cache | `/settings/app` | Clear | DONE | E-03/E-04/E-12 |
-| SET-70 | app.dart:144 | Cache Limit (MB) | `/settings/app` | Input | DONE | BLOCKED | B-012 
+| SET-70 | app.dart:144 | Cache Limit (MB) | `/settings/app` | Input | BLOCKED | B-012 |
 | SET-71 | app.dart:164 | Export App Data | `/settings/app/export` | Download backup | DONE | E-03/E-04/E-12 |
 | SET-72 | app.dart:192 | Import App Data (.venera/.picadata) | `/settings/app/import` | Upload/restore | DONE | E-03/E-04/E-12 |
 | SET-73 | app.dart:252 | Data Sync + Set | `/settings/webdav` | Open WebDAV | DONE | E-03/E-04/E-12 |
 | SET-74 | app.dart:262 | Reading statistics + Open | `/statistics` | Open | DONE | E-03/E-04/E-12 |
 | SET-75 | app.dart:267 | WebDAV config QR code | `/settings/webdav/qr` | Show QR | DONE | E-03/E-04/E-12 |
-| SET-76 | app.dart:273 | Scan WebDAV QR | `/settings/webdav/scan` | Scan/import | DONE | BLOCKED | B-004 
+| SET-76 | app.dart:273 | Scan WebDAV QR | `/settings/webdav/scan` | Scan/import | BLOCKED | B-004 |
 | SET-77 | app.dart:278 | Language System/zh-CN/zh-TW/en-US | `/settings/app` | Select | DONE | E-03/E-04/E-12 |
-| SET-78 | app.dart:292 | Traditional→Simplified conversion | `/settings/app` | Switch | DONE | BLOCKED | B-016 
-| SET-79 | app.dart:299 | Authorization Required | `/settings/app` | Switch (web: password confirm) | DONE | BLOCKED | B-004 
+| SET-78 | app.dart:292 | Traditional→Simplified conversion | `/settings/app` | Switch | BLOCKED | B-016 |
+| SET-79 | app.dart:299 | Authorization Required | `/settings/app` | Switch (web: password confirm) | BLOCKED | B-004 |
 | SET-80 | app.dart:327 | WebDAV QR dialog Copy/Close | `/settings/webdav/qr` | Copy | DONE | E-03/E-04/E-12 |
-| SET-81 | app.dart:336 | Scan WebDAV QR page | `/settings/webdav/scan` | Apply config | DONE | BLOCKED | B-004 
+| SET-81 | app.dart:336 | Scan WebDAV QR page | `/settings/webdav/scan` | Apply config | BLOCKED | B-004 |
 | SET-82 | app.dart:765 | WebDAV popup: URL/user/password, QR, skip fields, auto sync, upload/download, save/continue | `/settings/webdav` | Test/save | DONE | E-03/E-04/E-12 |
 | SET-83 | app.dart:593 | Logs page: filters, Clear, disable limit, Export, copy | `/settings/logs` | Filter/export | DONE | E-03/E-04/E-12 |
-| SET-84 | settings/network.dart:16 | Proxy, DNS Overrides, Download Threads 1–16 | `/settings/network` | Open/slider | DONE | BLOCKED | B-009 
-| SET-85 | network.dart:110 | Proxy Direct/System/Manual | `/settings/network/proxy` | Radio | DONE | BLOCKED | B-009 
-| SET-86 | network.dart:149 | Host/Port/User/Password + Save | `/settings/network/proxy` | Validate/save | DONE | BLOCKED | B-009 
-| SET-87 | network.dart:271 | DNS overrides enable/SNI/Add | `/settings/network/dns` | Toggle/add | DONE | BLOCKED | B-009 
-| SET-88 | network.dart:309 | Domain/IP rows + delete | `/settings/network/dns` | Edit/delete | DONE | BLOCKED | B-009 
+| SET-84 | settings/network.dart:16 | Proxy, DNS Overrides, Download Threads 1–16 | `/settings/network` | Open/slider | BLOCKED | B-009 |
+| SET-85 | network.dart:110 | Proxy Direct/System/Manual | `/settings/network/proxy` | Radio | BLOCKED | B-009 |
+| SET-86 | network.dart:149 | Host/Port/User/Password + Save | `/settings/network/proxy` | Validate/save | BLOCKED | B-009 |
+| SET-87 | network.dart:271 | DNS overrides enable/SNI/Add | `/settings/network/dns` | Toggle/add | BLOCKED | B-009 |
+| SET-88 | network.dart:309 | Domain/IP rows + delete | `/settings/network/dns` | Edit/delete | BLOCKED | B-009 |
 | SET-89 | settings/about.dart:16 | Icon, version, description | `/settings/about` | Display | DONE | E-03/E-04/E-12 |
-| SET-90 | about.dart:46 | Check for updates / View update / Checking | `/settings/about` | Check | DONE | BLOCKED | B-005 
+| SET-90 | about.dart:46 | Check for updates / View update / Checking | `/settings/about` | Check | BLOCKED | B-005 |
 | SET-91 | about.dart:73 | Check updates on startup | `/settings/about` | Switch | DONE | E-03/E-04/E-12 |
 | SET-92 | about.dart:77 | GitHub link | external | Open | DONE | E-03/E-04/E-12 |
 | SET-93 | about.dart:84 | Telegram link | external | Open | DONE | E-03/E-04/E-12 |
-| SET-94 | app_update_dialog.dart:76 | Update dialog: release notes, Cancel, Update/Open page | dialog | Update | DONE | BLOCKED | B-005 
+| SET-94 | app_update_dialog.dart:76 | Update dialog: release notes, Cancel, Update/Open page | dialog | Update | BLOCKED | B-005 |
 | SET-95 | settings/debug.dart:20 | Reload Configs | `/settings/debug` | Reload sources | DONE | E-03/E-04/E-12 |
 | SET-96 | debug.dart:27 | Open Log | `/settings/logs` | Open | DONE | E-03/E-04/E-12 |
-| SET-97 | debug.dart:34 | Ignore Certificate Errors | `/settings/debug` | Switch | DONE | BLOCKED | B-009 
+| SET-97 | debug.dart:34 | Ignore Certificate Errors | `/settings/debug` | Switch | BLOCKED | B-009 |
 | SET-98 | debug.dart:38 | JS Evaluator + Run + Result | `/settings/debug` | Execute JS | DONE | E-03/E-04/E-12 |
 | SRC-01 | comic_source_page.dart:564 | Reorder, Sort by name | `/sources` | Reorder/sort | DONE | E-03/E-04/E-12 |
 | SRC-02 | comic_source_page.dart:601 | Reorder sources dialog | `/sources/reorder` | Drag/confirm | DONE | E-03/E-04/E-12 |
@@ -269,17 +269,17 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | SRC-09 | comic_source_page.dart:972 | Source libraries list: drag, menu Enable/Disable/Edit/Delete, Add | `/sources/libraries` | CRUD | DONE | E-03/E-04/E-12 |
 | SRC-10 | comic_source_page.dart:1195 | Library catalog entries Add/Switch/check | `/sources/libraries/:id` | Install | DONE | E-03/E-04/E-12 |
 | SRC-11 | comic_source_page.dart:1452 | Updates dialog + Update all | `/sources/updates` | Batch update | DONE | E-03/E-04/E-12 |
-| SRC-12 | comic_source_page.dart:1497 | Check updates / Checking | `/sources/check` | Check | DONE | BLOCKED | B-011 
+| SRC-12 | comic_source_page.dart:1497 | Check updates / Checking | `/sources/check` | Check | BLOCKED | B-011 |
 | SRC-13 | comic_source_page.dart:1581 | Source row: name/version/new version/update states/provenance/Edit/Update/Delete | `/sources` | Actions | DONE | E-03/E-04/E-12 |
 | SRC-14 | comic_source_page.dart:1765 | Source settings: select/switch/input/callback | `/sources/:key/settings` | Save | DONE | E-03/E-04/E-12 |
 | SRC-15 | comic_source_page.dart:1867 | Account: Log in, info, Re-login, Log out | `/sources/:key/account` | Login/logout | DONE | E-03/E-04/E-12 |
-| SRC-16 | comic_source_page.dart:1942 | Login form user/password or cookie fields, Continue, WebView, Create Account | `/sources/:key/login` | Login | DONE | BLOCKED | B-003 
+| SRC-16 | comic_source_page.dart:1942 | Login form user/password or cookie fields, Continue, WebView, Create Account | `/sources/:key/login` | Login | BLOCKED | B-003 |
 | SRC-17 | source_binding_page.dart:20 | Manual binding: select library, bind variant | `/sources/bind` | Bind | DONE | E-03/E-04/E-12 |
 | SRC-18 | source_check.dart:5 | Check readability: optional comic id, stages, sample image, retry/background | `/sources/:key/check` | Check | DONE | E-03/E-04/E-12 |
 | TOOL-01 | toolbox.dart:57 | Image search (Search by Image Bot, SauceNAO) | `/toolbox` | Open webview | DONE | E-03/E-04/E-12 |
 | TOOL-02 | toolbox.dart:100 | Comic-link interception | `/toolbox` | Open matching comic | DONE | E-03/E-04/E-12 |
-| AUTH-01 | auth_page.dart:29 | Authentication Required lock screen | `/auth` | Confirm password | DONE | BLOCKED | B-004 
-| WEB-01 | webview.dart:130 | WebView menu: Open in browser, Copy link, Reload | `/webview?url=` | Controls | DONE | BLOCKED | B-004 
+| AUTH-01 | auth_page.dart:29 | Authentication Required lock screen | `/auth` | Confirm password | BLOCKED | B-004 |
+| WEB-01 | webview.dart:130 | WebView menu: Open in browser, Copy link, Reload | `/webview?url=` | Controls | BLOCKED | B-004 |
 | STA-01 | reading_statistics_page.dart:99 | Clear all statistics | `/statistics` | Confirm/clear | DONE | E-03/E-04/E-12 |
 | STA-02 | reading_statistics_page.dart:125 | Record reading statistics toggle | `/statistics` | Toggle | DONE | E-03/E-04/E-12 |
 | STA-03 | reading_statistics_page.dart:149 | Today/7 days/Total cards | `/statistics` | Display | DONE | E-03/E-04/E-12 |
@@ -325,7 +325,7 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | RD-30 | chapter_comments.dart:359 | Vote/Like/Reply | reader comments | Interactions | DONE | E-03/E-04/E-12 |
 | RD-31 | chapter_comments.dart:589 | End-of-chapter comments page, Exit, masonry, input, empty | reader end page | Render/post | DONE | E-03/E-04/E-12 |
 | RD-32 | reader/loading.dart:24 | Resolve source/local comic and open reader | `/reader/...` | Deep link | DONE | E-03/E-04/E-12 |
-| RD-33 | reader.dart:257 | Apply mode/page/chapter/group/status/volume/cache | reader | Init | DONE | BLOCKED | B-004 
+| RD-33 | reader.dart:257 | Apply mode/page/chapter/group/status/volume/cache | reader | Init | BLOCKED | B-004 |
 | RD-34 | reader.dart:463 | White flash on page turn | reader | Flash | DONE | E-03/E-04/E-12 |
 | RD-35 | reader.dart:498 | History update debounced 1s | reader | Save progress | DONE | E-03/E-04/E-12 |
 | RD-36 | reader.dart:379 | Reading statistics session + auto-remove read later | reader | Record/remove | DONE | E-03/E-04/E-12 |
@@ -357,11 +357,11 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | GEN-24 | chapter_navigation.dart:7 | 3 reading orders | details/reader | Select | DONE | E-03/E-04/E-12 |
 | GEN-25 | utils/data.dart:32 | Export App Data zip with manifest | `/settings/app/export` | Export | DONE | E-03/E-04/E-12 |
 | GEN-26 | data.dart:159 | Import App Data validate/restore | `/settings/app/import` | Import | DONE | E-03/E-04/E-12 |
-| GEN-27 | data.dart:416 | Import PicaData | `/settings/app/import` | Import | DONE | BLOCKED | B-006 
+| GEN-27 | data.dart:416 | Import PicaData | `/settings/app/import` | Import | BLOCKED | B-006 |
 | GEN-28 | data_sync.dart:201 | WebDAV upload/download newest/auto sync/10 backups | `/sync` | Sync | DONE | E-03/E-04/E-12 |
-| GEN-29 | import_comic.dart:62 | Six local import methods | `/local/import` | Import | DONE | BLOCKED | B-004 
+| GEN-29 | import_comic.dart:62 | Six local import methods | `/local/import` | Import | BLOCKED | B-004 |
 | GEN-30 | restore_files.dart:7 | Atomic restore/rollback | internal | Restore | DONE | E-03/E-04/E-12 |
-| GEN-31 | cbz.dart:141 | CBZ/ZIP/7Z import, CBZ export with ComicInfo.xml | `/local/import`, export | Import/export | DONE | BLOCKED | B-008 
+| GEN-31 | cbz.dart:141 | CBZ/ZIP/7Z import, CBZ export with ComicInfo.xml | `/local/import`, export | Import/export | BLOCKED | B-008 |
 | GEN-32 | epub.dart:10 | EPUB export | export | Export | DONE | E-03/E-04/E-12 |
 | GEN-33 | pdf.dart:142 | PDF export | export | Export | DONE | E-03/E-04/E-12 |
 | GEN-34 | random_comic_picker.dart:9 | Random picker filters | `/random` | Pick | DONE | E-03/E-04/E-12 |
