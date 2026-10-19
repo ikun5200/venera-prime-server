@@ -144,6 +144,8 @@ Every acceptance item is backed by a reproducible command, output summary and
   - Continuous top-to-bottom mode: scroll container `scrollHeight=2538`,
     `clientHeight=900`, page indicator updates.
   - Local reader `/reader/local/1`: title TestComic, `1 / 2`, local images.
+  - Synthetic touch swipe on the 375 px local reader (`touchstart` at x=320,
+    `touchend` at x=80): page indicator changed from `1 / 2` to `2 / 2`.
 - Screenshots:
   - `docs/screenshots/04-reader-1280.png`
   - `docs/screenshots/04-reader-375.png`
