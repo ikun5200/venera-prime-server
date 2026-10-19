@@ -102,7 +102,18 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Output: source `nhentai` version 1.1.0 imported and parsed with
   category/categoryComics/explore/favorites/comments/imageLoad/link
   capabilities. Sources list then contains `manga_dex` and `nhentai`.
-- Time: 2026-10-19T16:18:00Z
+- Full chain for the second real source:
+  - `GET /api/search?source=nhentai&q=yuri` → 200, comics including id
+    `689080`.
+  - `GET /api/comic/nhentai/689080` → 200, title
+    `Loli-anoshi Compilation (Girls Und Panzer) By ゆかたろ`,
+    `chapterCount=1`, `chapters={"0":"Chapter 1"}` (single-gallery sources
+    have no chapter list; the original uses the implicit chapter id `"0"`).
+  - `GET /api/comic/nhentai/689080/chapter/0/images` → 200, 16 image keys
+    (first `https://i3.nhentai.net/galleries/4252807/1.webp`).
+  - `GET /api/image?source=nhentai&comic=689080&ep=0&key=...` → 200,
+    `image/webp`, 157578 bytes, 1200×1200.
+- Time: 2026-10-19T16:18:00Z (updated 2026-10-19T17:08:00Z)
 
 ## E-07 — Init, login, admin and isolation (live server + UI)
 

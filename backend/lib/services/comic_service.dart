@@ -261,6 +261,11 @@ class ComicService {
       }
     }
     final chapters = _normalizeChapters(raw['chapters']);
+    // Sources without a chapter list (single-gallery sources) use the original
+    // app's convention: one implicit chapter with id "0".
+    if (chapters.isEmpty) {
+      chapters['0'] = 'Chapter 1';
+    }
     final updateTime = _findUpdateTime(raw, tags);
     final author = _findAuthor(tags);
     return {
