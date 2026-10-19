@@ -269,7 +269,7 @@ Every acceptance item is backed by a reproducible command, output summary and
   build/push `ghcr.io/<owner>/venera-prime-server:{latest,sha}` with
   `type=gha` cache; permissions `contents: read`, `packages: write`.
 - Image:
-  `ghcr.io/ikun5200/venera-prime-server@sha256:4d0f958ab3f0e72df8d8c454892731e88257f1e333ea68f1f9c727679113df2d`
+  `ghcr.io/ikun5200/venera-prime-server@sha256:6ea29526ea70b4e0fa66d2b9bf061a33fd88d33d62bb7501fe093deb8291c854`
   (`linux/amd64`).
 - Pull/run verification:
   - `docker pull --platform linux/amd64 ghcr.io/ikun5200/venera-prime-server:latest` → success.
@@ -291,6 +291,8 @@ Every acceptance item is backed by a reproducible command, output summary and
     no admin data and cross-user source reads return 404.
   - MangaDex: import → search → details → chapters → image proxy, real
     comments drawer, favorite, download dialog, browser ZIP.
+  - nhentai (container): install from URL → search → details (implicit chapter
+    `0`) → 16 images → WebP image proxy.
   - reader: gallery page turns by button and keyboard, continuous scrolling,
     settings drawer, chapter drawer, local reader; 375 px reader.
   - local: chunked upload → import → images/cover → CBZ/PDF/EPUB export.
