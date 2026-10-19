@@ -4,9 +4,8 @@ Updated: 2026-10-19T17:05Z
 
 ## Current phase
 
-Phase 8 — global audit complete. All phases are delivered; the final
-documentation commit is being pushed and the documentation-triggered workflow
-run is the last check.
+All phases complete. Final delivery report issued after the Phase 8 audit;
+the repository, GHCR image and compose deployment are verified.
 
 ## Completed
 
