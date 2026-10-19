@@ -209,6 +209,9 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Result: all pages reported `overflow=0` at all three widths, except the logs
   page initially (292 px at 375); fixed by wrapping long log fields and
   re-measured `overflow=0`.
+- Added during the final audit: search-result 1280 + 768 + 375, detail
+  768 + 375, reader 768, reader-local 768 + 375, comments 375,
+  download-dialog 375; all measured `overflow=0`.
 - Screenshots (three widths each, unless noted):
   - home, search, search-result, detail, reader, reader-local
   - favorites, favorites-local, history, read-later
