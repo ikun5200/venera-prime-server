@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+data/
+config/*
+!config/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+uploads/
+
+# Reference project (read-only external checkout, not part of this repo)
+reference/
+
+# Dependencies and build output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+backend/.dart_tool/
+backend/build/
+rust/js_host/target/
+.packages
+.pub-cache/
+.pub/
+
+# Tooling
+.DS_Store
+*.log
+coverage/
+.vscode/
+.idea/
+
+# Keep evidence screenshots
+!docs/screenshots/
+
+# Editor/agent workspace configuration
+.zcode/
