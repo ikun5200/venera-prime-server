@@ -24,6 +24,7 @@ frontend/dist/
 backend/.dart_tool/
 backend/build/
 rust/js_host/target/
+rust/js_host/vendor/
 .packages
 .pub-cache/
 .pub/

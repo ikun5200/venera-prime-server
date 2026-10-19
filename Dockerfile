@@ -16,11 +16,20 @@ RUN npm run build
 FROM rust:1-slim-bookworm AS rust
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential pkg-config && rm -rf /var/lib/apt/lists/*
+ENV CARGO_NET_RETRY=10 \
+    CARGO_HTTP_TIMEOUT=120 \
+    CARGO_HTTP_MULTIPLEXING=false
 WORKDIR /src/rust/js_host
-COPY rust/js_host/Cargo.toml rust/js_host/Cargo.lock ./
-COPY rust/js_host/assets ./assets
-COPY rust/js_host/src ./src
-RUN cargo build --release --locked
+COPY rust/js_host/ ./
+# `vendor/` is present in local builds for an offline, deterministic build.
+# CI builds without it and fetches crates from crates.io.
+RUN if [ -d vendor ]; then \
+      cargo build --release --locked --offline \
+        --config 'source.crates-io.replace-with="vendored-sources"' \
+        --config 'source.vendored-sources.directory="vendor"'; \
+    else \
+      cargo build --release --locked; \
+    fi
 
 # ---------------------------------------------------------------------------
 # 3. Dart backend
@@ -30,14 +39,14 @@ WORKDIR /src/backend
 COPY backend/pubspec.yaml backend/pubspec.lock ./
 RUN dart pub get
 COPY backend/ ./
-RUN dart compile exe bin/server.dart -o /out/venera_server
+RUN mkdir -p /out && dart compile exe bin/server.dart -o /out/venera_server
 
 # ---------------------------------------------------------------------------
 # 4. Runtime
 # ---------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl gosu libsqlite3-0 libstdc++6 tzdata \
+    ca-certificates curl gosu libsqlite3-dev libstdc++6 tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /home/venera venera
 
