@@ -211,10 +211,40 @@ Every acceptance item is backed by a reproducible command, output summary and
     toolbox, source-detail, source-libraries, source-library, logs
 - Time: 2026-10-19T16:22:00Z
 
-## E-13 — Docker and compose
+## E-13 — Docker and compose — PASS
 
-- Pending at the time of writing; see the final section after the build.
-- Command: `docker compose up --build -d && curl -fsS http://localhost:8080/api/health`
+- Command: `docker compose build && docker compose up -d`
+- Output summary:
+  - Multi-stage image built: frontend (node), Rust QuickJS sidecar, Dart AOT
+    server, Debian slim runtime.
+  - `docker compose ps`: `Up ... (healthy)`, `0.0.0.0:8080->8080/tcp`.
+  - `GET /api/health` → `{"status":"ok","version":"1.0.0",
+    "uptime":8,"initialized":false}` on first boot.
+  - Runtime process: PID 1 `uid=10001` (`venera`), i.e. the application runs
+    as a non-root user after the entrypoint drops privileges.
+  - Host bind mounts: `data/venera.db`, `data/venera.db-wal`,
+    `data/users/...`; restart preserved `initialized:true`, admin login,
+    and the local library.
+- Container end-to-end (fresh `/data`):
+  1. `POST /api/init` → 200, admin created.
+  2. `POST /api/auth/login` → 200 + session cookie.
+  3. Imported MangaDex 1.3.0 → 200.
+  4. Search `yuri` → Yuru Yuri; details 1017 chapters; chapter images 12.
+  5. Image proxy → 200 `image/jpeg` 336807 bytes.
+  6. Favorite folder + favorite; progress saved.
+  7. Uploaded `ContainerComic.zip` → local comic id 1; images/cover/export
+     (CBZ) 200.
+  8. Browser ZIP → 200, 5715337 bytes, 12 files.
+  9. Created bob; bob sources/favorites/history/read-later/local/downloads all
+     empty; bob `GET /api/sources/manga_dex` → 404.
+  10. Admin favorites/local data intact.
+  11. Deleted bob → bob `me` 401, login 401.
+- Screenshot: `docs/screenshots/06-container-home-1280.png`.
+- Time: 2026-10-19T16:50:00Z
+- Notes: fixes found during the build: `/out` directory for `dart compile`,
+  `libsqlite3-dev` for the FFI symlink, and conditional vendored Rust crates to
+  avoid flaky crates.io TLS errors in the VM. The Docker context excludes
+  `vendor/`, so CI fetches crates normally.
 
 ## E-14 — GitHub repository, Actions and image pull
 

@@ -85,3 +85,56 @@
 - Reason: npm is available in every Node image and CI runner; the lockfile is
   deterministic. The brief allows either.
 - Impact: none.
+
+## D-010 — Statistics store `source_key`
+- Choice: migration 2 adds `reading_statistics.source_key`; recording includes
+  it and the recent-comics API returns it.
+- Reason: the statistics page must navigate back to the comic. The original
+  uses a local `comic_type` hash that cannot be reversed; storing the source key
+  makes navigation reliable without a source lookup.
+- Impact: one additive migration; old rows get an empty key and are displayed
+  without a navigation target.
+
+## D-011 — Catalog entry `fileName`
+- Choice: accept `url`, `fileName` and `filename` when resolving catalog
+  entries.
+- Reason: the upstream `venera-configs/index.json` uses `fileName`. The first
+  implementation only accepted `filename`, so catalog URLs resolved to null.
+  This was found during live verification and fixed.
+- Impact: catalogs in either spelling work.
+
+## D-012 — Dedicated browser ZIP route
+- Choice: `GET /api/downloads/browser` is registered before
+  `GET /api/downloads/<id>`.
+- Reason: shelf_router matches in registration order; otherwise `browser` is
+  treated as a job id and returns 404. A direct ZIP endpoint is also the
+  correct mapping for the original "download to device" feature on the web.
+- Impact: one or many chapters can be downloaded without creating a server
+  job; the server queue remains for offline reading.
+
+## D-013 — Search option defaults
+- Choice: when a source option list has no explicit default, the first option
+  value is preselected (for select/dropdown types).
+- Reason: MangaDex expects `order[0] != "any"` etc.; sending no value produced
+  invalid query strings during live testing.
+- Impact: search and category filters behave like the original UI.
+
+## D-014 — Schema-driven settings UI
+- Choice: one `SettingsCategoryPage` renders all setting groups from a typed
+  schema (switches, selects, sliders, numbers, text, links, actions).
+- Reason: the original has ~100 settings; a schema keeps labels, defaults and
+  validation consistent, and makes the per-user settings API the single source
+  of truth.
+- Impact: adding a setting is a one-line schema entry plus a backend default.
+
+## D-015 — Docker build resilience
+- Choice: the Rust stage copies the whole `rust/js_host` directory and uses
+  vendor/`--offline` when a local `vendor/` exists; CI builds without it and
+  fetches crates with retries (`CARGO_NET_RETRY=10`,
+  `CARGO_HTTP_TIMEOUT=120`, multiplexing disabled).
+- Reason: the local Colima VM intermittently dropped crates.io TLS
+  connections. Vendoring makes local builds deterministic without committing a
+  156 MB vendor tree. `libsqlite3-dev` provides the `libsqlite3.so` symlink the
+  Dart FFI loader expects; `mkdir -p /out` fixes the Dart AOT output path.
+- Impact: local Docker builds are offline for Rust; GitHub Actions uses the
+  normal crates.io path.

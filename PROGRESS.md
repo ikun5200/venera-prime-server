@@ -1,12 +1,13 @@
 # Progress
 
-Updated: 2026-10-19T16:25Z
+Updated: 2026-10-19T16:52Z
 
 ## Current phase
 
-Phase 6 — containerization and end-to-end. Docker/Colima is starting; the
-Dockerfile, compose file, entrypoint, `.env.example`, `.dockerignore` and
-GitHub workflow are written.
+Phase 7 — GitHub delivery. The multi-stage image builds, compose starts
+healthy, and the container end-to-end flow passes (init, source, search,
+details, reader image, favorite, upload/local read, browser ZIP, user
+isolation and deletion, restart persistence).
 
 ## Completed
 
@@ -44,15 +45,11 @@ GitHub workflow are written.
 
 ## In progress
 
-- Start Docker (Colima), build the multi-stage image, run compose, repeat the
-  end-to-end flow in the container and record evidence.
+- Commit the container fixes, create the GitHub repository, push `main`, wait
+  for the Actions image build, pull the GHCR image and start it.
 
 ## Next
 
-- Phase 6: container e2e (init → source → search → detail → read → favorite →
-  upload → local read → browser download → create user → isolation → delete
-  user).
-- Phase 7: git history, `gh repo create`, push, Actions run, GHCR pull.
 - Phase 8: feature-matrix audit against the live container, evidence
   re-verification, final report.
 
