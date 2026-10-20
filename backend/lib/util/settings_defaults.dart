@@ -78,7 +78,7 @@ const Map<String, Object?> defaultSettings = {
   'showBackgroundTaskButton': true,
   'cacheSize': 2048,
   'cacheRetentionDays': 7,
-  'language': 'system',
+  'language': 'zh-CN',
   'convertTraditionalToSimplified': false,
   'authorizationRequired': false,
   'disableSyncFields': '',

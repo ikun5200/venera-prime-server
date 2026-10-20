@@ -38,7 +38,7 @@ export default function SourceLibrariesPage() {
   const add = useMutation({
     mutationFn: () => api.addLibrary(name || url, url),
     onSuccess: () => {
-      toast.success("Added");
+      toast.success(t("Added"));
       setAddOpen(false);
       setName("");
       setUrl("");
@@ -58,7 +58,7 @@ export default function SourceLibrariesPage() {
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteLibrary(id),
     onSuccess: () => {
-      toast.success("Source library removed");
+      toast.success(t("Source library removed"));
       setDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["source-libraries"] });
     },
@@ -86,7 +86,7 @@ export default function SourceLibrariesPage() {
         ) : libraries.length === 0 ? (
           <EmptyState
             title={t("No source libraries")}
-            description="Add a catalog URL to install and update sources."
+            description={t("Add a catalog URL to install and update sources.")}
             action={
               <Button variant="primary" onClick={() => setAddOpen(true)}>
                 {t("Add library")}
@@ -126,7 +126,7 @@ export default function SourceLibrariesPage() {
                 />
                 <Menu
                   trigger={({ onClick, ...rest }) => (
-                    <IconButton label="More" onClick={onClick} {...rest}>
+                    <IconButton label={t("More")} onClick={onClick} {...rest}>
                       <MoreHorizontal className="h-4 w-4" />
                     </IconButton>
                   )}
@@ -175,10 +175,10 @@ export default function SourceLibrariesPage() {
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="My sources"
+              placeholder={t("My sources")}
             />
           </Field>
-          <Field label="Catalog URL">
+          <Field label={t("Catalog URL")}>
             <Input
               value={url}
               onChange={(event) => setUrl(event.target.value)}

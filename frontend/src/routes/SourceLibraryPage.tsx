@@ -32,7 +32,7 @@ export default function SourceLibraryPage() {
         entryId: entry.id,
       }),
     onSuccess: (result) => {
-      toast.success("Installed");
+      toast.success(t("Installed"));
       navigate(`/sources/${result.source.key}`);
     },
     onError: (error) => toast.error(error.message),

@@ -82,7 +82,7 @@ export default function SearchResultPage() {
       return folder.name;
     },
     onSuccess: (name) => {
-      toast.success(`Added to ${name}`);
+      toast.success(t("Added to @name", { name: name }));
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
     },
@@ -92,7 +92,7 @@ export default function SearchResultPage() {
   const addReadLater = useMutation({
     mutationFn: (comic: Comic) => api.addReadLater(comic),
     onSuccess: () => {
-      toast.success("Added to Read later");
+      toast.success(t("Added to Read later"));
       queryClient.invalidateQueries({ queryKey: ["read-later"] });
     },
     onError: (error) => toast.error(error.message),
@@ -110,7 +110,7 @@ export default function SearchResultPage() {
     try {
       const updated = await api.updateSettings({ blockedWords: [...words] });
       setSettings(updated);
-      toast.success("Blocked");
+      toast.success(t("Blocked"));
       queryClient.invalidateQueries({ queryKey: ["search"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -220,7 +220,7 @@ export default function SearchResultPage() {
                 label: t("Copy Title"),
                 icon: <Copy className="h-3.5 w-3.5" />,
                 onSelect: () =>
-                  copyText(comic.title).then(() => toast.success("Copied")),
+                  copyText(comic.title).then(() => toast.success(t("Copied"))),
               },
               {
                 label: t("Add to favorites"),

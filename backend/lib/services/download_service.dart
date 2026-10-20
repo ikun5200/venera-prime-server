@@ -49,7 +49,7 @@ class DownloadService {
 
   Map<String, Object?> get(int userId, String id) {
     final job = repository.job(userId, id);
-    if (job == null) throw ApiException.notFound('Download job not found');
+    if (job == null) throw ApiException.notFound('未找到下载任务');
     return job;
   }
 
@@ -67,7 +67,7 @@ class DownloadService {
         ? chapters
         : chapters.where((c) => chapterIds.contains(c['id'])).toList();
     if (selected.isEmpty) {
-      throw ApiException.badRequest('No chapters selected');
+      throw ApiException.badRequest('未选择章节');
     }
     final existing = repository
         .jobs(userId)
@@ -356,7 +356,7 @@ class DownloadService {
     final comic = repository.db.select(
         'SELECT * FROM local_comics WHERE user_id=? AND id=?',
         [userId, localComicId]);
-    if (comic.isEmpty) throw ApiException.notFound('Local comic not found');
+    if (comic.isEmpty) throw ApiException.notFound('未找到本地漫画');
     final localComic = local.get(userId, localComicId)!;
     final chapters = (localComic['chapterList'] as List)
         .whereType<Map>()
@@ -391,7 +391,7 @@ class DownloadService {
     final chapters = _chapterEntries(info['chapters'])
         .where((c) => chapterIds == null || chapterIds.contains(c['id']))
         .toList();
-    if (chapters.isEmpty) throw ApiException.badRequest('No chapters selected');
+    if (chapters.isEmpty) throw ApiException.badRequest('未选择章节');
     final archive = Archive();
     for (final chapter in chapters) {
       final imagesResult = await comics.chapterImages(

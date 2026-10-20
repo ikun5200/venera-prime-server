@@ -57,8 +57,8 @@ export default function ReadLaterPage() {
     onSuccess: (_, removed) => {
       setSelected(new Set());
       queryClient.invalidateQueries({ queryKey: ["read-later"] });
-      toast.success(`Removed ${removed.length} items`, {
-        label: "Undo",
+      toast.success(t("Removed @count items", { count: removed.length }), {
+        label: t("Undo"),
         onClick: () => {
           api.restoreReadLater(removed).then(() => {
             queryClient.invalidateQueries({ queryKey: ["read-later"] });
@@ -89,7 +89,7 @@ export default function ReadLaterPage() {
       }
     },
     onSuccess: () => {
-      toast.success("Added");
+      toast.success(t("Added"));
       setSelected(new Set());
       setFavoriteOpen(false);
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
@@ -101,7 +101,7 @@ export default function ReadLaterPage() {
   const clear = useMutation({
     mutationFn: api.clearReadLater,
     onSuccess: () => {
-      toast.success("Cleared");
+      toast.success(t("Cleared"));
       queryClient.invalidateQueries({ queryKey: ["read-later"] });
     },
     onError: (error) => toast.error(error.message),
@@ -244,7 +244,7 @@ export default function ReadLaterPage() {
                           ? "border-accent bg-accent text-white"
                           : "border-white/70 bg-black/40",
                       )}
-                      aria-label="Select"
+                      aria-label={t("Select")}
                     >
                       {selected.has(key) ? "✓" : ""}
                     </button>
@@ -281,7 +281,7 @@ export default function ReadLaterPage() {
             value={folderId ?? ""}
             onChange={(event) => setFolderId(Number(event.target.value))}
           >
-            <option value="">Select a folder</option>
+            <option value="">{t("Select a folder")}</option>
             {(folders.data?.items ?? []).map((folder) => (
               <option key={folder.id} value={folder.id}>
                 {folder.name}

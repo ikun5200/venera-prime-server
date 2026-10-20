@@ -243,7 +243,7 @@ export default function ReaderPage() {
     {
       label: t("Copy Link"),
       action: () =>
-        copyText(window.location.href).then(() => toast.success("Copied")),
+        copyText(window.location.href).then(() => toast.success(t("Copied"))),
     },
     { label: t("Save Image"), action: () => void saveImage() },
   ];
@@ -632,7 +632,7 @@ export default function ReaderPage() {
   useEffect(() => {
     const update = () =>
       setClock(
-        new Date().toLocaleTimeString([], {
+        new Date().toLocaleTimeString("zh-CN", {
           hour: "2-digit",
           minute: "2-digit",
         }),
@@ -980,7 +980,7 @@ export default function ReaderPage() {
         imageKey: key,
         auto: false,
       });
-      toast.success("Successfully collected");
+      toast.success(t("Successfully collected"));
       queryClient.invalidateQueries({ queryKey: ["image-favorites"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -1035,7 +1035,7 @@ export default function ReaderPage() {
         });
       } else {
         await copyText(window.location.href);
-        toast.success("Copied");
+        toast.success(t("Copied"));
       }
       setSelectedImage(null);
     } catch {
@@ -1052,7 +1052,7 @@ export default function ReaderPage() {
         });
       } else {
         await copyText(window.location.href);
-        toast.success("Copied");
+        toast.success(t("Copied"));
       }
     } catch {
       // Cancelled.
@@ -1122,8 +1122,8 @@ export default function ReaderPage() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-black p-6 text-white">
         <EmptyState
-          title="Comic not found"
-          action={<Button onClick={() => navigate(-1)}>Back</Button>}
+          title={t("Comic not found")}
+          action={<Button onClick={() => navigate(-1)}>{t("Back")}</Button>}
         />
       </div>
     );
@@ -1207,7 +1207,7 @@ export default function ReaderPage() {
                     setRetryNonce((value) => value + 1);
                   }}
                 >
-                  Retry
+                  {t("Retry")}
                 </button>
               ) : (
                 <img
@@ -1265,17 +1265,17 @@ export default function ReaderPage() {
             <>
               <button
                 className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
-                aria-label="Previous"
+                aria-label={t("Previous")}
                 onClick={() => scheduleTapZone("left")}
               />
               <button
                 className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
-                aria-label="Toggle controls"
+                aria-label={t("Toggle controls")}
                 onClick={() => scheduleTapZone("center")}
               />
               <button
                 className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
-                aria-label="Next"
+                aria-label={t("Next")}
                 onClick={() => scheduleTapZone("right")}
               />
             </>
@@ -1320,7 +1320,7 @@ export default function ReaderPage() {
                       setRetryNonce((value) => value + 1);
                     }}
                   >
-                    Retry
+                    {t("Retry")}
                   </button>
                 ) : (
                   <img
@@ -1398,7 +1398,7 @@ export default function ReaderPage() {
         )}
       >
         <IconButton
-          label="Back"
+          label={t("Back")}
           className="text-white hover:bg-white/10 hover:text-white"
           onClick={() => navigate(-1)}
         >
@@ -1450,7 +1450,7 @@ export default function ReaderPage() {
                 setCurrentPage(Number(event.target.value) - 1)
               }
               className="h-1.5 flex-1 accent-white"
-              aria-label="Page"
+              aria-label={t("Page")}
             />
             <button className="text-[11px] text-white/70" onClick={goToEnd}>
               {t("Last")}
@@ -1466,14 +1466,14 @@ export default function ReaderPage() {
         )}
         <div className="flex items-center gap-1 overflow-x-auto">
           <IconButton
-            label="Previous image"
+            label={t("Previous image")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={goPrev}
           >
             <ChevronLeft className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label="Next image"
+            label={t("Next image")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={goNext}
           >
@@ -1487,7 +1487,7 @@ export default function ReaderPage() {
             <Bookmark className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label="Collect the image"
+            label={t("Collect the image")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={collectImage}
           >
@@ -1508,7 +1508,7 @@ export default function ReaderPage() {
             <Download className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label="Auto Page Turning"
+            label={t("Auto Page Turning")}
             className={cn(
               "text-white hover:bg-white/10 hover:text-white",
               autoTurning && "text-accent",
@@ -1671,10 +1671,12 @@ export default function ReaderPage() {
               >
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 {downloadedEpisodes.has(item.id) ? (
-                  <span className="text-[10px] text-accent">downloaded</span>
+                  <span className="text-[10px] text-accent">
+                    {t("Downloaded")}
+                  </span>
                 ) : null}
                 {readEpisodes.has(index) ? (
-                  <span className="text-[10px] text-muted">read</span>
+                  <span className="text-[10px] text-muted">{t("Read")}</span>
                 ) : null}
               </button>
             ))}
@@ -1728,22 +1730,22 @@ export default function ReaderPage() {
               className="w-[190px]"
             >
               <option value="galleryLeftToRight">
-                Gallery (Left to Right)
+                {t("Gallery (Left to Right)")}
               </option>
               <option value="galleryRightToLeft">
-                Gallery (Right to Left)
+                {t("Gallery (Right to Left)")}
               </option>
               <option value="galleryTopToBottom">
-                Gallery (Top to Bottom)
+                {t("Gallery (Top to Bottom)")}
               </option>
               <option value="continuousLeftToRight">
-                Continuous (Left to Right)
+                {t("Continuous (Left to Right)")}
               </option>
               <option value="continuousRightToLeft">
-                Continuous (Right to Left)
+                {t("Continuous (Right to Left)")}
               </option>
               <option value="continuousTopToBottom">
-                Continuous (Top to Bottom)
+                {t("Continuous (Top to Bottom)")}
               </option>
             </Select>
           </div>
@@ -1789,10 +1791,10 @@ export default function ReaderPage() {
               }
               className="w-[140px]"
             >
-              <option value="none">Off</option>
-              <option value="warm">Warm</option>
-              <option value="dark">Dark</option>
-              <option value="red">Red</option>
+              <option value="none">{t("Off")}</option>
+              <option value="warm">{t("Warm")}</option>
+              <option value="dark">{t("Dark")}</option>
+              <option value="red">{t("Red")}</option>
             </Select>
           </div>
           <Slider
@@ -1893,7 +1895,7 @@ function ChapterCommentsEndPage({
       queryClient.invalidateQueries({
         queryKey: ["chapter-comments", source, comicId, epId],
       });
-      toast.success("Comment sent");
+      toast.success(t("Comment sent"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -2054,7 +2056,7 @@ function ChapterCommentsDrawer({
       queryClient.invalidateQueries({
         queryKey: ["chapter-comments", source, comicId, epId],
       });
-      toast.success("Comment sent");
+      toast.success(t("Comment sent"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -2182,7 +2184,7 @@ function ChapterCommentsDrawer({
           <Textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder="Write a comment…"
+            placeholder={t("Write a comment…")}
             className="min-h-[44px] flex-1 py-2"
           />
           <Button
@@ -2192,7 +2194,7 @@ function ChapterCommentsDrawer({
             disabled={!content.trim()}
             onClick={() => send.mutate()}
           >
-            Send
+            {t("Send")}
           </Button>
         </div>
       </div>

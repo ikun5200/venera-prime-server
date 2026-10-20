@@ -102,7 +102,7 @@ class FavoriteService {
 
   Map<String, Object?> exportFolder(int userId, int folderId) {
     final folder = favorites.folder(userId, folderId);
-    if (folder == null) throw ApiException.notFound('Folder not found');
+    if (folder == null) throw ApiException.notFound('未找到文件夹');
     final items = favorites.allInFolder(userId, folderId);
     return {
       'info': {
@@ -127,7 +127,7 @@ class FavoriteService {
             '')
         .toString();
     if (name.trim().isEmpty)
-      throw ApiException.badRequest('Folder name is required');
+      throw ApiException.badRequest('缺少文件夹名称');
     var folderName = name;
     var index = 1;
     while (favorites.folders(userId).any((f) => f['name'] == folderName)) {
@@ -195,7 +195,7 @@ class FavoriteService {
       final linkedSource = folder['sourceKey']?.toString() ?? '';
       final linkedFolder = folder['sourceFolder']?.toString() ?? '';
       if (linkedSource != sourceKey || linkedFolder != (networkFolder ?? '')) {
-        throw ApiException.conflict('Folder already exists');
+        throw ApiException.conflict('文件夹已存在');
       }
       folderId = folder['id'] as int;
     } else {
@@ -218,10 +218,10 @@ class FavoriteService {
     int pages = 20,
   }) async {
     final folder = favorites.folder(userId, folderId);
-    if (folder == null) throw ApiException.notFound('Folder not found');
+    if (folder == null) throw ApiException.notFound('未找到文件夹');
     final sourceKey = folder['sourceKey']?.toString() ?? '';
     if (sourceKey.isEmpty) {
-      throw ApiException.badRequest('Folder is not linked to a network source');
+      throw ApiException.badRequest('文件夹未关联网络源');
     }
     final networkFolder = folder['sourceFolder']?.toString() ?? '';
     final limit = pages.clamp(1, 10000);
@@ -355,7 +355,7 @@ class FavoriteService {
       {String? comicId}) async {
     final source = sourceService.require(userId, sourceKey);
     if (source.capabilities['favorites'] != true) {
-      throw ApiException.badRequest('This source does not support favorites');
+      throw ApiException.badRequest('此源不支持收藏');
     }
     final result = await sourceService
         .callValue(userId, sourceKey, 'favorites.loadFolders', [comicId]);
@@ -450,7 +450,7 @@ class HistoryService {
     final sourceKey =
         (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
     final comicId = (body['comicId'] ?? comicMap['id'] ?? '').toString();
-    if (comicId.isEmpty) throw ApiException.badRequest('comicId is required');
+    if (comicId.isEmpty) throw ApiException.badRequest('缺少漫画 ID');
     repository.upsert(
       userId: userId,
       comicId: comicId,
@@ -565,7 +565,7 @@ class ImageFavoriteService {
     final sourceKey =
         (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
     if (sourceKey.isEmpty)
-      throw ApiException.badRequest('sourceKey is required');
+      throw ApiException.badRequest('缺少源 key');
     repository.add(
       userId: userId,
       comic: comicMap,
@@ -700,7 +700,7 @@ class FollowUpdateService {
   void check(int userId) {
     final config = repository.config(userId);
     if (config.folderId == null) {
-      throw ApiException.badRequest('Follow updates folder is not configured');
+      throw ApiException.badRequest('尚未配置订阅更新文件夹');
     }
     final folderId = config.folderId!;
     final items = favorites.allInFolder(userId, folderId);

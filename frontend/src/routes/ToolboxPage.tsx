@@ -19,7 +19,7 @@ export default function ToolboxPage() {
       if (result.result) {
         navigate(`/comic/${result.result.source}/${result.result.comicId}`);
       } else {
-        toast.error("No matching source for this link");
+        toast.error(t("No matching source for this link"));
       }
     },
     onError: (error) => toast.error(error.message),
@@ -44,13 +44,13 @@ export default function ToolboxPage() {
       <PageBody className="max-w-[800px]">
         <Card className="mb-4 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold">
-            <Link2 className="h-4 w-4" /> Open comic link
+            <Link2 className="h-4 w-4" /> {t("Open comic link")}
           </h2>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <Field
-                label="Comic URL"
-                hint="The link is matched against installed sources."
+                label={t("Comic URL")}
+                hint={t("The link is matched against installed sources.")}
               >
                 <Input
                   value={url}
@@ -68,7 +68,7 @@ export default function ToolboxPage() {
               disabled={!url.trim()}
               onClick={() => resolve.mutate()}
             >
-              <Search className="h-4 w-4" /> Open
+              <Search className="h-4 w-4" /> {t("Open")}
             </Button>
           </div>
         </Card>

@@ -72,7 +72,7 @@ export default function SourceDetailPage() {
       api.updateSourceSettings(key, patch),
     onSuccess: (result) => {
       setValues(result.values);
-      toast.success("Saved");
+      toast.success(t("Saved"));
       queryClient.invalidateQueries({ queryKey: ["source-settings", key] });
     },
     onError: (error) => toast.error(error.message),
@@ -81,7 +81,7 @@ export default function SourceDetailPage() {
   const saveScript = useMutation({
     mutationFn: () => api.updateSource(key, script),
     onSuccess: () => {
-      toast.success("Saved");
+      toast.success(t("Saved"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
       queryClient.invalidateQueries({ queryKey: ["sources"] });
     },
@@ -91,7 +91,7 @@ export default function SourceDetailPage() {
   const updateFromUrl = useMutation({
     mutationFn: () => api.updateSourceFromUrl(key),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("Updated"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
     onError: (error) => toast.error(error.message),
@@ -100,7 +100,7 @@ export default function SourceDetailPage() {
   const loginPassword = useMutation({
     mutationFn: () => api.loginSource(key, username, password),
     onSuccess: () => {
-      toast.success("Logged in");
+      toast.success(t("Logged in"));
       setPassword("");
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
@@ -110,7 +110,7 @@ export default function SourceDetailPage() {
   const loginCookies = useMutation({
     mutationFn: () => api.loginSourceCookies(key, cookieValues),
     onSuccess: () => {
-      toast.success("Logged in");
+      toast.success(t("Logged in"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
     onError: (error) => toast.error(error.message),
@@ -138,7 +138,7 @@ export default function SourceDetailPage() {
       return api.importSourceCookies(key, cookies);
     },
     onSuccess: () => {
-      toast.success("Cookies imported");
+      toast.success(t("Cookies imported"));
       setCookieHeader("");
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
@@ -148,7 +148,7 @@ export default function SourceDetailPage() {
   const logout = useMutation({
     mutationFn: () => api.logoutSource(key),
     onSuccess: () => {
-      toast.success("Logged out");
+      toast.success(t("Logged out"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
     onError: (error) => toast.error(error.message),
@@ -157,7 +157,7 @@ export default function SourceDetailPage() {
   const bind = useMutation({
     mutationFn: () => api.bindSource(key, bindLibrary, `${key}.js`),
     onSuccess: () => {
-      toast.success("Source bound");
+      toast.success(t("Source bound"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
     onError: (error) => toast.error(error.message),
@@ -166,7 +166,7 @@ export default function SourceDetailPage() {
   const deleteSource = useMutation({
     mutationFn: () => api.deleteSource(key),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       navigate("/sources");
     },
     onError: (error) => toast.error(error.message),
@@ -268,37 +268,42 @@ export default function SourceDetailPage() {
                 {t("Information")}
               </h2>
               <div className="grid grid-cols-1 gap-2 text-[13px] sm:grid-cols-2">
-                <Info label="Key" value={source.key} />
-                <Info label="Version" value={source.version} />
+                <Info label={t("Key")} value={source.key} />
+                <Info label={t("Version")} value={source.version} />
                 <Info
-                  label="Min app version"
+                  label={t("Min app version")}
                   value={source.minAppVersion || "—"}
                 />
                 <Info
-                  label="Account"
+                  label={t("Account")}
                   value={
                     source.account.loggedIn
                       ? (source.account.kind ?? "logged in")
                       : "not logged in"
                   }
                 />
-                <Info label="Update URL" value={source.url || "—"} />
-                <Info label="Enabled" value={source.enabled ? "yes" : "no"} />
+                <Info label={t("Update URL")} value={source.url || "—"} />
+                <Info
+                  label={t("Enabled")}
+                  value={source.enabled ? "yes" : "no"}
+                />
               </div>
             </Card>
             <Card className="p-4">
-              <h2 className="mb-3 text-[15px] font-semibold">Source library</h2>
+              <h2 className="mb-3 text-[15px] font-semibold">
+                {t("Source library")}
+              </h2>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <Field
-                    label="Bind to library"
-                    hint="Enables update checks from the selected catalog."
+                    label={t("Bind to library")}
+                    hint={t("Enables update checks from the selected catalog.")}
                   >
                     <Select
                       value={bindLibrary}
                       onChange={(event) => setBindLibrary(event.target.value)}
                     >
-                      <option value="">Select a library</option>
+                      <option value="">{t("Select a library")}</option>
                       {(libraries.data?.items ?? []).map((library) => (
                         <option key={library.id} value={library.id}>
                           {library.name}
@@ -313,12 +318,14 @@ export default function SourceDetailPage() {
                   loading={bind.isPending}
                   onClick={() => bind.mutate()}
                 >
-                  Bind source
+                  {t("Bind source")}
                 </Button>
               </div>
             </Card>
             <Card className="p-4">
-              <h2 className="mb-3 text-[15px] font-semibold">Capabilities</h2>
+              <h2 className="mb-3 text-[15px] font-semibold">
+                {t("Capabilities")}
+              </h2>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(source.capabilities)
                   .filter(([, value]) => value === true)
@@ -340,7 +347,7 @@ export default function SourceDetailPage() {
               {Object.keys(settingsQuery.data?.definitions ?? {}).length ===
               0 ? (
                 <p className="text-[13px] text-muted">
-                  This source has no settings.
+                  {t("This source has no settings.")}
                 </p>
               ) : (
                 Object.entries(settingsQuery.data?.definitions ?? {}).map(
@@ -356,7 +363,7 @@ export default function SourceDetailPage() {
                       onCallback={() =>
                         api
                           .sourceSettingCallback(key, name)
-                          .then(() => toast.success("Done"))
+                          .then(() => toast.success(t("Done")))
                           .catch((error) => toast.error(error.message))
                       }
                     />
@@ -426,7 +433,7 @@ export default function SourceDetailPage() {
             {cookieFields.length > 0 ? (
               <Card className="p-4">
                 <h3 className="mb-3 text-[14px] font-semibold">
-                  Login with cookies
+                  {t("Login with cookies")}
                 </h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {cookieFields.map((field) => (
@@ -457,7 +464,7 @@ export default function SourceDetailPage() {
             {webviewUrl || source.capabilities.webviewLogin === true ? (
               <Card className="p-4">
                 <h3 className="mb-2 text-[14px] font-semibold">
-                  Paste cookies
+                  {t("Paste cookies")}
                 </h3>
                 <p className="mb-3 text-[12px] text-muted">
                   WebView login is not available on a server. Log in on the
@@ -466,14 +473,14 @@ export default function SourceDetailPage() {
                   {webviewUrl ? ` Login URL: ${webviewUrl}` : ""}
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
-                  <Field label="Domain">
+                  <Field label={t("Domain")}>
                     <Input
                       value={cookieDomain}
                       onChange={(event) => setCookieDomain(event.target.value)}
                       placeholder="forums.mangadex.org"
                     />
                   </Field>
-                  <Field label="Cookie header">
+                  <Field label={t("Cookie header")}>
                     <Input
                       value={cookieHeader}
                       onChange={(event) => setCookieHeader(event.target.value)}
@@ -513,8 +520,8 @@ export default function SourceDetailPage() {
         {tab === "edit" ? (
           <Card className="p-4">
             <Field
-              label="Source script"
-              hint="The class name and key must stay unchanged."
+              label={t("Source script")}
+              hint={t("The class name and key must stay unchanged.")}
             >
               <Textarea
                 value={script}

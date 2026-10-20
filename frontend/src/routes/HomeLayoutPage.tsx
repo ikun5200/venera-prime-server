@@ -91,7 +91,7 @@ export default function HomeLayoutPage() {
               setOrder(defaultOrder);
               setHidden(new Set());
               persist(defaultOrder, new Set());
-              toast.success("Restored defaults");
+              toast.success(t("Restored defaults"));
             }}
           >
             <RotateCcw className="h-3.5 w-3.5" />

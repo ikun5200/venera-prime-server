@@ -137,7 +137,7 @@ export default function FavoritesPage() {
   const createFolder = useMutation({
     mutationFn: (name: string) => api.createFavoriteFolder(name),
     onSuccess: (result) => {
-      toast.success("Created successfully");
+      toast.success(t("Created successfully"));
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       navigate(`/favorites/local/${result.id}`);
     },
@@ -148,7 +148,7 @@ export default function FavoritesPage() {
     mutationFn: (name: string) =>
       api.renameFavoriteFolder(localFolderId!, name),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("Updated"));
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
     },
     onError: (error) => toast.error(error.message),
@@ -157,7 +157,7 @@ export default function FavoritesPage() {
   const deleteFolder = useMutation({
     mutationFn: () => api.deleteFavoriteFolder(localFolderId!),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       navigate("/favorites");
     },
@@ -174,7 +174,7 @@ export default function FavoritesPage() {
         })),
       ),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       setSelected(new Set());
       invalidate();
     },
@@ -207,7 +207,7 @@ export default function FavoritesPage() {
             })),
           ),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("Updated"));
       setSelected(new Set());
       setMoveOpen(null);
       invalidate();
@@ -217,7 +217,7 @@ export default function FavoritesPage() {
 
   const updateInfo = useMutation({
     mutationFn: () => api.updateFavoriteInfo(localFolderId),
-    onSuccess: () => toast.success("Running in background"),
+    onSuccess: () => toast.success(t("Running in background")),
     onError: (error) => toast.error(error.message),
   });
 
@@ -225,7 +225,10 @@ export default function FavoritesPage() {
     mutationFn: () => api.syncFavoriteFolder(localFolderId!, syncPages),
     onSuccess: (result) => {
       toast.success(
-        `Imported ${result.imported} comics from ${result.pages} page(s)`,
+        t("Imported @count comics from @pages page(s)", {
+          count: result.imported,
+          pages: result.pages,
+        }),
       );
       invalidate();
     },
@@ -243,7 +246,7 @@ export default function FavoritesPage() {
     onSuccess: (result) => {
       setNetworkImportOpen(false);
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
-      toast.success(`Imported ${result.imported} comics`);
+      toast.success(t("Imported @count comics", { count: result.imported }));
       if (result.folder?.id) navigate(`/favorites/local/${result.folder.id}`);
     },
     onError: (error) => toast.error(error.message),
@@ -262,7 +265,7 @@ export default function FavoritesPage() {
     mutationFn: (comic: Comic) =>
       api.toggleNetworkFavorite(networkSource, comic.id, networkFolder, false),
     onSuccess: () => {
-      toast.success("Removed");
+      toast.success(t("Removed"));
       queryClient.invalidateQueries({ queryKey: ["network-comics"] });
     },
     onError: (error) => toast.error(error.message),
@@ -282,7 +285,7 @@ export default function FavoritesPage() {
       const text = await file.text();
       const data = JSON.parse(text) as unknown;
       await api.importFavorites(data);
-      toast.success("Imported");
+      toast.success(t("Imported"));
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -318,7 +321,7 @@ export default function FavoritesPage() {
         toast.error(error instanceof Error ? error.message : String(error));
       }
     }
-    toast.success("Added to download queue");
+    toast.success(t("Added to download queue"));
     navigate("/downloads");
   };
 
@@ -376,7 +379,7 @@ export default function FavoritesPage() {
                 </IconButton>
                 <Menu
                   trigger={({ onClick, ...rest }) => (
-                    <IconButton label="More" onClick={onClick} {...rest}>
+                    <IconButton label={t("More")} onClick={onClick} {...rest}>
                       <MoreHorizontal className="h-4 w-4" />
                     </IconButton>
                   )}
@@ -567,8 +570,8 @@ export default function FavoritesPage() {
                     className="w-[160px]"
                   >
                     <option value="">{t("All")}</option>
-                    <option value="uncompleted">UnCompleted</option>
-                    <option value="completed">Completed</option>
+                    <option value="uncompleted">{t("UnCompleted")}</option>
+                    <option value="completed">{t("Completed")}</option>
                   </Select>
                 </div>
 
@@ -620,7 +623,7 @@ export default function FavoritesPage() {
                 ) : items.length === 0 ? (
                   <EmptyState
                     title={t("No data")}
-                    description="Add comics from a comic detail page."
+                    description={t("Add comics from a comic detail page.")}
                   />
                 ) : (
                   <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
@@ -665,7 +668,7 @@ export default function FavoritesPage() {
                                       label: t("Copy Title"),
                                       onSelect: () =>
                                         copyText(item.title).then(() =>
-                                          toast.success("Copied"),
+                                          toast.success(t("Copied")),
                                         ),
                                     },
                                     {
@@ -695,14 +698,14 @@ export default function FavoritesPage() {
                                   ? "border-accent bg-accent text-white"
                                   : "border-white/70 bg-black/40",
                               )}
-                              aria-label="Select"
+                              aria-label={t("Select")}
                             >
                               {selected.has(key) ? "✓" : ""}
                             </button>
                           ) : null}
                           {item.hasNewUpdate ? (
                             <span className="absolute right-1.5 top-1.5">
-                              <Badge tone="accent">New</Badge>
+                              <Badge tone="accent">{t("New")}</Badge>
                             </span>
                           ) : null}
                         </div>
@@ -861,7 +864,7 @@ export default function FavoritesPage() {
             value={targetFolder ?? ""}
             onChange={(event) => setTargetFolder(Number(event.target.value))}
           >
-            <option value="">Select a folder</option>
+            <option value="">{t("Select a folder")}</option>
             {(folders.data?.items ?? [])
               .filter((folder) => folder.id !== localFolderId)
               .map((folder) => (

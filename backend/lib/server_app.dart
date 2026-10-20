@@ -20,7 +20,7 @@ Handler buildServerHandler(AppContext ctx) {
     if (request.url.path.startsWith('api')) {
       final response = await api.call(request);
       if (response.statusCode == 404) {
-        throw ApiException.notFound('Endpoint not found');
+        throw ApiException.notFound('接口不存在');
       }
       return response;
     }
@@ -187,12 +187,12 @@ Middleware csrfMiddleware(AppContext ctx) => (inner) => (request) {
       final referer = request.headers['referer'];
       if (origin != null && origin.isNotEmpty) {
         if (!originAllowed(ctx, request, origin)) {
-          throw ApiException.forbidden('Cross-origin request rejected');
+          throw ApiException.forbidden('跨域请求被拒绝');
         }
       } else if (referer != null && referer.isNotEmpty) {
         final uri = Uri.tryParse(referer);
         if (uri == null || !originAllowed(ctx, request, uri.origin)) {
-          throw ApiException.forbidden('Cross-origin request rejected');
+          throw ApiException.forbidden('跨域请求被拒绝');
         }
       }
       return inner(request);
@@ -241,14 +241,14 @@ class StaticSpaHandler {
 
   Future<Response> handle(Request request) async {
     if (request.method != 'GET' && request.method != 'HEAD') {
-      throw ApiException.notFound('Not found');
+      throw ApiException.notFound('未找到');
     }
     final root = p.normalize(p.absolute(config.staticDir));
     final index = File(p.join(root, 'index.html'));
     if (!index.existsSync()) {
       return Response.notFound(
-        'Frontend build not found at ${config.staticDir}. '
-        'Run `npm run build` in frontend/ or use the Docker image.',
+        '未找到前端构建产物（${config.staticDir}）。'
+        '请在 frontend/ 执行 npm run build，或使用 Docker 镜像。',
         headers: {'content-type': 'text/plain; charset=utf-8'},
       );
     }
@@ -276,7 +276,7 @@ class StaticSpaHandler {
     final acceptsHtml = accept.isEmpty ||
         accept.contains('text/html') ||
         accept.contains('*/*');
-    if (!acceptsHtml) throw ApiException.notFound('Not found');
+    if (!acceptsHtml) throw ApiException.notFound('未找到');
     return Response.ok(index.openRead(), headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-cache',

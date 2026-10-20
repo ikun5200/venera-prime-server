@@ -120,7 +120,7 @@ class LocalService {
 
   List<File> chapterFiles(int userId, int id, String chapterId) {
     final comic = repository.get(userId, id);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     final root = libraryRoot(userId);
     final dir = Directory(paths.resolveInside(root, comic.directory));
     Directory target = dir;
@@ -144,7 +144,7 @@ class LocalService {
       }
     }
     if (!target.existsSync()) {
-      throw ApiException.notFound('Chapter not found');
+      throw ApiException.notFound('未找到章节');
     }
     final files = target
         .listSync()
@@ -169,7 +169,7 @@ class LocalService {
       int userId, int id, String chapterId, int pageIndex) async {
     final files = chapterFiles(userId, id, chapterId);
     if (pageIndex < 0 || pageIndex >= files.length) {
-      throw ApiException.notFound('Image not found');
+      throw ApiException.notFound('未找到图片');
     }
     final file = files[pageIndex];
     return (bytes: await file.readAsBytes(), mime: _mimeFor(file.path));
@@ -177,7 +177,7 @@ class LocalService {
 
   Future<({Uint8List bytes, String mime})> cover(int userId, int id) async {
     final comic = repository.get(userId, id);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     final root = libraryRoot(userId);
     if (comic.cover.isNotEmpty) {
       final file =
@@ -199,7 +199,7 @@ class LocalService {
         }
       }
     } catch (_) {}
-    throw ApiException.notFound('Cover not found');
+    throw ApiException.notFound('未找到封面');
   }
 
   String _mimeFor(String path) {
@@ -217,7 +217,7 @@ class LocalService {
   Future<void> deleteComic(int userId, int id,
       {bool removeFiles = false, bool removeFavorites = true}) async {
     final comic = repository.get(userId, id);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     if (removeFiles && comic.managedByApp) {
       final root = libraryRoot(userId);
       final target = paths.resolveInside(root, comic.directory);
@@ -235,7 +235,7 @@ class LocalService {
   Future<void> deleteChapters(
       int userId, int id, List<String> chapterIds) async {
     final comic = repository.get(userId, id);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     final root = libraryRoot(userId);
     final dir = Directory(paths.resolveInside(root, comic.directory));
     for (final chapterId in chapterIds) {
@@ -321,7 +321,7 @@ class LocalService {
     int? favoriteFolderId,
   }) async {
     if (bytes.length > 512 * 1024 * 1024) {
-      throw ApiException.payloadTooLarge('Archive is too large');
+      throw ApiException.payloadTooLarge('压缩包过大');
     }
     final baseName = PathGuard.sanitizeFileName(
         p.basenameWithoutExtension(fileName).isEmpty
@@ -345,16 +345,16 @@ class LocalService {
         if (!entry.isFile) continue;
         count++;
         if (count > 20000)
-          throw ApiException.badRequest('Too many archive entries');
+          throw ApiException.badRequest('压缩包文件数量过多');
         final name = _safeArchiveName(entry.name);
         if (name == null) continue;
         final content = entry.content;
         total += content.length;
         if (content.length > 256 * 1024 * 1024) {
-          throw ApiException.payloadTooLarge('Archive entry is too large');
+          throw ApiException.payloadTooLarge('压缩包内文件过大');
         }
         if (total > 1024 * 1024 * 1024) {
-          throw ApiException.payloadTooLarge('Archive expands beyond 1 GiB');
+          throw ApiException.payloadTooLarge('压缩包解压后超过 1 GiB');
         }
         final target = File(p.join(targetDir.path, name));
         if (!p.isWithin(targetDir.path, target.path)) continue;
@@ -369,7 +369,7 @@ class LocalService {
         await PathGuard.deleteInside(root, targetDir.path);
       } catch (_) {}
       if (error is ApiException) rethrow;
-      throw ApiException.badRequest('Failed to import archive: $error');
+      throw ApiException.badRequest('导入压缩包失败: $error');
     }
   }
 
@@ -382,18 +382,18 @@ class LocalService {
       if (name.contains('..') ||
           name.startsWith('/') ||
           RegExp(r'^[A-Za-z]:').hasMatch(name)) {
-        throw ApiException.badRequest('Unsafe archive path: $name');
+        throw ApiException.badRequest('压缩包路径不安全: $name');
       }
       if (!names.add(name)) {
-        throw ApiException.badRequest('Duplicate archive entry: $name');
+        throw ApiException.badRequest('压缩包内存在重复文件: $name');
       }
       final content = entry.content;
       total += content.length;
       if (content.length > 256 * 1024 * 1024) {
-        throw ApiException.payloadTooLarge('Archive entry is too large');
+        throw ApiException.payloadTooLarge('压缩包内文件过大');
       }
       if (total > 1024 * 1024 * 1024) {
-        throw ApiException.payloadTooLarge('Archive expands beyond 1 GiB');
+        throw ApiException.payloadTooLarge('压缩包解压后超过 1 GiB');
       }
     }
   }
@@ -551,7 +551,7 @@ class LocalService {
 
   Future<Uint8List> export(int userId, int id, String format) async {
     final comic = repository.get(userId, id);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     final chapters = _chapterList(comic);
     final images = <({String name, Uint8List bytes})>[];
     for (final chapter in chapters) {
@@ -686,7 +686,7 @@ class LocalService {
 
   Map<String, Object?> initUpload(
       int userId, String name, int size, String mime) {
-    if (size < 0) throw ApiException.badRequest('Invalid size');
+    if (size < 0) throw ApiException.badRequest('大小无效');
     final safeName = PathGuard.sanitizeFileName(name);
     final id =
         'up_${DateTime.now().millisecondsSinceEpoch}_${size.toRadixString(16)}';
@@ -707,7 +707,7 @@ class LocalService {
   Future<Map<String, Object?>> writeChunk(
       int userId, String uploadId, int offset, List<int> bytes) async {
     final upload = repository.upload(userId, uploadId);
-    if (upload == null) throw ApiException.notFound('Upload not found');
+    if (upload == null) throw ApiException.notFound('未找到上传任务');
     final path = paths.resolveInside(
         paths.ensureUserDir(userId), upload['path'] as String);
     final file = File(path);
@@ -717,7 +717,7 @@ class LocalService {
     }
     final total = (upload['size'] as int);
     if (current + bytes.length > total) {
-      throw ApiException.badRequest('Upload exceeds declared size');
+      throw ApiException.badRequest('上传内容超过声明大小');
     }
     final raf = file.openSync(mode: FileMode.append);
     raf.writeFromSync(bytes);
@@ -731,11 +731,11 @@ class LocalService {
   Future<Map<String, Object?>> completeUpload(int userId, String uploadId,
       {bool import = false}) async {
     final upload = repository.upload(userId, uploadId);
-    if (upload == null) throw ApiException.notFound('Upload not found');
+    if (upload == null) throw ApiException.notFound('未找到上传任务');
     final path = paths.resolveInside(
         paths.ensureUserDir(userId), upload['path'] as String);
     final file = File(path);
-    if (!file.existsSync()) throw ApiException.notFound('Upload file missing');
+    if (!file.existsSync()) throw ApiException.notFound('缺少上传文件');
     final received = file.lengthSync();
     if (received != upload['size']) {
       throw ApiException.badRequest(

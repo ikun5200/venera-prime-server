@@ -8,8 +8,8 @@ export default function NotFoundPage() {
   return (
     <PageBody>
       <EmptyState
-        title="Page not found"
-        description="The page you are looking for does not exist."
+        title={t("Page not found")}
+        description={t("The page you are looking for does not exist.")}
         action={
           <Link to="/">
             <Button variant="primary">{t("Home")}</Button>

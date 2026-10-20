@@ -40,7 +40,7 @@ export default function AdminUsersPage() {
   const create = useMutation({
     mutationFn: () => api.adminCreateUser(username, password, role),
     onSuccess: () => {
-      toast.success("User created");
+      toast.success(t("User created"));
       setCreateOpen(false);
       setUsername("");
       setPassword("");
@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
       body: { password?: string; disabled?: boolean; role?: string };
     }) => api.adminUpdateUser(id, body),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("Updated"));
       setResetUser(null);
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -68,7 +68,7 @@ export default function AdminUsersPage() {
   const remove = useMutation({
     mutationFn: (id: number) => api.adminDeleteUser(id),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       setDeleteUser(null);
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -109,10 +109,10 @@ export default function AdminUsersPage() {
                       {user.role}
                     </Badge>
                     {user.disabled ? (
-                      <Badge tone="warning">Disabled</Badge>
+                      <Badge tone="warning">{t("Disabled")}</Badge>
                     ) : null}
                     {current?.id === user.id ? (
-                      <Badge tone="success">You</Badge>
+                      <Badge tone="success">{t("You")}</Badge>
                     ) : null}
                   </div>
                   <p className="text-[11px] text-muted">
@@ -121,7 +121,7 @@ export default function AdminUsersPage() {
                 </div>
                 <Menu
                   trigger={({ onClick, ...rest }) => (
-                    <IconButton label="More" onClick={onClick} {...rest}>
+                    <IconButton label={t("More")} onClick={onClick} {...rest}>
                       <MoreHorizontal className="h-4 w-4" />
                     </IconButton>
                   )}
@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Create user"
+        title={t("Create user")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>
@@ -194,22 +194,22 @@ export default function AdminUsersPage() {
               onChange={(event) => setUsername(event.target.value)}
             />
           </Field>
-          <Field label={t("Password")} hint="At least 6 characters.">
+          <Field label={t("Password")} hint={t("At least 6 characters.")}>
             <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
-          <Field label="Role">
+          <Field label={t("Role")}>
             <Select
               value={role}
               onChange={(event) =>
                 setRole(event.target.value as "user" | "admin")
               }
             >
-              <option value="user">User</option>
-              <option value="admin">Administrator</option>
+              <option value="user">{t("User")}</option>
+              <option value="admin">{t("Administrator")}</option>
             </Select>
           </Field>
         </div>

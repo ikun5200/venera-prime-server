@@ -90,7 +90,7 @@ class JsHostClient {
         Duration(milliseconds: config.jsTimeoutMs + 5000),
         onTimeout: () {
           _pending.remove(id);
-          throw ApiException.timeout('JS source timed out');
+          throw ApiException.timeout('JS 源执行超时');
         },
       );
       return response;
@@ -133,7 +133,7 @@ class JsHostClient {
     } catch (error) {
       _starting = false;
       throw ApiException.sourceError(
-          'JS runtime unavailable: $error. Build rust/js_host.');
+          'JS 运行时不可用: $error. Build rust/js_host.');
     } finally {
       _starting = false;
     }
@@ -150,7 +150,7 @@ class JsHostClient {
     for (final candidate in candidates) {
       if (File(candidate).existsSync()) return candidate;
     }
-    throw StateError('venera_js_host not found (looked in $candidates)');
+    throw StateError('未找到 venera_js_host（已查找：$candidates）');
   }
 
   void _onStdout(List<int> bytes, int generation) {
@@ -206,7 +206,7 @@ class JsHostClient {
     for (final completer in pending.values) {
       if (!completer.isCompleted) {
         completer.completeError(
-            ApiException.sourceError('JS runtime error: $error'));
+            ApiException.sourceError('JS 运行时错误: $error'));
       }
     }
   }

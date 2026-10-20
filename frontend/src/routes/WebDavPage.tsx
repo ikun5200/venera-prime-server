@@ -49,7 +49,7 @@ export default function WebDavPage() {
         autoSync,
       }),
     onSuccess: () => {
-      toast.success("Saved");
+      toast.success(t("Saved"));
       setPassword("");
       queryClient.invalidateQueries({ queryKey: ["webdav"] });
     },
@@ -58,14 +58,14 @@ export default function WebDavPage() {
 
   const test = useMutation({
     mutationFn: api.testWebdav,
-    onSuccess: () => toast.success("Connection OK"),
+    onSuccess: () => toast.success(t("Connection OK")),
     onError: (error) => toast.error(error.message),
   });
 
   const upload = useMutation({
     mutationFn: api.uploadWebdav,
     onSuccess: (result) => {
-      toast.success(`Uploaded ${result.file}`);
+      toast.success(t("Uploaded @file", { file: result.file }));
       queryClient.invalidateQueries({ queryKey: ["webdav"] });
     },
     onError: (error) => toast.error(error.message),
@@ -74,7 +74,7 @@ export default function WebDavPage() {
   const download = useMutation({
     mutationFn: api.downloadWebdav,
     onSuccess: (result) => {
-      toast.success(`Restored ${result.file}`);
+      toast.success(t("Restored @file", { file: result.file }));
       queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -89,7 +89,7 @@ export default function WebDavPage() {
   const importFile = async (file: File) => {
     try {
       await importBackup(file);
-      toast.success("Imported");
+      toast.success(t("Imported"));
       queryClient.invalidateQueries();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
@@ -107,7 +107,10 @@ export default function WebDavPage() {
         ) : (
           <div className="flex flex-col gap-4">
             <Card className="flex flex-col gap-4 p-4">
-              <Field label="WebDAV URL" hint="A valid WebDAV directory URL.">
+              <Field
+                label={t("WebDAV URL")}
+                hint={t("A valid WebDAV directory URL.")}
+              >
                 <Input
                   value={url}
                   onChange={(event) => setUrl(event.target.value)}
@@ -123,7 +126,7 @@ export default function WebDavPage() {
                 </Field>
                 <Field
                   label={t("Password")}
-                  hint="Leave empty to keep the stored password."
+                  hint={t("Leave empty to keep the stored password.")}
                 >
                   <Input
                     type="password"
@@ -132,7 +135,7 @@ export default function WebDavPage() {
                   />
                 </Field>
               </div>
-              <Field label="Remote path">
+              <Field label={t("Remote path")}>
                 <Input
                   value={path}
                   onChange={(event) => setPath(event.target.value)}
@@ -158,7 +161,7 @@ export default function WebDavPage() {
                   {t("Test connection")}
                 </Button>
                 <Button variant="secondary" onClick={showQr}>
-                  <QrCode className="h-4 w-4" /> Config QR code
+                  <QrCode className="h-4 w-4" /> {t("Config QR code")}
                 </Button>
               </div>
             </Card>
@@ -197,7 +200,7 @@ export default function WebDavPage() {
             </Card>
 
             <Card className="flex flex-col gap-3 p-4">
-              <h2 className="text-[15px] font-semibold">Local backup</h2>
+              <h2 className="text-[15px] font-semibold">{t("Local backup")}</h2>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
@@ -233,7 +236,7 @@ export default function WebDavPage() {
       <Modal
         open={qrOpen}
         onClose={() => setQrOpen(false)}
-        title="Config QR code"
+        title={t("Config QR code")}
       >
         {qr ? (
           <div className="flex flex-col items-center gap-3">
@@ -245,7 +248,9 @@ export default function WebDavPage() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => copyText(qr).then(() => toast.success("Copied"))}
+              onClick={() =>
+                copyText(qr).then(() => toast.success(t("Copied")))
+              }
             >
               <Copy className="h-3.5 w-3.5" /> {t("Copy")}
             </Button>

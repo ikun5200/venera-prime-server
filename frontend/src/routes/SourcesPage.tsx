@@ -71,7 +71,7 @@ export default function SourcesPage() {
       return api.importSource(script);
     },
     onSuccess: (result) => {
-      toast.success("Added");
+      toast.success(t("Added"));
       setAddOpen(false);
       setScript("");
       setUrl("");
@@ -84,7 +84,7 @@ export default function SourcesPage() {
   const updateSource = useMutation({
     mutationFn: (source: Source) => api.updateSourceFromUrl(source.key),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("Updated"));
       refresh();
     },
     onError: (error) => toast.error(error.message),
@@ -93,7 +93,7 @@ export default function SourcesPage() {
   const deleteSource = useMutation({
     mutationFn: (source: Source) => api.deleteSource(source.key),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       setDeleteTarget(null);
       refresh();
     },
@@ -118,7 +118,7 @@ export default function SourcesPage() {
       }
     },
     onSuccess: () => {
-      toast.success("Update check completed");
+      toast.success(t("Update check completed"));
       refresh();
     },
   });
@@ -126,7 +126,7 @@ export default function SourcesPage() {
   const saveOrder = useMutation({
     mutationFn: () => api.reorderSources(order),
     onSuccess: () => {
-      toast.success("Saved");
+      toast.success(t("Saved"));
       setReorderOpen(false);
       refresh();
     },
@@ -223,10 +223,10 @@ export default function SourcesPage() {
                     </p>
                     <Badge>v{source.version}</Badge>
                     {!source.enabled ? (
-                      <Badge tone="warning">Disabled</Badge>
+                      <Badge tone="warning">{t("Disabled")}</Badge>
                     ) : null}
                     {source.account.loggedIn ? (
-                      <Badge tone="success">Logged in</Badge>
+                      <Badge tone="success">{t("Logged in")}</Badge>
                     ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted">
@@ -241,7 +241,7 @@ export default function SourcesPage() {
                 />
                 <Menu
                   trigger={({ onClick, ...rest }) => (
-                    <IconButton label="More" onClick={onClick} {...rest}>
+                    <IconButton label={t("More")} onClick={onClick} {...rest}>
                       <MoreHorizontal className="h-4 w-4" />
                     </IconButton>
                   )}
@@ -319,8 +319,8 @@ export default function SourcesPage() {
           />
           {mode === "url" ? (
             <Field
-              label="Source URL"
-              hint="The script is downloaded and validated on the server."
+              label={t("Source URL")}
+              hint={t("The script is downloaded and validated on the server.")}
             >
               <Input
                 value={url}
@@ -348,8 +348,8 @@ export default function SourcesPage() {
             </>
           ) : (
             <Field
-              label="Source script"
-              hint="A JavaScript class extending ComicSource."
+              label={t("Source script")}
+              hint={t("A JavaScript class extending ComicSource.")}
             >
               <Textarea
                 value={script}

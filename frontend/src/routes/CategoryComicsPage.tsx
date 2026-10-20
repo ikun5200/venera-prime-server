@@ -108,7 +108,7 @@ export default function CategoryComicsPage() {
                           })
                         }
                       >
-                        <option value="">Any</option>
+                        <option value="">{t("Any")}</option>
                         {(option.options ?? []).map((raw) => {
                           const parsed = parseOption(raw);
                           return (

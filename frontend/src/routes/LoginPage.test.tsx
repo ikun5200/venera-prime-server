@@ -35,13 +35,13 @@ describe("LoginPage", () => {
       "/api/settings": { theme_mode: "dark" },
     });
     renderLogin();
-    fireEvent.change(screen.getByLabelText("Username"), {
+    fireEvent.change(screen.getByLabelText("用户名"), {
       target: { value: "admin" },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "secret1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() => expect(screen.getByText("HOME")).toBeInTheDocument());
     expect(useAppStore.getState().user?.username).toBe("admin");
     expect(useAppStore.getState().settings.theme_mode).toBe("dark");
@@ -62,13 +62,13 @@ describe("LoginPage", () => {
         ),
     });
     renderLogin();
-    fireEvent.change(screen.getByLabelText("Username"), {
+    fireEvent.change(screen.getByLabelText("用户名"), {
       target: { value: "admin" },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "wrong" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await waitFor(() =>
       expect(
         screen.getByText("Invalid username or password"),

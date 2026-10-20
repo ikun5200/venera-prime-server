@@ -252,7 +252,7 @@ export default function ExplorePage() {
             }
           />
         ) : pages.length === 0 ? (
-          <EmptyState title="Empty Page" />
+          <EmptyState title={t("Empty Page")} />
         ) : (
           <div className="flex flex-col gap-8">
             {pages.map((entry) => {

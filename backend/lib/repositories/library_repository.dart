@@ -132,13 +132,13 @@ class FavoriteRepository {
 
   int createFolder(int userId, String name) {
     if (name.trim().isEmpty)
-      throw ApiException.badRequest('Folder name cannot be empty');
+      throw ApiException.badRequest('文件夹名称不能为空');
     if (name.length > 64)
-      throw ApiException.badRequest('Folder name is too long');
+      throw ApiException.badRequest('文件夹名称过长');
     final exists = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ?',
         [userId, name]);
-    if (exists.isNotEmpty) throw ApiException.conflict('Folder already exists');
+    if (exists.isNotEmpty) throw ApiException.conflict('文件夹已存在');
     final order = db.select(
         'SELECT COALESCE(MAX(sort_order),-1)+1 AS n FROM favorite_folders WHERE user_id = ?',
         [userId]).first['n'] as int;
@@ -151,7 +151,7 @@ class FavoriteRepository {
   void linkFolder(int userId, int id,
       {String? sourceKey, String? sourceFolder}) {
     if (folder(userId, id) == null)
-      throw ApiException.notFound('Folder not found');
+      throw ApiException.notFound('未找到文件夹');
     db.execute(
       'UPDATE favorite_folders SET source_key = ?, source_folder = ? '
       'WHERE user_id = ? AND id = ?',
@@ -161,11 +161,11 @@ class FavoriteRepository {
 
   void renameFolder(int userId, int id, String name) {
     if (name.trim().isEmpty)
-      throw ApiException.badRequest('Folder name cannot be empty');
+      throw ApiException.badRequest('文件夹名称不能为空');
     final clash = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ? AND id <> ?',
         [userId, name, id]);
-    if (clash.isNotEmpty) throw ApiException.conflict('Folder already exists');
+    if (clash.isNotEmpty) throw ApiException.conflict('文件夹已存在');
     db.execute(
         'UPDATE favorite_folders SET name = ? WHERE user_id = ? AND id = ?',
         [name, userId, id]);
@@ -258,9 +258,9 @@ class FavoriteRepository {
     bool atStart = false,
   }) {
     final folder = this.folder(userId, folderId);
-    if (folder == null) throw ApiException.notFound('Folder not found');
+    if (folder == null) throw ApiException.notFound('未找到文件夹');
     final comicId = (comic['id'] ?? '').toString();
-    if (comicId.isEmpty) throw ApiException.badRequest('Comic id is required');
+    if (comicId.isEmpty) throw ApiException.badRequest('缺少漫画 ID');
     final comicType = (comic['comicType'] as int?) ?? 0;
     final existing = db.select(
         'SELECT 1 FROM favorites WHERE folder_id=? AND comic_id=? AND comic_type=?',
@@ -318,7 +318,7 @@ class FavoriteRepository {
     required bool move,
   }) {
     if (folder(userId, toFolder) == null)
-      throw ApiException.notFound('Folder not found');
+      throw ApiException.notFound('未找到文件夹');
     db.transaction(() {
       var order = db.select(
           'SELECT COALESCE(MAX(display_order),-1)+1 AS n FROM favorites WHERE folder_id=?',
@@ -766,7 +766,7 @@ class ReadLaterRepository {
 
   bool add(int userId, Map<String, Object?> comic) {
     final id = (comic['id'] ?? '').toString();
-    if (id.isEmpty) throw ApiException.badRequest('Comic id is required');
+    if (id.isEmpty) throw ApiException.badRequest('缺少漫画 ID');
     final type = (comic['comicType'] as int?) ?? 0;
     final exists = db.select(
         'SELECT 1 FROM read_later WHERE user_id=? AND comic_id=? AND comic_type=?',

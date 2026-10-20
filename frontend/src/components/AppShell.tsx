@@ -68,10 +68,10 @@ export function AppShell() {
           </div>
           <div className="hidden min-w-0 xl:block">
             <p className="truncate text-[14px] font-semibold leading-tight">
-              Venera Prime
+              {t("Venera Prime")}
             </p>
             <p className="text-[10px] uppercase tracking-wide text-muted">
-              Comic reader
+              {t("Comic reader")}
             </p>
           </div>
         </div>
@@ -131,7 +131,7 @@ export function AppShell() {
         <div className="flex h-7 w-7 items-center justify-center rounded bg-accent text-xs font-bold text-white">
           V
         </div>
-        <span className="text-[14px] font-semibold">Venera Prime</span>
+        <span className="text-[14px] font-semibold">{t("Venera Prime")}</span>
         <div className="ml-auto flex items-center gap-0.5">
           <IconButton label={t("Search")} onClick={() => navigate("/search")}>
             <Search className="h-4 w-4" />
@@ -164,7 +164,7 @@ export function AppShell() {
       {/* Mobile bottom navigation */}
       <nav
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
-        aria-label="Primary"
+        aria-label={t("Primary")}
       >
         {navItems.map((item) => {
           const Icon = item.icon;

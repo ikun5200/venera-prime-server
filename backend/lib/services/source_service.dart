@@ -55,7 +55,7 @@ class SourceService {
 
   SourceRecord require(int userId, String key) {
     final source = repository.get(userId, key);
-    if (source == null) throw ApiException.notFound('Comic source not found');
+    if (source == null) throw ApiException.notFound('未找到漫画源');
     return source;
   }
 
@@ -173,7 +173,7 @@ class SourceService {
     if (response['ok'] != true) _throwResponse(response);
     final meta = response['result'];
     if (meta is! Map) {
-      throw ApiException.sourceError('Source did not return metadata');
+      throw ApiException.sourceError('源未返回元数据');
     }
     final map = meta.map((k, v) => MapEntry(k.toString(), v));
     final minVersion = (map['minAppVersion'] ?? '').toString();
@@ -209,10 +209,10 @@ class SourceService {
   }) async {
     final meta = await parseScript(script);
     final key = (meta['key'] ?? '').toString();
-    if (key.isEmpty) throw ApiException.sourceError('Source key is required');
+    if (key.isEmpty) throw ApiException.sourceError('缺少源 key');
     final existing = repository.get(userId, key);
     if (existing != null && !replace) {
-      throw ApiException.conflict('A source with this key already exists');
+      throw ApiException.conflict('已存在相同 key 的源');
     }
     repository.upsert(
       userId: userId,
@@ -309,7 +309,7 @@ class SourceService {
   ) async {
     final source = require(userId, key);
     if (!source.enabled) {
-      throw ApiException.badRequest('Comic source is disabled');
+      throw ApiException.badRequest('漫画源已被禁用');
     }
     return _lock.run('$userId:${source.key}', () async {
       final current = repository.get(userId, source.key)!;
@@ -348,7 +348,7 @@ class SourceService {
   ) async {
     final source = require(userId, key);
     if (!source.enabled) {
-      throw ApiException.badRequest('Comic source is disabled');
+      throw ApiException.badRequest('漫画源已被禁用');
     }
     return _lock.run('$userId:${source.key}', () async {
       final current = repository.get(userId, source.key)!;
@@ -401,7 +401,7 @@ class SourceService {
     final allowed = source.settings.keys.toSet();
     for (final entry in values.entries) {
       if (allowed.isNotEmpty && !allowed.contains(entry.key)) {
-        throw ApiException.badRequest('Unknown source setting: ${entry.key}');
+        throw ApiException.badRequest('未知源设置: ${entry.key}');
       }
     }
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
@@ -452,7 +452,7 @@ class SourceService {
     final result = await callValue(
         userId, key, 'account.loginWithCookies.validate', [values]);
     if (result != true) {
-      throw ApiException.badRequest('Invalid cookies');
+      throw ApiException.badRequest('Cookie 无效');
     }
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = 'ok';
@@ -608,13 +608,13 @@ class SourceService {
           const Duration(seconds: 20),
         );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError('Catalog returned ${response.statusCode}');
+      throw ApiException.sourceError('目录请求返回 ${response.statusCode}');
     }
     Object? decoded;
     try {
       decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } catch (_) {
-      throw ApiException.sourceError('Catalog is not valid JSON');
+      throw ApiException.sourceError('目录不是有效的 JSON');
     }
     List<Object?> entries;
     if (decoded is List) {
@@ -649,7 +649,7 @@ class SourceService {
     final response =
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError('Download failed: ${response.statusCode}');
+      throw ApiException.sourceError('下载失败: ${response.statusCode}');
     }
     final script = utf8.decode(response.bodyBytes);
     return importScript(userId, script,

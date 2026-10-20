@@ -26,7 +26,7 @@ class AdminService {
   }) async {
     validate(username, password, role);
     if (users.byUsername(username.trim()) != null) {
-      throw ApiException.conflict('Username already exists');
+      throw ApiException.conflict('用户名已存在');
     }
     final hash = await CryptoUtil.hashPassword(password);
     final user =
@@ -48,22 +48,22 @@ class AdminService {
     String? ip,
   }) async {
     final user = users.byId(id);
-    if (user == null) throw ApiException.notFound('User not found');
+    if (user == null) throw ApiException.notFound('未找到用户');
     if (role != null && role != 'admin' && role != 'user') {
-      throw ApiException.badRequest('Invalid role');
+      throw ApiException.badRequest('角色无效');
     }
     if (id == actorId && (disabled == true || role == 'user')) {
-      throw ApiException.badRequest('Cannot demote or disable yourself');
+      throw ApiException.badRequest('不能降级或禁用自己的账号');
     }
     if (user.isAdmin &&
         (role == 'user' || disabled == true) &&
         users.adminCount() <= 1) {
-      throw ApiException.badRequest('Cannot remove the last administrator');
+      throw ApiException.badRequest('不能移除最后一个管理员');
     }
     String? hash;
     if (password != null) {
       if (password.length < 6) {
-        throw ApiException.badRequest('Password must be at least 6 characters');
+        throw ApiException.badRequest('密码至少需要 6 个字符');
       }
       hash = await CryptoUtil.hashPassword(password);
     }
@@ -82,10 +82,10 @@ class AdminService {
 
   void delete(int id, {required int actorId, String? ip}) {
     final user = users.byId(id);
-    if (user == null) throw ApiException.notFound('User not found');
-    if (id == actorId) throw ApiException.badRequest('Cannot delete yourself');
+    if (user == null) throw ApiException.notFound('未找到用户');
+    if (id == actorId) throw ApiException.badRequest('不能删除自己');
     if (user.isAdmin && users.adminCount() <= 1) {
-      throw ApiException.badRequest('Cannot delete the last administrator');
+      throw ApiException.badRequest('不能删除最后一个管理员');
     }
     users.delete(id);
     audit.log('user_delete',
@@ -97,16 +97,16 @@ class AdminService {
 
   void validate(String username, String password, String role) {
     if (username.trim().isEmpty) {
-      throw ApiException.badRequest('Username cannot be empty');
+      throw ApiException.badRequest('用户名不能为空');
     }
     if (username.trim().length > 64) {
-      throw ApiException.badRequest('Username is too long');
+      throw ApiException.badRequest('用户名过长');
     }
     if (password.length < 6) {
-      throw ApiException.badRequest('Password must be at least 6 characters');
+      throw ApiException.badRequest('密码至少需要 6 个字符');
     }
     if (role != 'admin' && role != 'user') {
-      throw ApiException.badRequest('Invalid role');
+      throw ApiException.badRequest('角色无效');
     }
   }
 }

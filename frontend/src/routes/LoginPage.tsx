@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAppStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 import { Button, Card, Field, Input } from "../components/ui";
 
 export default function LoginPage() {
+  const t = useT();
   const navigate = useNavigate();
   const setUser = useAppStore((state) => state.setUser);
   const setSettings = useAppStore((state) => state.setSettings);
@@ -41,14 +43,14 @@ export default function LoginPage() {
             V
           </div>
           <div>
-            <h1 className="text-lg font-semibold">Venera Prime</h1>
+            <h1 className="text-lg font-semibold">{t("Venera Prime")}</h1>
             <p className="text-[13px] text-muted">
-              Sign in to your comic library.
+              {t("Sign in to your comic library.")}
             </p>
           </div>
         </div>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <Field label="Username">
+          <Field label={t("Username")}>
             <Input
               autoFocus
               autoComplete="username"
@@ -57,7 +59,7 @@ export default function LoginPage() {
               required
             />
           </Field>
-          <Field label="Password">
+          <Field label={t("Password")}>
             <Input
               type="password"
               autoComplete="current-password"
@@ -78,7 +80,7 @@ export default function LoginPage() {
             loading={loading}
             className="mt-1 justify-center"
           >
-            Sign in
+            {t("Sign in")}
           </Button>
         </form>
       </Card>

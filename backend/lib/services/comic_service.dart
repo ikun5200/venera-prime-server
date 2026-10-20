@@ -765,7 +765,7 @@ class ComicService {
         lastError = error;
       }
     }
-    throw ApiException.sourceError('Image load failed: $lastError');
+    throw ApiException.sourceError('图片加载失败: $lastError');
   }
 
   Future<({Uint8List bytes, String mime})> cover(int userId, String url,

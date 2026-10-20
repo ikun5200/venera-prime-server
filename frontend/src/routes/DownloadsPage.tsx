@@ -76,7 +76,7 @@ export default function DownloadsPage() {
         ) : jobs.length === 0 ? (
           <EmptyState
             title={t("No data")}
-            description="Start a download from a comic detail page."
+            description={t("Start a download from a comic detail page.")}
             action={
               <Button onClick={() => navigate("/sources")}>
                 {t("Explore")}
@@ -145,7 +145,10 @@ function JobCard({
               <RotateCcw className="h-4 w-4" />
             </IconButton>
           ) : null}
-          <IconButton label="Move To First" onClick={() => onAction("first")}>
+          <IconButton
+            label={t("Move To First")}
+            onClick={() => onAction("first")}
+          >
             <ArrowUp className="h-4 w-4" />
           </IconButton>
           <IconButton

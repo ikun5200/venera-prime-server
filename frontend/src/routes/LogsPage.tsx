@@ -31,7 +31,7 @@ export default function LogsPage() {
   const clearLogs = useMutation({
     mutationFn: api.clearLogs,
     onSuccess: () => {
-      toast.success("Logs cleared");
+      toast.success(t("Logs cleared"));
       queryClient.invalidateQueries({ queryKey: ["logs"] });
     },
     onError: (error) => toast.error(error.message),
@@ -60,7 +60,7 @@ export default function LogsPage() {
       <PageBody>
         <EmptyState
           title={t("Logs")}
-          description="Only administrators can view server logs."
+          description={t("Only administrators can view server logs.")}
         />
       </PageBody>
     );
@@ -77,7 +77,7 @@ export default function LogsPage() {
               variant="ghost"
               onClick={() =>
                 copyText(JSON.stringify(items, null, 2)).then(() =>
-                  toast.success("Copied"),
+                  toast.success(t("Copied")),
                 )
               }
             >
@@ -130,7 +130,7 @@ export default function LogsPage() {
             onChange={(event) => setLevel(event.target.value)}
             className="ml-auto w-[140px]"
           >
-            <option value="">All levels</option>
+            <option value="">{t("All levels")}</option>
             <option value="debug">debug</option>
             <option value="info">info</option>
             <option value="warning">warning</option>

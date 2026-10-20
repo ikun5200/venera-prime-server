@@ -158,7 +158,7 @@ export default function SearchPage() {
       return;
     }
     if (!sourceKey) {
-      toast.error("Select a source first");
+      toast.error(t("Select a source first"));
       return;
     }
     const options = optionDefs
@@ -204,7 +204,7 @@ export default function SearchPage() {
           {t("Search")}
         </h1>
         <p className="text-[13px] text-muted">
-          Search across your installed comic sources.
+          {t("Search across your installed comic sources.")}
         </p>
       </div>
 
@@ -306,7 +306,7 @@ export default function SearchPage() {
                         })
                       }
                     >
-                      <option value="">Any</option>
+                      <option value="">{t("Any")}</option>
                       {(option.options ?? []).map((raw) => {
                         const parsed = parseOption(raw);
                         return (
@@ -386,7 +386,9 @@ export default function SearchPage() {
         {history.isLoading ? (
           <Spinner />
         ) : (history.data?.items.length ?? 0) === 0 ? (
-          <p className="text-[13px] text-muted">No search history yet.</p>
+          <p className="text-[13px] text-muted">
+            {t("No search history yet.")}
+          </p>
         ) : (
           <div className="flex flex-col gap-1">
             {history.data?.items.map((item) => (
@@ -404,16 +406,18 @@ export default function SearchPage() {
                   {item.keyword}
                 </button>
                 <button
-                  aria-label="Copy"
+                  aria-label={t("Copy")}
                   className="rounded p-1.5 text-muted opacity-0 hover:text-fg group-hover:opacity-100"
                   onClick={() =>
-                    copyText(item.keyword).then(() => toast.success("Copied"))
+                    copyText(item.keyword).then(() =>
+                      toast.success(t("Copied")),
+                    )
                   }
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  aria-label="Delete"
+                  aria-label={t("Delete")}
                   className="rounded p-1.5 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
                   onClick={() => deleteHistory.mutate(item.keyword)}
                 >

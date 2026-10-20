@@ -217,7 +217,7 @@ export default function ComicDetailPage() {
     mutationFn: () => api.likeComic(source, id, !data?.isLiked),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["comic", source, id] });
-      toast.success("Updated");
+      toast.success(t("Updated"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -225,7 +225,7 @@ export default function ComicDetailPage() {
   const rate = useMutation({
     mutationFn: (value: number) => api.rateComic(source, id, value),
     onSuccess: () => {
-      toast.success("Success");
+      toast.success(t("Success"));
       setRatingOpen(false);
       queryClient.invalidateQueries({ queryKey: ["comic", source, id] });
     },
@@ -242,7 +242,7 @@ export default function ComicDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["read-later"] });
-      toast.success(inReadLater ? "Removed" : "Added to Read later");
+      toast.success(inReadLater ? t("Removed") : t("Added to Read later"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -273,7 +273,7 @@ export default function ComicDetailPage() {
         archiveId: selectedArchive || undefined,
       }),
     onSuccess: () => {
-      toast.success("Added to download queue");
+      toast.success(t("Added to download queue"));
       setDownloadOpen(false);
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
       navigate("/downloads");
@@ -326,7 +326,7 @@ export default function ComicDetailPage() {
         await navigator.share({ title: data.title, url });
       } else {
         await copyText(url);
-        toast.success("Copied");
+        toast.success(t("Copied"));
       }
     } catch {
       // User cancelled the share sheet.
@@ -336,7 +336,7 @@ export default function ComicDetailPage() {
   if (comic.isLoading) {
     return (
       <>
-        <PageHeader title="Comic details" />
+        <PageHeader title={t("Comic details")} />
         <PageBody>
           <div className="flex flex-col gap-6 md:flex-row">
             <Skeleton className="aspect-[2/3] w-[180px] shrink-0 rounded-card md:w-[220px]" />
@@ -355,7 +355,7 @@ export default function ComicDetailPage() {
   if (comic.isError || !data) {
     return (
       <>
-        <PageHeader title="Comic details" />
+        <PageHeader title={t("Comic details")} />
         <PageBody>
           <EmptyState
             title={t("Error")}
@@ -398,7 +398,7 @@ export default function ComicDetailPage() {
         actions={
           <Menu
             trigger={({ onClick, ...rest }) => (
-              <IconButton label="More" onClick={onClick} {...rest}>
+              <IconButton label={t("More")} onClick={onClick} {...rest}>
                 <MoreHorizontal className="h-4 w-4" />
               </IconButton>
             )}
@@ -413,19 +413,21 @@ export default function ComicDetailPage() {
                 label: t("Copy Title"),
                 icon: <Copy className="h-3.5 w-3.5" />,
                 onSelect: () =>
-                  copyText(data.title).then(() => toast.success("Copied")),
+                  copyText(data.title).then(() => toast.success(t("Copied"))),
               },
               {
                 label: t("Copy ID"),
                 onSelect: () =>
-                  copyText(data.id).then(() => toast.success("Copied")),
+                  copyText(data.id).then(() => toast.success(t("Copied"))),
               },
               ...(data.url
                 ? [
                     {
                       label: t("Copy URL"),
                       onSelect: () =>
-                        copyText(data.url!).then(() => toast.success("Copied")),
+                        copyText(data.url!).then(() =>
+                          toast.success(t("Copied")),
+                        ),
                     },
                     {
                       label: t("Open in Browser"),
@@ -522,7 +524,7 @@ export default function ComicDetailPage() {
                     }
                   >
                     <Download className="h-4 w-4" />
-                    Read local
+                    {t("Read local")}
                   </Button>
                 ) : (
                   <Button
@@ -540,14 +542,14 @@ export default function ComicDetailPage() {
                     event.preventDefault();
                     const quick = String(settings.quickFavorite ?? "");
                     if (!quick) {
-                      toast.info("No quick favorite folder configured");
+                      toast.info(t("No quick favorite folder configured"));
                       return;
                     }
                     const folder = (folders.data?.items ?? []).find(
                       (item) => item.name === quick,
                     );
                     if (!folder) {
-                      toast.info("Quick favorite folder not found");
+                      toast.info(t("Quick favorite folder not found"));
                       return;
                     }
                     if (favoriteFolders.includes(folder.id)) {
@@ -568,7 +570,9 @@ export default function ComicDetailPage() {
                   onClick={() =>
                     canComments
                       ? setCommentsOpen(true)
-                      : toast.info("Comments are not supported by this source")
+                      : toast.info(
+                          t("Comments are not supported by this source"),
+                        )
                   }
                 >
                   <MessageSquare className="h-4 w-4" />
@@ -641,7 +645,9 @@ export default function ComicDetailPage() {
                         }
                         onContextMenu={(event) => {
                           event.preventDefault();
-                          copyText(value).then(() => toast.success("Copied"));
+                          copyText(value).then(() =>
+                            toast.success(t("Copied")),
+                          );
                         }}
                         className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] text-fg hover:border-accent/40"
                       >
@@ -744,7 +750,7 @@ export default function ComicDetailPage() {
                 ))}
                 {groupChapters.length === 0 ? (
                   <p className="px-3 py-6 text-center text-[13px] text-muted">
-                    No chapters
+                    {t("No chapters")}
                   </p>
                 ) : null}
               </div>
@@ -769,7 +775,7 @@ export default function ComicDetailPage() {
                     variant="ghost"
                     onClick={() => setCommentsOpen(true)}
                   >
-                    View more
+                    {t("View more")}
                   </Button>
                 </div>
                 <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 scrollbar-thin">
@@ -956,7 +962,7 @@ export default function ComicDetailPage() {
                 )
               }
             >
-              Download to browser
+              {t("Download to browser")}
             </Button>
             <Button
               variant="secondary"
@@ -1092,7 +1098,7 @@ export default function ComicDetailPage() {
       <Modal
         open={ratingOpen}
         onClose={() => setRatingOpen(false)}
-        title="Rate this comic"
+        title={t("Rate this comic")}
       >
         <div className="flex justify-center gap-2 py-4">
           {[1, 2, 3, 4, 5].map((value) => (
@@ -1108,7 +1114,7 @@ export default function ComicDetailPage() {
         </div>
         {!sourceInfo?.capabilities.starRating ? (
           <p className="text-center text-[12px] text-muted">
-            This source does not support ratings.
+            {t("This source does not support ratings.")}
           </p>
         ) : null}
       </Modal>
@@ -1136,7 +1142,7 @@ function NetworkFavoriteSection({
       queryClient.invalidateQueries({
         queryKey: ["network-favorites", source, comicId],
       });
-      toast.success("Updated");
+      toast.success(t("Updated"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -1218,7 +1224,7 @@ function CommentsDrawer({
       queryClient.invalidateQueries({
         queryKey: ["comic-comments-preview", source, comicId],
       });
-      toast.success("Comment sent");
+      toast.success(t("Comment sent"));
     },
     onError: (error) => toast.error(error.message),
   });
@@ -1366,7 +1372,7 @@ function CommentsDrawer({
             <Textarea
               value={content}
               onChange={(event) => setContent(event.target.value)}
-              placeholder="Write a comment…"
+              placeholder={t("Write a comment…")}
               className="min-h-[44px] flex-1 py-2"
             />
             <Button
@@ -1376,7 +1382,7 @@ function CommentsDrawer({
               disabled={!content.trim()}
               onClick={() => send.mutate()}
             >
-              Send
+              {t("Send")}
             </Button>
           </div>
         </div>

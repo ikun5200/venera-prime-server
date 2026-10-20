@@ -45,7 +45,7 @@ export default function FollowUpdatesPage() {
     mutationFn: (body: Record<string, unknown>) =>
       api.saveFollowUpdatesConfig(body),
     onSuccess: () => {
-      toast.success("Saved");
+      toast.success(t("Saved"));
       queryClient.invalidateQueries({ queryKey: ["follow-updates"] });
       queryClient.invalidateQueries({ queryKey: ["follow-updates-config"] });
     },
@@ -55,7 +55,7 @@ export default function FollowUpdatesPage() {
   const check = useMutation({
     mutationFn: api.checkFollowUpdates,
     onSuccess: () => {
-      toast.success("Running in background");
+      toast.success(t("Running in background"));
       queryClient.invalidateQueries({ queryKey: ["follow-updates"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -65,7 +65,7 @@ export default function FollowUpdatesPage() {
   const markAll = useMutation({
     mutationFn: () => api.markFollowUpdatesRead(),
     onSuccess: () => {
-      toast.success("Marked as read");
+      toast.success(t("Marked as read"));
       queryClient.invalidateQueries({ queryKey: ["follow-updates"] });
     },
     onError: (error) => toast.error(error.message),
@@ -108,7 +108,7 @@ export default function FollowUpdatesPage() {
                   value={folderId ?? ""}
                   onChange={(event) => setFolderId(Number(event.target.value))}
                 >
-                  <option value="">Select a folder</option>
+                  <option value="">{t("Select a folder")}</option>
                   {(folders.data?.items ?? []).map((folder) => (
                     <option key={folder.id} value={folder.id}>
                       {folder.name}

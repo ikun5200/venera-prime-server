@@ -69,7 +69,7 @@ export default function LocalComicsPage() {
     mutationFn: (comic: LocalComic) =>
       api.deleteLocalComic(comic.id, { removeFiles, removeFavorites }),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       setDeleteTarget(null);
       invalidate();
     },
@@ -85,7 +85,7 @@ export default function LocalComicsPage() {
       chapters: string[];
     }) => api.deleteLocalChapters(comic.id, chapters),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       setChaptersTarget(null);
       setChapterSelection(new Set());
       invalidate();
@@ -104,7 +104,7 @@ export default function LocalComicsPage() {
     try {
       const result = await uploadFile(file, setProgress);
       const completed = await completeUpload(result.uploadId, true);
-      toast.success("Imported");
+      toast.success(t("Imported"));
       setImportOpen(false);
       setFile(null);
       invalidate();
@@ -165,9 +165,9 @@ export default function LocalComicsPage() {
             onChange={(event) => setSort(event.target.value)}
             className="w-[160px]"
           >
-            <option value="name">Name</option>
-            <option value="time_asc">Date</option>
-            <option value="time_desc">Date Desc</option>
+            <option value="name">{t("Name")}</option>
+            <option value="time_asc">{t("Date")}</option>
+            <option value="time_desc">{t("Date Desc")}</option>
           </Select>
         </div>
 
@@ -183,7 +183,9 @@ export default function LocalComicsPage() {
         ) : items.length === 0 ? (
           <EmptyState
             title={t("No data")}
-            description="Upload a CBZ/ZIP archive or download a comic from a source."
+            description={t(
+              "Upload a CBZ/ZIP archive or download a comic from a source.",
+            )}
             action={
               <Button variant="primary" onClick={() => setImportOpen(true)}>
                 {t("Import")}
@@ -224,7 +226,7 @@ export default function LocalComicsPage() {
                   <Menu
                     trigger={({ onClick, ...rest }) => (
                       <IconButton
-                        label="More"
+                        label={t("More")}
                         onClick={onClick}
                         className="h-8 w-8 bg-black/45 text-white hover:bg-black/65 hover:text-white"
                         {...rest}
@@ -244,7 +246,7 @@ export default function LocalComicsPage() {
                           navigator.clipboard
                             ?.writeText(comic.directory)
                             .then(() =>
-                              toast.success("Path copied to clipboard"),
+                              toast.success(t("Path copied to clipboard")),
                             ),
                       },
                       {
@@ -308,7 +310,7 @@ export default function LocalComicsPage() {
         <div className="flex flex-col gap-4">
           <Field
             label={t("An archive file")}
-            hint="CBZ, ZIP (7z/CB7 are not supported on this build)."
+            hint={t("CBZ, ZIP (7z/CB7 are not supported on this build).")}
           >
             <input
               ref={fileRef}

@@ -26,12 +26,12 @@ class PathGuard {
   /// traversal and symlinks that escape the root.
   String resolveInside(String root, String relative) {
     if (relative.contains('\u0000')) {
-      throw ApiException.badRequest('Invalid path');
+      throw ApiException.badRequest('路径无效');
     }
     final normalizedRoot = p.normalize(p.absolute(root));
     final candidate = p.normalize(p.absolute(p.join(normalizedRoot, relative)));
     if (candidate != normalizedRoot && !p.isWithin(normalizedRoot, candidate)) {
-      throw ApiException.badRequest('Path escapes user directory');
+      throw ApiException.badRequest('路径超出用户目录');
     }
     // Reject symlinked ancestors.
     var current = normalizedRoot;
@@ -41,7 +41,7 @@ class PathGuard {
       current = p.join(current, segment);
       final type = FileSystemEntity.typeSync(current, followLinks: false);
       if (type == FileSystemEntityType.link) {
-        throw ApiException.badRequest('Symlinks are not allowed');
+        throw ApiException.badRequest('不允许使用符号链接');
       }
     }
     return candidate;
@@ -85,7 +85,7 @@ class PathGuard {
     final normalizedTarget = p.normalize(p.absolute(target));
     if (normalizedTarget == normalizedRoot ||
         !p.isWithin(normalizedRoot, normalizedTarget)) {
-      throw ApiException.badRequest('Refusing to delete outside user root');
+      throw ApiException.badRequest('拒绝删除用户目录之外的文件');
     }
     final type =
         FileSystemEntity.typeSync(normalizedTarget, followLinks: false);

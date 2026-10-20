@@ -79,7 +79,7 @@ export default function ImageFavoritesPage() {
     mutationFn: (comic: ImageFavorite) =>
       api.removeImageFavorite(comic.id, comic.sourceKey),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       queryClient.invalidateQueries({ queryKey: ["image-favorites"] });
     },
     onError: (error) => toast.error(error.message),
@@ -94,7 +94,7 @@ export default function ImageFavoritesPage() {
         page: entry.page,
       }),
     onSuccess: () => {
-      toast.success("Uncollected the image");
+      toast.success(t("Uncollected the image"));
       queryClient.invalidateQueries({ queryKey: ["image-favorites"] });
       setPhotoIndex(null);
     },
@@ -111,7 +111,7 @@ export default function ImageFavoritesPage() {
     },
     onSuccess: () => {
       setSelected(new Set());
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       queryClient.invalidateQueries({ queryKey: ["image-favorites"] });
     },
     onError: (error) => toast.error(error.message),
@@ -228,7 +228,7 @@ export default function ImageFavoritesPage() {
         ) : items.length === 0 ? (
           <EmptyState
             title={t("No data")}
-            description="Collect images while reading."
+            description={t("Collect images while reading.")}
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -346,25 +346,25 @@ export default function ImageFavoritesPage() {
               value={sort}
               onChange={(event) => setSort(event.target.value)}
             >
-              <option value="Title">Title</option>
-              <option value="Time Asc">Time Asc</option>
-              <option value="Time Desc">Time Desc</option>
-              <option value="Favorite Num">Favorite Num</option>
+              <option value="Title">{t("Title")}</option>
+              <option value="Time Asc">{t("Time Asc")}</option>
+              <option value="Time Desc">{t("Time Desc")}</option>
+              <option value="Favorite Num">{t("Favorite Num")}</option>
             </Select>
           </Field>
-          <Field label="Time Filter">
+          <Field label={t("Time Filter")}>
             <Select
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
             >
-              <option value="">All</option>
-              <option value="lastWeek">Last Week</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="lastHalfYear">Last Half Year</option>
-              <option value="lastYear">Last Year</option>
+              <option value="">{t("All")}</option>
+              <option value="lastWeek">{t("Last Week")}</option>
+              <option value="lastMonth">{t("Last Month")}</option>
+              <option value="lastHalfYear">{t("Last Half Year")}</option>
+              <option value="lastYear">{t("Last Year")}</option>
             </Select>
           </Field>
-          <Field label="Image Favorites Greater Than">
+          <Field label={t("Image Favorites Greater Than")}>
             <Select
               value={String(minCount)}
               onChange={(event) => setMinCount(Number(event.target.value))}

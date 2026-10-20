@@ -39,7 +39,7 @@ class AuthService {
 
   Future<UserRecord> initialize(
       String username, String password, String? ip) async {
-    if (initialized) throw ApiException.conflict('Already initialized');
+    if (initialized) throw ApiException.conflict('系统已初始化');
     validateCredentials(username, password);
     final hash = await CryptoUtil.hashPassword(password);
     final user = users.create(
@@ -52,13 +52,13 @@ class AuthService {
 
   void validateCredentials(String username, String password) {
     final name = username.trim();
-    if (name.isEmpty) throw ApiException.badRequest('Username cannot be empty');
-    if (name.length > 64) throw ApiException.badRequest('Username is too long');
+    if (name.isEmpty) throw ApiException.badRequest('用户名不能为空');
+    if (name.length > 64) throw ApiException.badRequest('用户名过长');
     if (password.length < 6) {
-      throw ApiException.badRequest('Password must be at least 6 characters');
+      throw ApiException.badRequest('密码至少需要 6 个字符');
     }
     if (password.length > 512) {
-      throw ApiException.badRequest('Password is too long');
+      throw ApiException.badRequest('密码过长');
     }
   }
 
@@ -72,7 +72,7 @@ class AuthService {
     if (user == null || user.disabled) {
       audit.log('login_failed',
           ip: ip, detail: {'username': username, 'reason': 'invalid'});
-      throw ApiException.unauthorized('Invalid username or password');
+      throw ApiException.unauthorized('用户名或密码错误');
     }
     final ok = await CryptoUtil.verifyPassword(password, user.passwordHash);
     if (!ok) {
@@ -80,7 +80,7 @@ class AuthService {
           userId: user.id,
           ip: ip,
           detail: {'username': username, 'reason': 'invalid'});
-      throw ApiException.unauthorized('Invalid username or password');
+      throw ApiException.unauthorized('用户名或密码错误');
     }
     final token = CryptoUtil.randomToken();
     final expires = DateTime.now().add(sessionLifetime);
@@ -191,8 +191,8 @@ Future<Map<String, Object?>> readJsonBody(Request request,
     if (decoded is Map) {
       return decoded.map((k, v) => MapEntry(k.toString(), v));
     }
-    throw ApiException.badRequest('JSON object expected');
+    throw ApiException.badRequest('需要 JSON 对象');
   } on FormatException {
-    throw ApiException.badRequest('Invalid JSON');
+    throw ApiException.badRequest('JSON 格式无效');
   }
 }

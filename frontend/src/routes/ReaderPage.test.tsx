@@ -76,7 +76,7 @@ describe("ReaderPage", () => {
       expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
     );
 
-    fireEvent.click(screen.getByLabelText("Next image"));
+    fireEvent.click(screen.getByLabelText("下一张图片"));
     await waitFor(() =>
       expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
     );
@@ -97,7 +97,7 @@ describe("ReaderPage", () => {
     await waitFor(() =>
       expect(screen.getByText("Comic One")).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getAllByLabelText("Chapters")[0]);
+    fireEvent.click(screen.getAllByLabelText("章节")[0]);
     await waitFor(() =>
       expect(screen.getAllByText("Chapter 1").length).toBeGreaterThan(0),
     );

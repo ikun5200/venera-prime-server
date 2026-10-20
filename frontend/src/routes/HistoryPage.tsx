@@ -64,7 +64,7 @@ export default function HistoryPage() {
     },
     onSuccess: () => {
       setSelected(new Set());
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       queryClient.invalidateQueries({ queryKey: ["history"] });
     },
     onError: (error) => toast.error(error.message),
@@ -73,7 +73,7 @@ export default function HistoryPage() {
   const clear = useMutation({
     mutationFn: () => api.clearHistory(clearUnfavorited),
     onSuccess: () => {
-      toast.success("Cleared");
+      toast.success(t("Cleared"));
       queryClient.invalidateQueries({ queryKey: ["history"] });
     },
     onError: (error) => toast.error(error.message),
@@ -81,13 +81,13 @@ export default function HistoryPage() {
 
   const refreshAll = useMutation({
     mutationFn: () => api.refreshHistory(),
-    onSuccess: () => toast.success("Running in background"),
+    onSuccess: () => toast.success(t("Running in background")),
     onError: (error) => toast.error(error.message),
   });
 
   const refreshOne = useMutation({
     mutationFn: (item: HistoryItem) => api.refreshHistory([item]),
-    onSuccess: () => toast.success("Running in background"),
+    onSuccess: () => toast.success(t("Running in background")),
     onError: (error) => toast.error(error.message),
   });
 
@@ -131,7 +131,7 @@ export default function HistoryPage() {
             </IconButton>
             <Menu
               trigger={({ onClick, ...rest }) => (
-                <IconButton label="More" onClick={onClick} {...rest}>
+                <IconButton label={t("More")} onClick={onClick} {...rest}>
                   <MoreHorizontal className="h-4 w-4" />
                 </IconButton>
               )}
@@ -279,7 +279,7 @@ export default function HistoryPage() {
                               icon: <Copy className="h-3.5 w-3.5" />,
                               onSelect: () =>
                                 copyText(item.title).then(() =>
-                                  toast.success("Copied"),
+                                  toast.success(t("Copied")),
                                 ),
                             },
                             {
@@ -299,7 +299,7 @@ export default function HistoryPage() {
                           ? "border-accent bg-accent text-white"
                           : "border-white/70 bg-black/40",
                       )}
-                      aria-label="Select"
+                      aria-label={t("Select")}
                     >
                       {selected.has(key) ? "✓" : ""}
                     </button>

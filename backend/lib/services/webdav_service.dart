@@ -114,7 +114,7 @@ class BackupService {
       {String? ip}) async {
     final format = data['format'];
     if (format != 1 && format != 2) {
-      throw ApiException.badRequest('Unsupported backup format');
+      throw ApiException.badRequest('不支持的备份格式');
     }
     return _importUnsafe(userId, data, ip: ip);
   }
@@ -322,7 +322,7 @@ class BackupService {
         }
       } catch (_) {}
     }
-    if (decoded is! Map) throw ApiException.badRequest('Invalid backup file');
+    if (decoded is! Map) throw ApiException.badRequest('备份文件无效');
     return import(userId, decoded.map((k, v) => MapEntry(k.toString(), v)),
         ip: ip);
   }
@@ -379,7 +379,7 @@ class WebDavService {
     final url = (body['url'] ?? '').toString().trim();
     if (url.isNotEmpty &&
         !(url.startsWith('http://') || url.startsWith('https://'))) {
-      throw ApiException.badRequest('Invalid WebDAV URL');
+      throw ApiException.badRequest('WebDAV 地址无效');
     }
     final password = body['password'];
     final existing = repository.webdav(userId);
@@ -414,7 +414,7 @@ class WebDavService {
   Uri _base(int userId) {
     final row = repository.webdav(userId);
     if (row == null || (row['url'] as String).isEmpty) {
-      throw ApiException.badRequest('WebDAV is not configured');
+      throw ApiException.badRequest('尚未配置 WebDAV');
     }
     var url = row['url'] as String;
     if (!url.endsWith('/')) url = '$url/';
@@ -423,7 +423,7 @@ class WebDavService {
 
   Future<Map<String, Object?>> test(int userId) async {
     final row = repository.webdav(userId);
-    if (row == null) throw ApiException.badRequest('WebDAV is not configured');
+    if (row == null) throw ApiException.badRequest('尚未配置 WebDAV');
     final password = await _password(userId);
     try {
       final response = await client
@@ -433,16 +433,16 @@ class WebDavService {
       if (response.statusCode >= 200 && response.statusCode < 400) {
         return {'ok': true, 'status': response.statusCode};
       }
-      throw ApiException.sourceError('WebDAV returned ${response.statusCode}');
+      throw ApiException.sourceError('WebDAV 返回 ${response.statusCode}');
     } catch (error) {
       if (error is ApiException) rethrow;
-      throw ApiException.sourceError('WebDAV connection failed: $error');
+      throw ApiException.sourceError('WebDAV 连接失败：$error');
     }
   }
 
   Future<Map<String, Object?>> upload(int userId) async {
     final row = repository.webdav(userId);
-    if (row == null) throw ApiException.badRequest('WebDAV is not configured');
+    if (row == null) throw ApiException.badRequest('尚未配置 WebDAV');
     final password = await _password(userId);
     final bytes = backup.exportZip(userId);
     final version = ((row['dataVersion'] as int?) ?? 0) + 1;
@@ -462,7 +462,7 @@ class WebDavService {
             body: bytes)
         .timeout(const Duration(seconds: 60));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError('Upload failed: ${response.statusCode}');
+      throw ApiException.sourceError('上传失败：${response.statusCode}');
     }
     repository.saveWebdav(
       userId,
@@ -482,7 +482,7 @@ class WebDavService {
 
   Future<Map<String, Object?>> download(int userId) async {
     final row = repository.webdav(userId);
-    if (row == null) throw ApiException.badRequest('WebDAV is not configured');
+    if (row == null) throw ApiException.badRequest('尚未配置 WebDAV');
     final password = await _password(userId);
     final base = _base(userId);
     final body = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop>'
@@ -512,10 +512,10 @@ class WebDavService {
         }
       }
     } catch (_) {
-      throw ApiException.sourceError('Invalid WebDAV listing');
+      throw ApiException.sourceError('WebDAV 列表无效');
     }
     if (names.isEmpty) {
-      throw ApiException.notFound('No backups found');
+      throw ApiException.notFound('未找到备份');
     }
     names.sort();
     final newest = names.last;
@@ -524,7 +524,7 @@ class WebDavService {
             headers: _headers(row['username'] as String, password))
         .timeout(const Duration(seconds: 120));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError('Download failed: ${response.statusCode}');
+      throw ApiException.sourceError('下载失败: ${response.statusCode}');
     }
     final data = _decodeBackup(response.bodyBytes);
     final result = await backup.import(userId, data);
@@ -562,7 +562,7 @@ class WebDavService {
         }
       }
     } catch (_) {}
-    throw ApiException.badRequest('Invalid backup file');
+    throw ApiException.badRequest('备份文件无效');
   }
 
   Future<void> _prune(int userId, String username, String? password) async {

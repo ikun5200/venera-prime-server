@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAppStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Button
@@ -345,6 +346,7 @@ export function ErrorState({
   requestId?: string;
   onRetry?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-card border border-danger/20 bg-danger/5 px-6 py-12 text-center">
       <AlertCircle className="h-6 w-6 text-danger" aria-hidden />
@@ -354,7 +356,7 @@ export function ErrorState({
       ) : null}
       {onRetry ? (
         <Button size="sm" onClick={onRetry}>
-          Retry
+          {t("Retry")}
         </Button>
       ) : null}
     </div>
@@ -595,6 +597,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <Modal
       open={open}
@@ -603,7 +606,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             variant={danger ? "danger" : "primary"}
@@ -639,6 +642,7 @@ export function PromptDialog({
   onConfirm: (value: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState(initialValue);
   useEffect(() => {
     if (open) setValue(initialValue);
@@ -651,7 +655,7 @@ export function PromptDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             variant="primary"

@@ -12,24 +12,24 @@ class ApiException implements Exception {
   factory ApiException.badRequest(String message) =>
       ApiException('BAD_REQUEST', 400, message);
   factory ApiException.unauthorized(
-          [String message = 'Authentication required']) =>
+          [String message = '请先登录']) =>
       ApiException('UNAUTHORIZED', 401, message);
-  factory ApiException.forbidden([String message = 'Forbidden']) =>
+  factory ApiException.forbidden([String message = '没有权限']) =>
       ApiException('FORBIDDEN', 403, message);
-  factory ApiException.notFound([String message = 'Not found']) =>
+  factory ApiException.notFound([String message = '未找到']) =>
       ApiException('NOT_FOUND', 404, message);
   factory ApiException.conflict(String message) =>
       ApiException('CONFLICT', 409, message);
   factory ApiException.rateLimited() =>
-      ApiException('RATE_LIMITED', 429, 'Too many requests');
+      ApiException('RATE_LIMITED', 429, '请求过于频繁');
   factory ApiException.payloadTooLarge(
-          [String message = 'Payload too large']) =>
+          [String message = '请求内容过大']) =>
       ApiException('PAYLOAD_TOO_LARGE', 413, message);
-  factory ApiException.timeout([String message = 'Operation timed out']) =>
+  factory ApiException.timeout([String message = '操作超时']) =>
       ApiException('TIMEOUT', 504, message);
   factory ApiException.sourceError(String message) =>
       ApiException('SOURCE_ERROR', 502, message);
-  factory ApiException.internal([String message = 'Internal error']) =>
+  factory ApiException.internal([String message = '服务器内部错误']) =>
       ApiException('INTERNAL', 500, message);
 
   @override

@@ -35,7 +35,7 @@ export default function StatisticsPage() {
   const clear = useMutation({
     mutationFn: api.clearStatistics,
     onSuccess: () => {
-      toast.success("Cleared");
+      toast.success(t("Cleared"));
       queryClient.invalidateQueries({ queryKey: ["statistics"] });
     },
     onError: (error) => toast.error(error.message),
@@ -45,7 +45,7 @@ export default function StatisticsPage() {
     mutationFn: ({ comicType, id }: { comicType: number; id: string }) =>
       api.deleteStatistics(comicType, id),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("Deleted"));
       queryClient.invalidateQueries({ queryKey: ["statistics"] });
     },
     onError: (error) => toast.error(error.message),
@@ -163,9 +163,9 @@ export default function StatisticsPage() {
                 onChange={(event) => setSort(event.target.value)}
                 className="w-[150px]"
               >
-                <option value="recent">Recent</option>
-                <option value="duration">Duration</option>
-                <option value="name">Name</option>
+                <option value="recent">{t("Recent")}</option>
+                <option value="duration">{t("Duration")}</option>
+                <option value="name">{t("Name")}</option>
               </Select>
             </div>
 
@@ -200,7 +200,11 @@ export default function StatisticsPage() {
                     </span>
                     <Menu
                       trigger={({ onClick, ...rest }) => (
-                        <IconButton label="More" onClick={onClick} {...rest}>
+                        <IconButton
+                          label={t("More")}
+                          onClick={onClick}
+                          {...rest}
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </IconButton>
                       )}

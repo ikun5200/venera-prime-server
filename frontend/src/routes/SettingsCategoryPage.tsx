@@ -190,27 +190,29 @@ export default function SettingsCategoryPage() {
           break;
         case "clear-cache":
           await api.clearCache();
-          toast.success("Cache cleared");
+          toast.success(t("Cache cleared"));
           queryClient.invalidateQueries({ queryKey: ["cache-size"] });
           break;
         case "refresh-library":
           await api.refreshLocalLibrary();
-          toast.success("Refreshed");
+          toast.success(t("Refreshed"));
           queryClient.invalidateQueries({ queryKey: ["local-comics"] });
           break;
         case "reload-sources":
           await api.debugReload();
-          toast.success("Configs reloaded");
+          toast.success(t("Configs reloaded"));
           break;
         case "open-logs":
           navigate("/settings/logs");
           break;
         case "check-update":
-          toast.success("You are on the latest version");
+          toast.success(t("You are on the latest version"));
           break;
         case "delete-unavailable": {
           const result = await api.deleteUnavailableFavorites();
-          toast.success(`Deleted ${result.removed} favorite items`);
+          toast.success(
+            t("Deleted @count favorite items", { count: result.removed }),
+          );
           queryClient.invalidateQueries({ queryKey: ["favorites"] });
           queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
           break;
@@ -224,7 +226,7 @@ export default function SettingsCategoryPage() {
   const importFile = async (file: File) => {
     try {
       const result = await importBackup(file);
-      toast.success("Imported");
+      toast.success(t("Imported"));
       queryClient.invalidateQueries();
       void result;
     } catch (error) {
@@ -236,7 +238,7 @@ export default function SettingsCategoryPage() {
 
   return (
     <>
-      <PageHeader title={titles[category] ?? t("Settings")} />
+      <PageHeader title={t(titles[category] ?? "Settings")} />
       <PageBody className="max-w-[900px]">
         <input
           ref={fileRef}
@@ -262,14 +264,20 @@ export default function SettingsCategoryPage() {
           {items.map((item, index) => (
             <div key={`${item.kind}-${index}`} className="px-4 py-3.5">
               {item.kind === "switch" ? (
-                <Row label={item.label} hint={item.hint}>
+                <Row
+                  label={t(item.label)}
+                  hint={item.hint ? t(item.hint) : undefined}
+                >
                   <Switch
                     checked={displayedSettings[item.key] === true}
                     onChange={(value) => save(item.key, value)}
                   />
                 </Row>
               ) : item.kind === "select" ? (
-                <Row label={item.label} hint={item.hint}>
+                <Row
+                  label={t(item.label)}
+                  hint={item.hint ? t(item.hint) : undefined}
+                >
                   <Select
                     value={String(displayedSettings[item.key] ?? "")}
                     onChange={(event) => save(item.key, event.target.value)}
@@ -277,7 +285,7 @@ export default function SettingsCategoryPage() {
                   >
                     {item.options.map((option) => (
                       <option key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.label)}
                       </option>
                     ))}
                   </Select>
@@ -309,7 +317,10 @@ export default function SettingsCategoryPage() {
                   onSave={(value) => save(item.key, value)}
                 />
               ) : item.kind === "link" ? (
-                <Row label={item.label} hint={item.hint}>
+                <Row
+                  label={t(item.label)}
+                  hint={item.hint ? t(item.hint) : undefined}
+                >
                   {item.to.startsWith("http") ? (
                     <a
                       href={item.to}
@@ -317,7 +328,8 @@ export default function SettingsCategoryPage() {
                       rel="noreferrer"
                       className="inline-flex h-8 items-center gap-1.5 rounded border border-border bg-surface px-3 text-[13px] font-medium hover:bg-surface2"
                     >
-                      Open <ExternalLink className="h-3.5 w-3.5" />
+                      {t("Open")}
+                      <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : (
                     <Button
@@ -325,12 +337,16 @@ export default function SettingsCategoryPage() {
                       variant="secondary"
                       onClick={() => navigate(item.to)}
                     >
-                      Open <ExternalLink className="h-3.5 w-3.5" />
+                      {t("Open")}
+                      <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </Row>
               ) : item.kind === "action" ? (
-                <Row label={item.label} hint={item.hint}>
+                <Row
+                  label={t(item.label)}
+                  hint={item.hint ? t(item.hint) : undefined}
+                >
                   <Button
                     size="sm"
                     variant={item.danger ? "danger" : "secondary"}
@@ -413,7 +429,7 @@ function DeviceSpecificRow({
   const enabled = isDeviceSpecificEnabled(settings, deviceId);
   return (
     <div className="flex flex-col gap-2">
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <Switch
           checked={enabled}
           onChange={(value) =>
@@ -452,10 +468,11 @@ function Row({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0">
-        <p className="text-[13px] font-medium">{label}</p>
+        <p className="text-[13px] font-medium">{t(label)}</p>
         {hint ? <p className="text-[11px] text-muted">{hint}</p> : null}
       </div>
       {children}
@@ -480,12 +497,13 @@ function SliderRow({
   format?: (value: number) => string;
   onSave: (value: number) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-medium">{label}</p>
+        <p className="text-[13px] font-medium">{t(label)}</p>
         <span className="text-[12px] tabular text-muted">
           {format ? format(draft) : draft}
         </span>
@@ -518,10 +536,11 @@ function NumberRow({
   value: number;
   onSave: (value: number) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
   return (
-    <Row label={label} hint={hint}>
+    <Row label={t(label)} hint={hint ? t(hint) : undefined}>
       <div className="flex items-center gap-2">
         <Input
           type="number"
@@ -551,10 +570,11 @@ function TextRow({
   value: string;
   onSave: (value: string) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
-    <Field label={label} hint={hint}>
+    <Field label={t(label)} hint={hint ? t(hint) : undefined}>
       <Input
         value={draft}
         placeholder={placeholder}
@@ -602,17 +622,18 @@ function CustomRow({
   onRunJs: () => void;
   onImport: () => void;
 }) {
+  const t = useT();
   if (itemKey === "defaultSearchTarget") {
     return (
-      <Field label={label} hint={hint}>
+      <Field label={t(label)} hint={hint ? t(hint) : undefined}>
         <Select
           value={String(settings.defaultSearchTarget ?? "")}
           onChange={(event) =>
             onSave("defaultSearchTarget", event.target.value || null)
           }
         >
-          <option value="">Default</option>
-          <option value="_aggregated_">Aggregated</option>
+          <option value="">{t("Default")}</option>
+          <option value="_aggregated_">{t("Aggregated")}</option>
           {sources.map((source) => (
             <option key={source.key} value={source.key}>
               {source.name}
@@ -624,14 +645,14 @@ function CustomRow({
   }
   if (itemKey === "quickFavorite") {
     return (
-      <Field label={label} hint={hint}>
+      <Field label={t(label)} hint={hint ? t(hint) : undefined}>
         <Select
           value={String(settings.quickFavorite ?? "")}
           onChange={(event) =>
             onSave("quickFavorite", event.target.value || null)
           }
         >
-          <option value="">None</option>
+          <option value="">{t("None")}</option>
           {folders.map((folder) => (
             <option key={folder.id} value={folder.name}>
               {folder.name}
@@ -643,7 +664,7 @@ function CustomRow({
   }
   if (itemKey === "cacheInfo") {
     return (
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <span className="text-[13px] tabular text-muted">
           {cacheBytes === undefined ? "…" : formatBytes(cacheBytes)}
         </span>
@@ -652,7 +673,7 @@ function CustomRow({
   }
   if (itemKey === "storagePath") {
     return (
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <div className="flex items-center gap-2">
           <code className="rounded bg-surface2 px-2 py-1 text-[11px] text-muted">
             {storagePath ?? "…"}
@@ -663,7 +684,7 @@ function CustomRow({
             disabled={!storagePath}
             onClick={() =>
               storagePath
-                ? copyText(storagePath).then(() => toast.success("Copied"))
+                ? copyText(storagePath).then(() => toast.success(t("Copied")))
                 : undefined
             }
           >
@@ -675,7 +696,7 @@ function CustomRow({
   }
   if (itemKey === "serverVersion") {
     return (
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <span className="text-[13px] tabular text-muted">
           {serverVersion ?? "…"}
         </span>
@@ -685,7 +706,7 @@ function CustomRow({
   if (itemKey === "jsEvaluator") {
     return (
       <div>
-        <p className="mb-2 text-[13px] font-medium">{label}</p>
+        <p className="mb-2 text-[13px] font-medium">{t(label)}</p>
         <Textarea
           value={jsCode}
           onChange={(event) => setJsCode(event.target.value)}
@@ -693,7 +714,7 @@ function CustomRow({
         />
         <div className="mt-2 flex gap-2">
           <Button size="sm" variant="primary" onClick={onRunJs}>
-            <Play className="h-3.5 w-3.5" /> Run
+            <Play className="h-3.5 w-3.5" /> {t("Run")}
           </Button>
         </div>
         {jsResult ? (
@@ -707,7 +728,7 @@ function CustomRow({
   if (itemKey === "imageProcessing") {
     return (
       <div>
-        <p className="mb-2 text-[13px] font-medium">{label}</p>
+        <p className="mb-2 text-[13px] font-medium">{t(label)}</p>
         <Textarea
           value={processing}
           onChange={(event) => setProcessing(event.target.value)}
@@ -719,29 +740,29 @@ function CustomRow({
           className="mt-2"
           onClick={() => onSave("customImageProcessing", processing)}
         >
-          Save
+          {t("Save")}
         </Button>
       </div>
     );
   }
   if (itemKey === "importBackup") {
     return (
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <Button size="sm" variant="secondary" onClick={onImport}>
-          Import
+          {t("Import")}
         </Button>
       </Row>
     );
   }
   if (itemKey === "deleteUnavailable") {
     return (
-      <Row label={label} hint={hint}>
+      <Row label={t(label)} hint={hint ? t(hint) : undefined}>
         <Button
           size="sm"
           variant="danger"
           onClick={() => onSave("__noop", null)}
         >
-          <Trash2 className="h-3.5 w-3.5" /> Delete
+          <Trash2 className="h-3.5 w-3.5" /> {t("Delete")}
         </Button>
       </Row>
     );

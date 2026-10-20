@@ -297,7 +297,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final script = (body['script'] ?? '').toString();
-    if (script.isEmpty) throw ApiException.badRequest('script is required');
+    if (script.isEmpty) throw ApiException.badRequest('缺少脚本');
     final source = await ctx.sources.importScript(auth.user.id, script,
         replace: body['replace'] == true, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -314,7 +314,7 @@ Router buildApiRouter(AppContext ctx) {
       script = utf8.decode(await _rawBody(request, maxBytes: 8 * 1024 * 1024));
     }
     if (script.trim().isEmpty)
-      throw ApiException.badRequest('script is required');
+      throw ApiException.badRequest('缺少脚本');
     final source = await ctx.sources.importScript(auth.user.id, script,
         replace: true, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -324,7 +324,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final url = (body['url'] ?? '').toString();
-    if (url.isEmpty) throw ApiException.badRequest('url is required');
+    if (url.isEmpty) throw ApiException.badRequest('缺少地址');
     final source = await ctx.sources
         .installFromUrl(auth.user.id, url, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -334,7 +334,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final keys = body['keys'];
-    if (keys is! List) throw ApiException.badRequest('keys must be a list');
+    if (keys is! List) throw ApiException.badRequest('keys 必须是数组');
     ctx.sourceRepository
         .reorder(auth.user.id, keys.map((e) => e.toString()).toList());
     return _json({
@@ -355,7 +355,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final script = (body['script'] ?? '').toString();
-    if (script.isEmpty) throw ApiException.badRequest('script is required');
+    if (script.isEmpty) throw ApiException.badRequest('缺少脚本');
     final source = await ctx.sources
         .updateScript(auth.user.id, key, script, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -382,7 +382,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = ctx.sources.require(auth.user.id, key);
     if (source.url.isEmpty)
-      throw ApiException.badRequest('Source has no update URL');
+      throw ApiException.badRequest('源没有更新地址');
     final updated = await ctx.sources
         .installFromUrl(auth.user.id, source.url, ip: clientIp(request));
     return _json({'source': updated.toJson()});
@@ -399,7 +399,7 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final values = body['values'];
     if (values is! Map)
-      throw ApiException.badRequest('values must be an object');
+      throw ApiException.badRequest('values 必须是对象');
     await ctx.sources.updateSettings(
       auth.user.id,
       key,
@@ -434,7 +434,7 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final values = body['values'];
     if (values is! Map)
-      throw ApiException.badRequest('values must be an object');
+      throw ApiException.badRequest('values 必须是对象');
     await ctx.sources.loginCookies(
       auth.user.id,
       key,
@@ -449,7 +449,7 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final cookies = body['cookies'];
     if (cookies is! List)
-      throw ApiException.badRequest('cookies must be a list');
+      throw ApiException.badRequest('cookies 必须是数组');
     await ctx.sources.importCookies(
       auth.user.id,
       key,
@@ -498,7 +498,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final url = (body['url'] ?? '').toString();
-    if (url.isEmpty) throw ApiException.badRequest('url is required');
+    if (url.isEmpty) throw ApiException.badRequest('缺少地址');
     final id = CryptoUtil.md5Hex(url).substring(0, 12);
     ctx.sourceRepository.upsertLibrary(
       auth.user.id,
@@ -517,7 +517,7 @@ Router buildApiRouter(AppContext ctx) {
         .libraries(auth.user.id)
         .where((l) => l['id'] == id)
         .firstOrNull;
-    if (existing == null) throw ApiException.notFound('Library not found');
+    if (existing == null) throw ApiException.notFound('未找到仓库');
     ctx.sourceRepository.upsertLibrary(
       auth.user.id,
       id: id,
@@ -545,7 +545,7 @@ Router buildApiRouter(AppContext ctx) {
         .libraries(auth.user.id)
         .where((l) => l['id'] == id)
         .firstOrNull;
-    if (library == null) throw ApiException.notFound('Library not found');
+    if (library == null) throw ApiException.notFound('未找到仓库');
     final entries = await ctx.sources.fetchCatalog(library['url'] as String);
     ctx.sourceRepository.upsertLibrary(
       auth.user.id,
@@ -567,7 +567,7 @@ Router buildApiRouter(AppContext ctx) {
         .libraries(auth.user.id)
         .where((l) => l['id'] == id)
         .firstOrNull;
-    if (library == null) throw ApiException.notFound('Library not found');
+    if (library == null) throw ApiException.notFound('未找到仓库');
     var url = (body['url'] ?? '').toString();
     if (url.isEmpty) {
       final entries = await ctx.sources.fetchCatalog(library['url'] as String);
@@ -575,10 +575,10 @@ Router buildApiRouter(AppContext ctx) {
       final entry = entries
           .where((e) => e['id'] == entryId || e['name'] == entryId)
           .firstOrNull;
-      if (entry == null) throw ApiException.notFound('Catalog entry not found');
+      if (entry == null) throw ApiException.notFound('未找到目录条目');
       url = (entry['url'] ?? '').toString();
     }
-    if (url.isEmpty) throw ApiException.badRequest('Entry has no download URL');
+    if (url.isEmpty) throw ApiException.badRequest('条目缺少下载地址');
     final source = await ctx.sources.installFromUrl(auth.user.id, url,
         libraryId: id,
         originId: (body['entryId'] ?? '').toString(),
@@ -592,7 +592,7 @@ Router buildApiRouter(AppContext ctx) {
     final source = _q(request, 'source');
     final keyword = _q(request, 'q') ?? '';
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics.search(
         auth.user.id, source, keyword, _options(request), _page(request)));
@@ -602,7 +602,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final keyword = _q(request, 'q') ?? '';
     if (keyword.trim().isEmpty) {
-      throw ApiException.badRequest('q is required');
+      throw ApiException.badRequest('缺少搜索关键词');
     }
     return _json(await ctx.comics.aggregatedSearch(auth.user.id, keyword));
   });
@@ -632,7 +632,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = _q(request, 'source');
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(
         await ctx.comics.explore(auth.user.id, source, _page(request)));
@@ -642,7 +642,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = _q(request, 'source');
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics
         .explore(auth.user.id, source, _qi(request, 'next', 1)));
@@ -652,7 +652,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = _q(request, 'source');
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics.categories(auth.user.id, source));
   });
@@ -661,7 +661,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = _q(request, 'source');
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics.categoryComics(
       auth.user.id,
@@ -677,7 +677,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final source = _q(request, 'source');
     if (source == null || source.isEmpty) {
-      throw ApiException.badRequest('source is required');
+      throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics.ranking(
       auth.user.id,
@@ -863,7 +863,7 @@ Router buildApiRouter(AppContext ctx) {
     final source = _q(request, 'source') ?? '';
     final key = _q(request, 'key') ?? '';
     if (source.isEmpty) {
-      if (key.isEmpty) throw ApiException.badRequest('key is required');
+      if (key.isEmpty) throw ApiException.badRequest('缺少 key');
       final result = await ctx.comics.cover(auth.user.id, key);
       return Response.ok(result.bytes, headers: {
         'content-type': result.mime,
@@ -905,7 +905,7 @@ Router buildApiRouter(AppContext ctx) {
   router.get('/api/image/cover', (Request request) async {
     final auth = requireAuth(request);
     final url = _q(request, 'url') ?? '';
-    if (url.isEmpty) throw ApiException.badRequest('url is required');
+    if (url.isEmpty) throw ApiException.badRequest('缺少地址');
     final result = await ctx.comics.cover(auth.user.id, url);
     return Response.ok(result.bytes, headers: {
       'content-type': result.mime,
@@ -963,7 +963,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final source = (body['source'] ?? '').toString();
-    if (source.isEmpty) throw ApiException.badRequest('source is required');
+    if (source.isEmpty) throw ApiException.badRequest('缺少源');
     return _json(await ctx.favorites.importNetworkFolder(
       auth.user.id,
       sourceKey: source,
@@ -983,7 +983,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final ids = body['ids'];
-    if (ids is! List) throw ApiException.badRequest('ids must be a list');
+    if (ids is! List) throw ApiException.badRequest('ids 必须是数组');
     ctx.favorites.sortFolders(
         auth.user.id, ids.map((e) => int.tryParse(e.toString()) ?? 0).toList());
     return _json({'items': ctx.favorites.folders(auth.user.id)});
@@ -1006,7 +1006,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final comic = body['comic'];
-    if (comic is! Map) throw ApiException.badRequest('comic is required');
+    if (comic is! Map) throw ApiException.badRequest('缺少漫画信息');
     ctx.favorites.add(
       auth.user.id,
       (body['folderId'] as num?)?.toInt() ?? 0,
@@ -1077,7 +1077,7 @@ Router buildApiRouter(AppContext ctx) {
   router.get('/api/favorites/export', (Request request) {
     final auth = requireAuth(request);
     final folderId = int.tryParse(_q(request, 'folderId') ?? '');
-    if (folderId == null) throw ApiException.badRequest('folderId is required');
+    if (folderId == null) throw ApiException.badRequest('缺少文件夹 ID');
     final data = ctx.favorites.exportFolder(auth.user.id, folderId);
     return _json(data, headers: {
       'content-disposition':
@@ -1095,7 +1095,7 @@ Router buildApiRouter(AppContext ctx) {
       final raw = await _rawBody(request, maxBytes: 32 * 1024 * 1024);
       decoded = jsonDecode(utf8.decode(raw));
     }
-    if (decoded is! Map) throw ApiException.badRequest('Invalid favorite file');
+    if (decoded is! Map) throw ApiException.badRequest('收藏文件无效');
     final data = decoded['data'] is Map ? decoded['data'] as Map : decoded;
     final folder = ctx.favorites.importFolder(
         auth.user.id, data.map((k, v) => MapEntry(k.toString(), v)));
@@ -1215,7 +1215,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final comic = body['comic'];
-    if (comic is! Map) throw ApiException.badRequest('comic is required');
+    if (comic is! Map) throw ApiException.badRequest('缺少漫画信息');
     final added = ctx.readLater
         .add(auth.user.id, comic.map((k, v) => MapEntry(k.toString(), v)));
     return _json({'added': added});
@@ -1292,7 +1292,7 @@ Router buildApiRouter(AppContext ctx) {
     final source = (body['source'] ?? '').toString();
     final comicId = (body['comicId'] ?? '').toString();
     if (source.isEmpty || comicId.isEmpty) {
-      throw ApiException.badRequest('source and comicId are required');
+      throw ApiException.badRequest('缺少源或漫画 ID');
     }
     final chapters = body['chapters'] is List
         ? (body['chapters'] as List).map((e) => e.toString()).toList()
@@ -1312,7 +1312,7 @@ Router buildApiRouter(AppContext ctx) {
     final source = _q(request, 'source') ?? '';
     final comicId = _q(request, 'comicId') ?? '';
     if (source.isEmpty || comicId.isEmpty) {
-      throw ApiException.badRequest('source and comicId are required');
+      throw ApiException.badRequest('缺少源或漫画 ID');
     }
     final chapters = (_q(request, 'chapters') ?? '')
         .split(',')
@@ -1347,7 +1347,7 @@ Router buildApiRouter(AppContext ctx) {
       case 'first':
         ctx.downloads.moveToFirst(auth.user.id, id);
       default:
-        throw ApiException.badRequest('Unknown action');
+        throw ApiException.badRequest('未知操作');
     }
     return _json({'job': ctx.downloads.get(auth.user.id, id)});
   });
@@ -1361,7 +1361,7 @@ Router buildApiRouter(AppContext ctx) {
       job['comicId'] as String,
     );
     if (localComic == null) {
-      throw ApiException.notFound('Downloaded comic not found');
+      throw ApiException.notFound('未找到已下载漫画');
     }
     final result =
         await ctx.downloads.localArchive(auth.user.id, localComic.id);
@@ -1380,7 +1380,7 @@ Router buildApiRouter(AppContext ctx) {
   router.get('/api/local-comics/<id>', (Request request, String id) {
     final auth = requireAuth(request);
     final comic = ctx.local.get(auth.user.id, int.tryParse(id) ?? 0);
-    if (comic == null) throw ApiException.notFound('Local comic not found');
+    if (comic == null) throw ApiException.notFound('未找到本地漫画');
     return _json(comic);
   });
 
@@ -1402,7 +1402,7 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final chapters = body['chapters'];
     if (chapters is! List)
-      throw ApiException.badRequest('chapters must be a list');
+      throw ApiException.badRequest('chapters 必须是数组');
     await ctx.local.deleteChapters(
       auth.user.id,
       int.tryParse(id) ?? 0,

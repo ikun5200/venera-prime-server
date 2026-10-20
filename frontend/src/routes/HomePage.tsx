@@ -76,7 +76,7 @@ export default function HomePage() {
             {t("Home")}
           </h1>
           <p className="text-[13px] text-muted">
-            {new Date().toLocaleDateString(undefined, {
+            {new Date().toLocaleDateString("zh-CN", {
               weekday: "long",
               month: "long",
               day: "numeric",
@@ -118,6 +118,7 @@ function ModuleCard({
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
+  const tr = useT();
   return (
     <Card className="p-4 md:p-5">
       <SectionHeader
@@ -140,7 +141,7 @@ function ModuleCard({
                 to={to}
                 className="rounded px-2 py-1 text-[12px] font-medium text-accent hover:bg-accent/10"
               >
-                View more
+                {tr("View more")}
               </Link>
             ) : null}
           </div>
@@ -196,7 +197,7 @@ function SyncModule() {
   const upload = useMutation({
     mutationFn: api.uploadWebdav,
     onSuccess: () => {
-      toast.success("Data uploaded");
+      toast.success(t("Data uploaded"));
       queryClient.invalidateQueries({ queryKey: ["webdav"] });
     },
     onError: (error) => toast.error(error.message),
@@ -204,7 +205,7 @@ function SyncModule() {
   const download = useMutation({
     mutationFn: api.downloadWebdav,
     onSuccess: () => {
-      toast.success("Data restored");
+      toast.success(t("Data restored"));
       queryClient.invalidateQueries();
     },
     onError: (error) => toast.error(error.message),
@@ -216,7 +217,7 @@ function SyncModule() {
       icon={<RefreshCw className="h-4 w-4 text-muted" />}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="success">Connected</Badge>
+        <Badge tone="success">{t("Connected")}</Badge>
         <span className="min-w-0 flex-1 truncate text-[12px] text-muted">
           {webdav.data.url}
         </span>
@@ -289,7 +290,7 @@ function HistoryModule() {
           ))}
         </div>
       ) : comics.length === 0 ? (
-        <p className="text-[13px] text-muted">No history yet.</p>
+        <p className="text-[13px] text-muted">{t("No history yet.")}</p>
       ) : (
         <ComicRow
           comics={comics}
@@ -355,7 +356,9 @@ function StatisticsModule() {
       icon={<BookOpen className="h-4 w-4 text-muted" />}
     >
       {!recording ? (
-        <p className="text-[13px] text-muted">Reading statistics paused</p>
+        <p className="text-[13px] text-muted">
+          {t("Reading statistics paused")}
+        </p>
       ) : (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="flex gap-6">
@@ -396,7 +399,7 @@ function StatisticsModule() {
             variant="ghost"
             onClick={() => navigate("/statistics")}
           >
-            Open
+            {t("Open")}
           </Button>
         </div>
       )}
@@ -434,7 +437,7 @@ function LocalModule() {
             variant="ghost"
             onClick={() => navigate("/downloads")}
           >
-            <ListChecks className="h-3.5 w-3.5" /> Tasks
+            <ListChecks className="h-3.5 w-3.5" /> {t("Tasks")}
           </Button>
           <Button
             size="sm"
@@ -447,7 +450,7 @@ function LocalModule() {
       }
     >
       {items.length === 0 ? (
-        <p className="text-[13px] text-muted">No local comics yet.</p>
+        <p className="text-[13px] text-muted">{t("No local comics yet.")}</p>
       ) : (
         <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 scrollbar-thin">
           {items.slice(0, 20).map((comic) => (
@@ -491,7 +494,7 @@ function UpdatesModule() {
         icon={<RefreshCw className="h-4 w-4 text-muted" />}
       >
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-[13px] text-muted">Not Configured</p>
+          <p className="text-[13px] text-muted">{t("Not Configured")}</p>
           <Button size="sm" onClick={() => navigate("/follow-updates")}>
             {t("Choose Folder")}
           </Button>
@@ -502,7 +505,7 @@ function UpdatesModule() {
   return (
     <ModuleCard
       title={t("Follow Updates")}
-      subtitle={`${query.data.count} updates`}
+      subtitle={t("@count updates", { count: query.data.count })}
       to="/follow-updates"
       icon={<RefreshCw className="h-4 w-4 text-muted" />}
     >

@@ -90,7 +90,7 @@ export default function PageFilterPage({
       <PageHeader title={t(config.title)} />
       <PageBody className="max-w-[700px]">
         <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-muted">
-          Selected
+          {t("Selected")}
         </h2>
         <Card className="divide-y divide-border">
           {selectedSources.length === 0 ? (
@@ -105,7 +105,7 @@ export default function PageFilterPage({
                   {source.name}
                 </span>
                 <IconButton
-                  label="Up"
+                  label={t("Up")}
                   disabled={index === 0}
                   onClick={() => {
                     const next = [...selected];
@@ -119,7 +119,7 @@ export default function PageFilterPage({
                   <ArrowUp className="h-3.5 w-3.5" />
                 </IconButton>
                 <IconButton
-                  label="Down"
+                  label={t("Down")}
                   disabled={index === selected.length - 1}
                   onClick={() => {
                     const next = [...selected];
@@ -133,7 +133,7 @@ export default function PageFilterPage({
                   <ArrowDown className="h-3.5 w-3.5" />
                 </IconButton>
                 <IconButton
-                  label="Remove"
+                  label={t("Remove")}
                   onClick={() =>
                     persist(selected.filter((key) => key !== source.key))
                   }
@@ -146,7 +146,7 @@ export default function PageFilterPage({
         </Card>
 
         <h2 className="mb-2 mt-6 text-[13px] font-semibold uppercase tracking-wide text-muted">
-          Available
+          {t("Available")}
         </h2>
         <Card className="divide-y divide-border">
           {available.length === 0 ? (

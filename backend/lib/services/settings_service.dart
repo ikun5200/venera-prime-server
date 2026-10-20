@@ -12,10 +12,10 @@ class SettingsService {
     final clean = <String, Object?>{};
     for (final entry in patch.entries) {
       if (serverOnlySettings.contains(entry.key)) {
-        throw ApiException.badRequest('Setting is server-only: ${entry.key}');
+        throw ApiException.badRequest('该设置为服务器专用: ${entry.key}');
       }
       if (!writableSettings.contains(entry.key)) {
-        throw ApiException.badRequest('Unknown setting: ${entry.key}');
+        throw ApiException.badRequest('未知设置: ${entry.key}');
       }
       _validate(entry.key, entry.value);
       clean[entry.key] = entry.value;
@@ -28,19 +28,19 @@ class SettingsService {
     final defaultVal = defaultSettings[key];
     if (defaultVal == null) return; // nullable setting, any JSON accepted
     if (defaultVal is bool && value is! bool) {
-      throw ApiException.badRequest('$key must be a boolean');
+      throw ApiException.badRequest('@key 必须是布尔值');
     }
     if (defaultVal is num && value is! num) {
-      throw ApiException.badRequest('$key must be a number');
+      throw ApiException.badRequest('@key 必须是数字');
     }
     if (defaultVal is String && value is! String) {
-      throw ApiException.badRequest('$key must be a string');
+      throw ApiException.badRequest('@key 必须是字符串');
     }
     if (defaultVal is List && value is! List) {
-      throw ApiException.badRequest('$key must be a list');
+      throw ApiException.badRequest('@key 必须是数组');
     }
     if (defaultVal is Map && value is! Map) {
-      throw ApiException.badRequest('$key must be an object');
+      throw ApiException.badRequest('@key 必须是对象');
     }
   }
 
@@ -49,7 +49,7 @@ class SettingsService {
 
   void addSearchHistory(int userId, String keyword) {
     if (keyword.trim().isEmpty)
-      throw ApiException.badRequest('Keyword required');
+      throw ApiException.badRequest('缺少关键词');
     repository.addSearchHistory(userId, keyword);
   }
 
@@ -57,7 +57,7 @@ class SettingsService {
 
   void deleteSearchHistory(int userId, String keyword) {
     if (keyword.trim().isEmpty) {
-      throw ApiException.badRequest('Keyword required');
+      throw ApiException.badRequest('缺少关键词');
     }
     repository.deleteSearchHistory(userId, keyword);
   }

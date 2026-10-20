@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAppStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 import { Button, Card, Field, Input } from "../components/ui";
 
 export default function InitPage() {
+  const t = useT();
   const navigate = useNavigate();
   const setUser = useAppStore((state) => state.setUser);
   const setInitialized = useAppStore((state) => state.setInitialized);
@@ -19,7 +21,7 @@ export default function InitPage() {
     event.preventDefault();
     setError("");
     if (password !== confirm) {
-      setError("Passwords do not match");
+      setError(t("Passwords do not match"));
       return;
     }
     setLoading(true);
@@ -49,24 +51,26 @@ export default function InitPage() {
             V
           </div>
           <div>
-            <h1 className="text-lg font-semibold">Welcome to Venera Prime</h1>
+            <h1 className="text-lg font-semibold">
+              {t("Welcome to Venera Prime")}
+            </h1>
             <p className="text-[13px] text-muted">
-              Create the administrator account to get started.
+              {t("Create the administrator account to get started.")}
             </p>
           </div>
         </div>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <Field label="Username">
+          <Field label={t("Username")}>
             <Input
               autoFocus
               autoComplete="username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="admin"
+              placeholder={t("admin")}
               required
             />
           </Field>
-          <Field label="Password" hint="At least 6 characters.">
+          <Field label={t("Password")} hint={t("At least 6 characters.")}>
             <Input
               type="password"
               autoComplete="new-password"
@@ -76,7 +80,7 @@ export default function InitPage() {
               minLength={6}
             />
           </Field>
-          <Field label="Confirm password">
+          <Field label={t("Confirm password")}>
             <Input
               type="password"
               autoComplete="new-password"
@@ -97,7 +101,7 @@ export default function InitPage() {
             loading={loading}
             className="mt-1 justify-center"
           >
-            Create administrator
+            {t("Create administrator")}
           </Button>
         </form>
       </Card>

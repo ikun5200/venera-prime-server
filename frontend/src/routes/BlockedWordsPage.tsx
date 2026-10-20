@@ -30,7 +30,7 @@ export default function BlockedWordsPage({
     const value = draft.trim();
     if (!value) return;
     if (words.includes(value)) {
-      toast.error("Keyword already exists");
+      toast.error(t("Keyword already exists"));
       return;
     }
     persist([...words, value]);
@@ -68,7 +68,7 @@ export default function BlockedWordsPage({
                   {word}
                 </span>
                 <IconButton
-                  label="Delete"
+                  label={t("Delete")}
                   onClick={() => persist(words.filter((item) => item !== word))}
                 >
                   <X className="h-3.5 w-3.5" />

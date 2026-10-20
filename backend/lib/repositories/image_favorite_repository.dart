@@ -140,7 +140,7 @@ class ImageFavoriteRepository {
   }) {
     final comicId = (comic['id'] ?? '').toString();
     if (comicId.isEmpty || eid.isEmpty || page <= 0 || ep <= 0) {
-      throw ApiException.badRequest('Invalid image favorite');
+      throw ApiException.badRequest('图片收藏无效');
     }
     final now = nowMs();
     db.transaction(() {

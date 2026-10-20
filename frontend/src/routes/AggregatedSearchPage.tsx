@@ -89,7 +89,7 @@ export default function AggregatedSearchPage() {
                       )
                     }
                   >
-                    View more
+                    {t("View more")}
                   </Button>
                 </div>
                 {section.error ? (
