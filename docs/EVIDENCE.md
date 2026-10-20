@@ -371,3 +371,9 @@ Every acceptance item is backed by a reproducible command, output summary and
   substitute or a documented scope constraint in `docs/BLOCKERS.md`; the matrix
   statuses and evidence column were updated accordingly (E-16).
 - Time: 2026-10-20T05:05:00Z
+- CI verification: workflow run
+  [39373491937](https://github.com/ikun5200/venera-prime-server/actions/runs/39373491937)
+  succeeded — backend-test and frontend-test both green and the GHCR image
+  build was gated on them. Two earlier failures were fixed: Dart SDK pinned to
+  3.13.5 (matching the committed `pubspec.lock`), and the backend test job now
+  builds the Rust JS host sidecar with `cargo build` first.
