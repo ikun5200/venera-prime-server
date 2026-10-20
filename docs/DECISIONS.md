@@ -172,3 +172,17 @@
   to RESOLVED.
 - Impact: matrix 342 DONE / 30 BLOCKED; CI now gates the image build on the
   backend and frontend test jobs.
+
+## D-019 — JS host stdin serialization and opaque comic ids
+- Choice: serialize `Process.stdin` writes/flushes in `JsHostClient` behind a
+  single future chain; decode percent-encoded path parameters once in a small
+  `_DecodingRouter` wrapper; encode comic/reader ids in every frontend link via
+  `comicPath`/`readerPath`.
+- Reason: `IOSink.flush()` binds the sink while a flush is pending, so parallel
+  aggregated searches threw `Bad state: StreamSink is bound to a stream`.
+  Comic ids are opaque source strings; several catalogs use full URLs or
+  `/manga/...` paths, which broke both React Router matching and the
+  `shelf_router` handlers that received encoded ids.
+- Impact: concurrent searches and URL-shaped comic ids work end-to-end; route
+  parameters stay encoded for matching and are decoded exactly once before
+  business logic. Regression tests cover both paths.

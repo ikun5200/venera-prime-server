@@ -450,3 +450,59 @@ Every acceptance item is backed by a reproducible command, output summary and
   `Up (healthy)`; served bundle `index-Bwk8NYUo.js` contains
   “已作为源仓库添加”, “也可以粘贴漫画源目录地址”, “长按并拖动即可排序”.
 - Time: 2026-10-20T16:25:00Z
+
+## E-19 — Third-party source runtime fixes and full catalog install (2026-10-21) — PASS
+
+- User report: after adding
+  `https://cdn.jsdelivr.net/gh/venera-app/venera-configs@main/index.json`,
+  searching “擅长捉弄人的高木同学” produced
+  `Bad state: StreamSink is bound to a stream`, and some sources returned
+  results but clicking a cover did not open the comic.
+- Root causes and fixes:
+  1. **StreamSink** — `JsHostClient` called `process.stdin.flush()` from every
+     in-flight request. `IOSink.flush()` binds the sink, so with the default
+     concurrency of 8 an aggregated search over 33 sources threw
+     `Bad state: StreamSink is bound to a stream`. Writes/flushes now go
+     through a single future chain; the sidecar still runs requests in
+     parallel. Reproduced with a standalone Dart test before the fix.
+  2. **`APP.version`** — `init.js` reads the engine global `appVersion`, which
+     the Rust host never defined. Sources such as copy_manga/hot_manga call
+     `isAppVersionAfter()` in `loadInfo`, so details failed with
+     `at get version`. The host now injects `context.appVersion` (2.6.3).
+  3. **Opaque comic ids** — ykmh returns full URLs, goda `/manga/...`, comick
+     `slug//title`. Frontend links interpolated ids without encoding, so React
+     Router never matched `/comic/:source/:id`; API paths were encoded but
+     `shelf_router` captured them still encoded. Added `comicPath`/
+     `readerPath` helpers (used in all 24 link sites) and a `_DecodingRouter`
+     that percent-decodes each path parameter exactly once.
+  4. **Readability check** — `singlePageWithMultiPart` explore payloads are
+     maps of group → comic list; `_firstComicId` only looked for `comics`
+     wrappers. It now recognises comic summaries with `id` + `title|cover`.
+- Tests added:
+  - `backend/test/js_host_test.dart`: 8 concurrent source calls (would throw
+    the StreamSink error before the fix); encoded comic/chapter ids containing
+    `/` and `APP.version` in `loadInfo`.
+  - `frontend/src/lib/links.test.ts` and `links.test.tsx`: link builders and
+    React Router param decoding for `/` and full-URL ids.
+- Commands:
+  - `cd backend && dart analyze && dart test` → 0 errors (3 info lints);
+    **44/44 tests**.
+  - `cd frontend && npm run typecheck && npm test && npm run build` →
+    typecheck clean; **17/17 tests**; production build
+    `index-BCCZbqtH.js`.
+- CI: run [39510499979](https://github.com/ikun5200/venera-prime-server/actions/runs/39510499979)
+  succeeded (backend-test + frontend-test + image build/push).
+- NAS (`http://192.168.31.88:8082`, image recreated, `Up (healthy)`):
+  - All **33** sources from the venera-configs catalog are present for the
+    admin account (12 existing kept, 21 inserted from the catalog) plus the
+    catalog library entry.
+  - `GET /api/search/aggregated?q=擅长捉弄人的高木同学` → HTTP 200 in 40 s,
+    33 sections, **8 sources with results** (copy_manga, copy_manga_multi_accounts,
+    manwaba, goda, wnacg, mxs, jcomic, hot_manga) and **no StreamSink error**.
+  - Details for every returned source → HTTP 200 with real chapter counts
+    (e.g. copy_manga 324, manwaba 176, goda 258, hot_manga 324).
+  - `goda` chapter image and cover proxies → HTTP 200 `image/webp`
+    (348,268 B and 44,194 B).
+  - SPA routes `/comic/goda/%2Fmanga%2Fa%2Fb` and the encoded reader route
+    return the app shell; served bundle is `index-BCCZbqtH.js`.
+- Time: 2026-10-21T07:00:00Z

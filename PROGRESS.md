@@ -1,8 +1,13 @@
 # Progress
 
-Updated: 2026-10-20T16:25Z
+Updated: 2026-10-21T07:00Z
 
 ## Current phase
+
+Third-party source runtime fix (E-19) completed: concurrent JS-host calls no
+longer collide on the stdin sink, sources using `APP.version` load details,
+opaque comic ids containing `/` or full URLs open in details and the reader,
+and the NAS instance now has all 33 sources from the venera-configs catalog.
 
 Source-catalog import fix + second localization sweep (E-18) completed:
 catalog URLs are auto-detected as source libraries, the real
@@ -68,6 +73,25 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   downloads/browser ZIP, upload/local read/export, image favorites,
   statistics, follow updates, source libraries/settings/check, WebDAV,
   responsive 375/768/1280 with zero horizontal overflow.
+
+## Completed in 2026-10-21
+
+- Installed all 33 sources from
+  `https://cdn.jsdelivr.net/gh/venera-app/venera-configs@main/index.json`
+  into the NAS account (existing 12 kept, 21 added) and kept the catalog
+  library entry.
+- Fixed `Bad state: StreamSink is bound to a stream` under concurrent
+  aggregated searches by serializing writes/flushes to the JS host stdin.
+- Fixed sources that read `APP.version` (copy_manga, hot_manga) by injecting
+  the engine `appVersion` global.
+- Fixed "cover opens nothing" for sources whose comic ids contain `/` or are
+  full URLs (ykmh, goda, comick): frontend links now encode ids, the API
+  decodes path parameters once, and the reader links use the same encoding.
+- Improved source readability checks for `singlePageWithMultiPart` explore
+  payloads.
+- Regression tests: concurrent JS calls, encoded comic/chapter ids,
+  `APP.version`, and frontend comic/reader link builders (44 backend tests,
+  17 frontend tests).
 
 ## Next
 
