@@ -97,6 +97,7 @@ class AppContext {
       sourceRepository: sourceRepository,
       history: historyRepository,
       favorites: favoriteRepository,
+      settings: settingsRepository,
       paths: paths,
     );
     favorites = FavoriteService(

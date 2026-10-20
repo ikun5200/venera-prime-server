@@ -44,7 +44,8 @@ class ImageFavoriteRepository {
     final order = switch (sort) {
       'Time Asc' => 'f.favorited_at ASC',
       'Time Desc' => 'f.favorited_at DESC',
-      'Favorite Num' || 'Favorite Num Compare Comic Pages' =>
+      'Favorite Num' ||
+      'Favorite Num Compare Comic Pages' =>
         '(SELECT COUNT(*) FROM image_favorite_pages p WHERE p.user_id=f.user_id '
             'AND p.comic_id=f.comic_id AND p.source_key=f.source_key) DESC',
       _ => 'f.title COLLATE NOCASE ASC',
@@ -158,8 +159,9 @@ class ImageFavoriteRepository {
           (comic['subtitle'] ?? '').toString(),
           (comic['subtitle'] ?? '').toString(),
           jsonEncode(comic['tags'] is List ? comic['tags'] : const []),
-          jsonEncode(
-              comic['translatedTags'] is List ? comic['translatedTags'] : const []),
+          jsonEncode(comic['translatedTags'] is List
+              ? comic['translatedTags']
+              : const []),
           now,
           (comic['maxPage'] as int?) ?? 0,
           '{}',
@@ -170,7 +172,15 @@ class ImageFavoriteRepository {
         'ep_name,max_page) VALUES (?,?,?,?,?,?,?) '
         'ON CONFLICT(user_id,comic_id,source_key,eid) DO UPDATE SET '
         'ep=excluded.ep,ep_name=excluded.ep_name,max_page=excluded.max_page',
-        [userId, comicId, sourceKey, eid, ep, epName, (comic['maxPage'] as int?) ?? 0],
+        [
+          userId,
+          comicId,
+          sourceKey,
+          eid,
+          ep,
+          epName,
+          (comic['maxPage'] as int?) ?? 0
+        ],
       );
       db.execute(
         'INSERT INTO image_favorite_pages (user_id,comic_id,source_key,eid,page,'

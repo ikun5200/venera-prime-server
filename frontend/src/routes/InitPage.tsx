@@ -1,25 +1,25 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
-import { useAppStore } from '../lib/store';
-import { Button, Card, Field, Input } from '../components/ui';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { useAppStore } from "../lib/store";
+import { Button, Card, Field, Input } from "../components/ui";
 
 export default function InitPage() {
   const navigate = useNavigate();
   const setUser = useAppStore((state) => state.setUser);
   const setInitialized = useAppStore((state) => state.setInitialized);
   const setSettings = useAppStore((state) => state.setSettings);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
+    setError("");
     if (password !== confirm) {
-      setError('Passwords do not match');
+      setError("Passwords do not match");
       return;
     }
     setLoading(true);
@@ -33,7 +33,7 @@ export default function InitPage() {
       } catch {
         // Settings load is best-effort during first boot.
       }
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -50,7 +50,9 @@ export default function InitPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold">Welcome to Venera Prime</h1>
-            <p className="text-[13px] text-muted">Create the administrator account to get started.</p>
+            <p className="text-[13px] text-muted">
+              Create the administrator account to get started.
+            </p>
           </div>
         </div>
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -84,9 +86,17 @@ export default function InitPage() {
             />
           </Field>
           {error ? (
-            <p className="rounded bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>
+            <p className="rounded bg-danger/10 px-3 py-2 text-[13px] text-danger">
+              {error}
+            </p>
           ) : null}
-          <Button type="submit" variant="primary" size="lg" loading={loading} className="mt-1 justify-center">
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className="mt-1 justify-center"
+          >
             Create administrator
           </Button>
         </form>

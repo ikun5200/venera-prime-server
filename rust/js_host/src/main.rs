@@ -405,6 +405,8 @@ ComicSource.sources[__src.key] = __src;
       webviewLogin: !!a.loginWithWebview,
       logout: !!a.logout,
       register: !!a.registerWebsite,
+      tagsSuggestions: !!(s.search && s.search.enableTagsSuggestions),
+      tagSuggestionSelect: !!(s.search && s.search.onTagSuggestionSelected),
     },
     account: Object.keys(a),
     cookieFields: (a.loginWithCookies && a.loginWithCookies.fields) || null,

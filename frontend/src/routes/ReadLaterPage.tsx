@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bookmark, CheckSquare, Search, Trash2 } from 'lucide-react';
-import { api } from '../lib/api';
-import { useAppStore, toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import type { Comic, ReadLaterItem } from '../lib/types';
-import { cn } from '../lib/utils';
-import { ComicCard } from '../components/ComicCard';
-import { PageBody, PageHeader } from '../components/PageHeader';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bookmark, CheckSquare, Search, Trash2 } from "lucide-react";
+import { api } from "../lib/api";
+import { useAppStore, toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import type { Comic, ReadLaterItem } from "../lib/types";
+import { cn } from "../lib/utils";
+import { ComicCard } from "../components/ComicCard";
+import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Button,
   ConfirmDialog,
@@ -19,13 +19,13 @@ import {
   Modal,
   Select,
   Skeleton,
-} from '../components/ui';
+} from "../components/ui";
 
 export default function ReadLaterPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [favoriteOpen, setFavoriteOpen] = useState(false);
@@ -33,27 +33,35 @@ export default function ReadLaterPage() {
   const [clearOpen, setClearOpen] = useState(false);
 
   const query = useQuery({
-    queryKey: ['read-later', search],
+    queryKey: ["read-later", search],
     queryFn: () => api.readLater(search || undefined),
   });
-  const folders = useQuery({ queryKey: ['favorite-folders'], queryFn: api.favoriteFolders });
+  const folders = useQuery({
+    queryKey: ["favorite-folders"],
+    queryFn: api.favoriteFolders,
+  });
 
   const items = query.data?.items ?? [];
-  const selectedItems = items.filter((item) => selected.has(`${item.id}:${item.comicType}`));
+  const selectedItems = items.filter((item) =>
+    selected.has(`${item.id}:${item.comicType}`),
+  );
 
   const remove = useMutation({
     mutationFn: (itemsToRemove: ReadLaterItem[]) =>
       api.batchDeleteReadLater(
-        itemsToRemove.map((item) => ({ comicId: item.id, comicType: item.comicType })),
+        itemsToRemove.map((item) => ({
+          comicId: item.id,
+          comicType: item.comicType,
+        })),
       ),
     onSuccess: (_, removed) => {
       setSelected(new Set());
-      queryClient.invalidateQueries({ queryKey: ['read-later'] });
+      queryClient.invalidateQueries({ queryKey: ["read-later"] });
       toast.success(`Removed ${removed.length} items`, {
-        label: 'Undo',
+        label: "Undo",
         onClick: () => {
           api.restoreReadLater(removed).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['read-later'] });
+            queryClient.invalidateQueries({ queryKey: ["read-later"] });
           });
         },
       });
@@ -76,16 +84,16 @@ export default function ReadLaterPage() {
             sourceKey: item.sourceKey,
             comicType: item.comicType,
           },
-          useAppStore.getState().settings.newFavoriteAddTo === 'start',
+          useAppStore.getState().settings.newFavoriteAddTo === "start",
         );
       }
     },
     onSuccess: () => {
-      toast.success('Added');
+      toast.success("Added");
       setSelected(new Set());
       setFavoriteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['favorites'] });
-      queryClient.invalidateQueries({ queryKey: ['favorite-folders'] });
+      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -93,8 +101,8 @@ export default function ReadLaterPage() {
   const clear = useMutation({
     mutationFn: api.clearReadLater,
     onSuccess: () => {
-      toast.success('Cleared');
-      queryClient.invalidateQueries({ queryKey: ['read-later'] });
+      toast.success("Cleared");
+      queryClient.invalidateQueries({ queryKey: ["read-later"] });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -110,22 +118,22 @@ export default function ReadLaterPage() {
   return (
     <>
       <PageHeader
-        title={t('Read later')}
+        title={t("Read later")}
         subtitle={`${query.data?.count ?? 0} comics`}
         actions={
           <>
             <IconButton
-              label={selectMode ? 'Exit Multi-Select' : 'Multi-Select'}
+              label={selectMode ? "Exit Multi-Select" : "Multi-Select"}
               onClick={() => {
                 setSelectMode((value) => !value);
                 setSelected(new Set());
               }}
-              className={selectMode ? 'text-accent' : undefined}
+              className={selectMode ? "text-accent" : undefined}
             >
               <CheckSquare className="h-4 w-4" />
             </IconButton>
             <IconButton
-              label={t('Clear')}
+              label={t("Clear")}
               onClick={() => setClearOpen(true)}
               disabled={(query.data?.count ?? 0) === 0}
             >
@@ -140,34 +148,38 @@ export default function ReadLaterPage() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('Search')}
+            placeholder={t("Search")}
             className="pl-9"
           />
         </div>
 
         {selectMode && selected.size > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
-            <span className="px-1 text-[12px] font-medium">{selected.size} selected</span>
+            <span className="px-1 text-[12px] font-medium">
+              {selected.size} selected
+            </span>
             <Button
               size="sm"
               onClick={() =>
-                setSelected(new Set(items.map((item) => `${item.id}:${item.comicType}`)))
+                setSelected(
+                  new Set(items.map((item) => `${item.id}:${item.comicType}`)),
+                )
               }
             >
-              {t('Select All')}
+              {t("Select All")}
             </Button>
             <Button size="sm" onClick={() => setSelected(new Set())}>
-              {t('Deselect')}
+              {t("Deselect")}
             </Button>
             <Button size="sm" onClick={() => setFavoriteOpen(true)}>
-              <Bookmark className="h-3.5 w-3.5" /> {t('Add to favorites')}
+              <Bookmark className="h-3.5 w-3.5" /> {t("Add to favorites")}
             </Button>
             <Button
               size="sm"
               variant="danger"
               onClick={() => remove.mutate(selectedItems)}
             >
-              <Trash2 className="h-3.5 w-3.5" /> {t('Delete')}
+              <Trash2 className="h-3.5 w-3.5" /> {t("Delete")}
             </Button>
           </div>
         ) : null}
@@ -182,7 +194,7 @@ export default function ReadLaterPage() {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <EmptyState title={t('No data')} />
+          <EmptyState title={t("No data")} />
         ) : (
           <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
             {items.map((item) => {
@@ -202,18 +214,21 @@ export default function ReadLaterPage() {
                   <ComicCard
                     comic={comic}
                     onClick={() =>
-                      selectMode ? toggle(item) : navigate(`/comic/${item.sourceKey}/${item.id}`)
+                      selectMode
+                        ? toggle(item)
+                        : navigate(`/comic/${item.sourceKey}/${item.id}`)
                     }
                     actions={
                       selectMode
                         ? undefined
                         : [
                             {
-                              label: t('Details'),
-                              onSelect: () => navigate(`/comic/${item.sourceKey}/${item.id}`),
+                              label: t("Details"),
+                              onSelect: () =>
+                                navigate(`/comic/${item.sourceKey}/${item.id}`),
                             },
                             {
-                              label: t('Remove'),
+                              label: t("Remove"),
                               danger: true,
                               onSelect: () => remove.mutate([item]),
                             },
@@ -224,14 +239,14 @@ export default function ReadLaterPage() {
                     <button
                       onClick={() => toggle(item)}
                       className={cn(
-                        'absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded border',
+                        "absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded border",
                         selected.has(key)
-                          ? 'border-accent bg-accent text-white'
-                          : 'border-white/70 bg-black/40',
+                          ? "border-accent bg-accent text-white"
+                          : "border-white/70 bg-black/40",
                       )}
                       aria-label="Select"
                     >
-                      {selected.has(key) ? '✓' : ''}
+                      {selected.has(key) ? "✓" : ""}
                     </button>
                   ) : null}
                 </div>
@@ -244,11 +259,11 @@ export default function ReadLaterPage() {
       <Modal
         open={favoriteOpen}
         onClose={() => setFavoriteOpen(false)}
-        title={t('Add to favorites')}
+        title={t("Add to favorites")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setFavoriteOpen(false)}>
-              {t('Cancel')}
+              {t("Cancel")}
             </Button>
             <Button
               variant="primary"
@@ -256,14 +271,14 @@ export default function ReadLaterPage() {
               loading={addToFavorites.isPending}
               onClick={() => addToFavorites.mutate()}
             >
-              {t('Confirm')}
+              {t("Confirm")}
             </Button>
           </>
         }
       >
-        <Field label={t('Folder')}>
+        <Field label={t("Folder")}>
           <Select
-            value={folderId ?? ''}
+            value={folderId ?? ""}
             onChange={(event) => setFolderId(Number(event.target.value))}
           >
             <option value="">Select a folder</option>
@@ -279,9 +294,9 @@ export default function ReadLaterPage() {
       <ConfirmDialog
         open={clearOpen}
         onClose={() => setClearOpen(false)}
-        title={t('Clear')}
+        title={t("Clear")}
         message="Remove all comics from Read later?"
-        confirmLabel={t('Clear')}
+        confirmLabel={t("Clear")}
         danger
         onConfirm={() => clear.mutate()}
       />

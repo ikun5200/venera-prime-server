@@ -1,36 +1,36 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowDownUp, RotateCcw } from 'lucide-react';
-import { api } from '../lib/api';
-import { useAppStore, toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import { PageBody, PageHeader } from '../components/PageHeader';
-import { Button, Card, Switch } from '../components/ui';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowDownUp, RotateCcw } from "lucide-react";
+import { api } from "../lib/api";
+import { useAppStore, toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import { PageBody, PageHeader } from "../components/PageHeader";
+import { Button, Card, Switch } from "../components/ui";
 
 const defaultOrder = [
-  'search',
-  'sync',
-  'random',
-  'history',
-  'readLater',
-  'statistics',
-  'local',
-  'updates',
-  'sources',
-  'images',
+  "search",
+  "sync",
+  "random",
+  "history",
+  "readLater",
+  "statistics",
+  "local",
+  "updates",
+  "sources",
+  "images",
 ];
 
 const labels: Record<string, string> = {
-  search: 'Search',
-  sync: 'Data Sync',
-  random: 'Random comic',
-  history: 'History',
-  readLater: 'Read later',
-  statistics: 'Reading statistics',
-  local: 'Local',
-  updates: 'Follow Updates',
-  sources: 'Comic Source',
-  images: 'Image Favorites',
+  search: "Search",
+  sync: "Data Sync",
+  random: "Random comic",
+  history: "History",
+  readLater: "Read later",
+  statistics: "Reading statistics",
+  local: "Local",
+  updates: "Follow Updates",
+  sources: "Comic Source",
+  images: "Image Favorites",
 };
 
 export default function HomeLayoutPage() {
@@ -38,9 +38,16 @@ export default function HomeLayoutPage() {
   const navigate = useNavigate();
   const settings = useAppStore((state) => state.settings);
   const setSettings = useAppStore((state) => state.setSettings);
-  const layout = (settings.homeLayout ?? {}) as { order?: string[]; hidden?: string[] };
-  const [order, setOrder] = useState(layout.order?.length ? layout.order : defaultOrder);
-  const [hidden, setHidden] = useState<Set<string>>(new Set(layout.hidden ?? []));
+  const layout = (settings.homeLayout ?? {}) as {
+    order?: string[];
+    hidden?: string[];
+  };
+  const [order, setOrder] = useState(
+    layout.order?.length ? layout.order : defaultOrder,
+  );
+  const [hidden, setHidden] = useState<Set<string>>(
+    new Set(layout.hidden ?? []),
+  );
   const [dragging, setDragging] = useState<string | null>(null);
 
   const persist = async (nextOrder: string[], nextHidden: Set<string>) => {
@@ -75,7 +82,7 @@ export default function HomeLayoutPage() {
   return (
     <>
       <PageHeader
-        title={t('Customize home')}
+        title={t("Customize home")}
         actions={
           <Button
             size="sm"
@@ -84,17 +91,18 @@ export default function HomeLayoutPage() {
               setOrder(defaultOrder);
               setHidden(new Set());
               persist(defaultOrder, new Set());
-              toast.success('Restored defaults');
+              toast.success("Restored defaults");
             }}
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            {t('Restore defaults')}
+            {t("Restore defaults")}
           </Button>
         }
       />
       <PageBody className="max-w-[700px]">
         <p className="mb-3 text-[12px] text-muted">
-          Long press and drag to reorder. The sync module stays mounted even when hidden.
+          Long press and drag to reorder. The sync module stays mounted even
+          when hidden.
         </p>
         <Card className="divide-y divide-border">
           {order.map((id, index) => (
@@ -119,15 +127,15 @@ export default function HomeLayoutPage() {
               <Switch
                 checked={!hidden.has(id)}
                 onChange={(value) => toggle(id, value)}
-                disabled={id === 'sync'}
+                disabled={id === "sync"}
                 label={labels[id]}
               />
             </div>
           ))}
         </Card>
         <div className="mt-4 flex justify-end">
-          <Button variant="secondary" onClick={() => navigate('/')}>
-            {t('Back')}
+          <Button variant="secondary" onClick={() => navigate("/")}>
+            {t("Back")}
           </Button>
         </div>
       </PageBody>

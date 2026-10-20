@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Play, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, ExternalLink, Play, Trash2 } from "lucide-react";
+import { api, backupExportUrl, downloadUrl, importBackup } from "../lib/api";
+import { useAppStore, toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import { formatBytes, copyText } from "../lib/utils";
 import {
-  api,
-  backupExportUrl,
-  downloadUrl,
-  importBackup,
-} from '../lib/api';
-import { useAppStore, toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import { formatBytes } from '../lib/utils';
-import { PageBody, PageHeader } from '../components/PageHeader';
+  effectiveReaderSettings,
+  getDeviceId,
+  isDeviceSpecificEnabled,
+  readerSettingKeys,
+  withDeviceSpecificSetting,
+  withoutDeviceSpecificSettings,
+} from "../lib/readerSettings";
+import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Button,
   Card,
@@ -20,37 +23,69 @@ import {
   Select,
   Switch,
   Textarea,
-} from '../components/ui';
+} from "../components/ui";
 
 type Item =
-  | { kind: 'switch'; key: string; label: string; hint?: string }
-  | { kind: 'select'; key: string; label: string; options: { value: string; label: string }[]; hint?: string }
-  | { kind: 'slider'; key: string; label: string; min: number; max: number; step?: number; format?: (value: number) => string }
-  | { kind: 'number'; key: string; label: string; hint?: string; suffix?: string }
-  | { kind: 'text'; key: string; label: string; hint?: string; placeholder?: string }
-  | { kind: 'link'; label: string; to: string; hint?: string }
-  | { kind: 'action'; label: string; action: string; hint?: string; danger?: boolean }
-  | { kind: 'custom'; key: string; label: string; hint?: string };
+  | { kind: "switch"; key: string; label: string; hint?: string }
+  | {
+      kind: "select";
+      key: string;
+      label: string;
+      options: { value: string; label: string }[];
+      hint?: string;
+    }
+  | {
+      kind: "slider";
+      key: string;
+      label: string;
+      min: number;
+      max: number;
+      step?: number;
+      format?: (value: number) => string;
+    }
+  | {
+      kind: "number";
+      key: string;
+      label: string;
+      hint?: string;
+      suffix?: string;
+    }
+  | {
+      kind: "text";
+      key: string;
+      label: string;
+      hint?: string;
+      placeholder?: string;
+    }
+  | { kind: "link"; label: string; to: string; hint?: string }
+  | {
+      kind: "action";
+      label: string;
+      action: string;
+      hint?: string;
+      danger?: boolean;
+    }
+  | { kind: "custom"; key: string; label: string; hint?: string };
 
 const titles: Record<string, string> = {
-  explore: 'Explore',
-  reading: 'Reading',
-  appearance: 'Appearance',
-  'local-favorites': 'Local Favorites',
-  app: 'APP',
-  network: 'Network',
-  about: 'About',
-  debug: 'Debug',
-  'image-processing': 'Custom Image Processing',
+  explore: "Explore",
+  reading: "Reading",
+  appearance: "Appearance",
+  "local-favorites": "Local Favorites",
+  app: "APP",
+  network: "Network",
+  about: "About",
+  debug: "Debug",
+  "image-processing": "Custom Image Processing",
 };
 
 const readerModes = [
-  ['galleryLeftToRight', 'Gallery (Left to Right)'],
-  ['galleryRightToLeft', 'Gallery (Right to Left)'],
-  ['galleryTopToBottom', 'Gallery (Top to Bottom)'],
-  ['continuousLeftToRight', 'Continuous (Left to Right)'],
-  ['continuousRightToLeft', 'Continuous (Right to Left)'],
-  ['continuousTopToBottom', 'Continuous (Top to Bottom)'],
+  ["galleryLeftToRight", "Gallery (Left to Right)"],
+  ["galleryRightToLeft", "Gallery (Right to Left)"],
+  ["galleryTopToBottom", "Gallery (Top to Bottom)"],
+  ["continuousLeftToRight", "Continuous (Left to Right)"],
+  ["continuousRightToLeft", "Continuous (Right to Left)"],
+  ["continuousTopToBottom", "Continuous (Top to Bottom)"],
 ];
 
 export default function SettingsCategoryPage() {
@@ -62,34 +97,83 @@ export default function SettingsCategoryPage() {
   const settings = useAppStore((state) => state.settings);
   const setSettings = useAppStore((state) => state.setSettings);
   const user = useAppStore((state) => state.user);
-  const category = location.pathname.endsWith('/image-processing')
-    ? 'image-processing'
-    : params.category ?? 'explore';
+  const category = location.pathname.endsWith("/image-processing")
+    ? "image-processing"
+    : (params.category ?? "explore");
+  const deviceId = getDeviceId();
+  const deviceSpecific =
+    category === "reading" && isDeviceSpecificEnabled(settings, deviceId);
+  const displayedSettings =
+    category === "reading"
+      ? effectiveReaderSettings(settings, "", deviceId)
+      : settings;
   const fileRef = useRef<HTMLInputElement>(null);
-  const [jsCode, setJsCode] = useState('1 + 1');
-  const [jsResult, setJsResult] = useState('');
-  const [processing, setProcessing] = useState(String(settings.customImageProcessing ?? ''));
+  const [jsCode, setJsCode] = useState("1 + 1");
+  const [jsResult, setJsResult] = useState("");
+  const [processing, setProcessing] = useState(
+    String(settings.customImageProcessing ?? ""),
+  );
 
-  const sources = useQuery({ queryKey: ['sources'], queryFn: api.sources, enabled: category === 'explore' });
+  const sources = useQuery({
+    queryKey: ["sources"],
+    queryFn: api.sources,
+    enabled: category === "explore",
+  });
   const folders = useQuery({
-    queryKey: ['favorite-folders'],
+    queryKey: ["favorite-folders"],
     queryFn: api.favoriteFolders,
-    enabled: category === 'local-favorites',
+    enabled: category === "local-favorites",
   });
   const cache = useQuery({
-    queryKey: ['cache-size'],
+    queryKey: ["cache-size"],
     queryFn: api.cacheSize,
-    enabled: category === 'app',
+    enabled: category === "app",
   });
-  const health = useQuery({ queryKey: ['health'], queryFn: api.health, enabled: category === 'about' });
+  const storage = useQuery({
+    queryKey: ["storage-path"],
+    queryFn: api.storagePath,
+    enabled: category === "app",
+  });
+  const health = useQuery({
+    queryKey: ["health"],
+    queryFn: api.health,
+    enabled: category === "about",
+  });
 
   useEffect(() => {
-    setProcessing(String(settings.customImageProcessing ?? ''));
+    setProcessing(String(settings.customImageProcessing ?? ""));
   }, [settings.customImageProcessing]);
 
   const save = async (key: string, value: unknown) => {
     try {
-      setSettings(await api.updateSettings({ [key]: value }));
+      const normalized =
+        [
+          "readerScreenPicNumberForPortrait",
+          "readerScreenPicNumberForLandscape",
+          "cacheRetentionDays",
+        ].includes(key) &&
+        typeof value === "string" &&
+        value.trim() !== ""
+          ? Number(value)
+          : value;
+      if (
+        category === "reading" &&
+        deviceSpecific &&
+        readerSettingKeys.has(key)
+      ) {
+        setSettings(
+          await api.updateSettings({
+            deviceSpecificSettings: withDeviceSpecificSetting(
+              settings,
+              deviceId,
+              key,
+              normalized,
+            ),
+          }),
+        );
+        return;
+      }
+      setSettings(await api.updateSettings({ [key]: normalized }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }
@@ -98,37 +182,37 @@ export default function SettingsCategoryPage() {
   const runAction = async (action: string) => {
     try {
       switch (action) {
-        case 'export':
-          await downloadUrl(backupExportUrl(), 'venera-backup.zip');
+        case "export":
+          await downloadUrl(backupExportUrl(), "venera-backup.zip");
           break;
-        case 'import':
+        case "import":
           fileRef.current?.click();
           break;
-        case 'clear-cache':
+        case "clear-cache":
           await api.clearCache();
-          toast.success('Cache cleared');
-          queryClient.invalidateQueries({ queryKey: ['cache-size'] });
+          toast.success("Cache cleared");
+          queryClient.invalidateQueries({ queryKey: ["cache-size"] });
           break;
-        case 'refresh-library':
+        case "refresh-library":
           await api.refreshLocalLibrary();
-          toast.success('Refreshed');
-          queryClient.invalidateQueries({ queryKey: ['local-comics'] });
+          toast.success("Refreshed");
+          queryClient.invalidateQueries({ queryKey: ["local-comics"] });
           break;
-        case 'reload-sources':
+        case "reload-sources":
           await api.debugReload();
-          toast.success('Configs reloaded');
+          toast.success("Configs reloaded");
           break;
-        case 'open-logs':
-          navigate('/settings/logs');
+        case "open-logs":
+          navigate("/settings/logs");
           break;
-        case 'check-update':
-          toast.success('You are on the latest version');
+        case "check-update":
+          toast.success("You are on the latest version");
           break;
-        case 'delete-unavailable': {
+        case "delete-unavailable": {
           const result = await api.deleteUnavailableFavorites();
           toast.success(`Deleted ${result.removed} favorite items`);
-          queryClient.invalidateQueries({ queryKey: ['favorites'] });
-          queryClient.invalidateQueries({ queryKey: ['favorite-folders'] });
+          queryClient.invalidateQueries({ queryKey: ["favorites"] });
+          queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
           break;
         }
       }
@@ -140,7 +224,7 @@ export default function SettingsCategoryPage() {
   const importFile = async (file: File) => {
     try {
       const result = await importBackup(file);
-      toast.success('Imported');
+      toast.success("Imported");
       queryClient.invalidateQueries();
       void result;
     } catch (error) {
@@ -152,7 +236,7 @@ export default function SettingsCategoryPage() {
 
   return (
     <>
-      <PageHeader title={titles[category] ?? t('Settings')} />
+      <PageHeader title={titles[category] ?? t("Settings")} />
       <PageBody className="max-w-[900px]">
         <input
           ref={fileRef}
@@ -162,32 +246,32 @@ export default function SettingsCategoryPage() {
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) importFile(file);
-            event.target.value = '';
+            event.target.value = "";
           }}
         />
-        {category === 'image-processing' ? (
+        {category === "image-processing" ? (
           <Card className="mb-4 border-warning/30 bg-warning/5 p-4">
             <p className="text-[13px] text-fg">
-              Custom image processing scripts run in the original Flutter client. This server
-              returns images unmodified; the script is stored for reference and for clients that
-              support it.
+              Custom image processing scripts run in the original Flutter
+              client. This server returns images unmodified; the script is
+              stored for reference and for clients that support it.
             </p>
           </Card>
         ) : null}
         <Card className="divide-y divide-border">
           {items.map((item, index) => (
             <div key={`${item.kind}-${index}`} className="px-4 py-3.5">
-              {item.kind === 'switch' ? (
+              {item.kind === "switch" ? (
                 <Row label={item.label} hint={item.hint}>
                   <Switch
-                    checked={settings[item.key] === true}
+                    checked={displayedSettings[item.key] === true}
                     onChange={(value) => save(item.key, value)}
                   />
                 </Row>
-              ) : item.kind === 'select' ? (
+              ) : item.kind === "select" ? (
                 <Row label={item.label} hint={item.hint}>
                   <Select
-                    value={String(settings[item.key] ?? '')}
+                    value={String(displayedSettings[item.key] ?? "")}
                     onChange={(event) => save(item.key, event.target.value)}
                     className="w-[220px]"
                   >
@@ -198,35 +282,35 @@ export default function SettingsCategoryPage() {
                     ))}
                   </Select>
                 </Row>
-              ) : item.kind === 'slider' ? (
+              ) : item.kind === "slider" ? (
                 <SliderRow
                   label={item.label}
-                  value={Number(settings[item.key] ?? item.min)}
+                  value={Number(displayedSettings[item.key] ?? item.min)}
                   min={item.min}
                   max={item.max}
                   step={item.step ?? 1}
                   format={item.format}
                   onSave={(value) => save(item.key, value)}
                 />
-              ) : item.kind === 'number' ? (
+              ) : item.kind === "number" ? (
                 <NumberRow
                   label={item.label}
                   hint={item.hint}
                   suffix={item.suffix}
-                  value={Number(settings[item.key] ?? 0)}
+                  value={Number(displayedSettings[item.key] ?? 0)}
                   onSave={(value) => save(item.key, value)}
                 />
-              ) : item.kind === 'text' ? (
+              ) : item.kind === "text" ? (
                 <TextRow
                   label={item.label}
                   hint={item.hint}
                   placeholder={item.placeholder}
-                  value={String(settings[item.key] ?? '')}
+                  value={String(displayedSettings[item.key] ?? "")}
                   onSave={(value) => save(item.key, value)}
                 />
-              ) : item.kind === 'link' ? (
+              ) : item.kind === "link" ? (
                 <Row label={item.label} hint={item.hint}>
-                  {item.to.startsWith('http') ? (
+                  {item.to.startsWith("http") ? (
                     <a
                       href={item.to}
                       target="_blank"
@@ -236,21 +320,38 @@ export default function SettingsCategoryPage() {
                       Open <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : (
-                    <Button size="sm" variant="secondary" onClick={() => navigate(item.to)}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigate(item.to)}
+                    >
                       Open <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </Row>
-              ) : item.kind === 'action' ? (
+              ) : item.kind === "action" ? (
                 <Row label={item.label} hint={item.hint}>
                   <Button
                     size="sm"
-                    variant={item.danger ? 'danger' : 'secondary'}
+                    variant={item.danger ? "danger" : "secondary"}
                     onClick={() => runAction(item.action)}
                   >
-                    {item.action === 'export' ? 'Export' : item.action === 'import' ? 'Import' : 'Run'}
+                    {item.action === "export"
+                      ? "Export"
+                      : item.action === "import"
+                        ? "Import"
+                        : "Run"}
                   </Button>
                 </Row>
+              ) : item.kind === "custom" &&
+                item.key === "deviceSpecificSettings" ? (
+                <DeviceSpecificRow
+                  label={item.label}
+                  hint={item.hint}
+                  settings={settings}
+                  deviceId={deviceId}
+                  onSave={save}
+                />
               ) : (
                 <CustomRow
                   itemKey={item.key}
@@ -260,6 +361,7 @@ export default function SettingsCategoryPage() {
                   sources={sources.data?.items ?? []}
                   folders={folders.data?.items ?? []}
                   cacheBytes={cache.data?.bytes}
+                  storagePath={storage.data?.path}
                   serverVersion={health.data?.version}
                   jsCode={jsCode}
                   setJsCode={setJsCode}
@@ -272,7 +374,9 @@ export default function SettingsCategoryPage() {
                       const result = await api.debugEval(jsCode);
                       setJsResult(JSON.stringify(result.result, null, 2));
                     } catch (error) {
-                      setJsResult(error instanceof Error ? error.message : String(error));
+                      setJsResult(
+                        error instanceof Error ? error.message : String(error),
+                      );
                     }
                   }}
                   onImport={() => fileRef.current?.click()}
@@ -281,13 +385,61 @@ export default function SettingsCategoryPage() {
             </div>
           ))}
         </Card>
-        {category === 'about' ? (
+        {category === "about" ? (
           <p className="mt-4 text-center text-[11px] text-muted">
-            Venera Prime Server {health.data?.version ?? ''} · signed in as {user?.username}
+            Venera Prime Server {health.data?.version ?? ""} · signed in as{" "}
+            {user?.username}
           </p>
         ) : null}
       </PageBody>
     </>
+  );
+}
+
+function DeviceSpecificRow({
+  label,
+  hint,
+  settings,
+  deviceId,
+  onSave,
+}: {
+  label: string;
+  hint?: string;
+  settings: Record<string, unknown>;
+  deviceId: string;
+  onSave: (key: string, value: unknown) => void;
+}) {
+  const t = useT();
+  const enabled = isDeviceSpecificEnabled(settings, deviceId);
+  return (
+    <div className="flex flex-col gap-2">
+      <Row label={label} hint={hint}>
+        <Switch
+          checked={enabled}
+          onChange={(value) =>
+            onSave(
+              "deviceSpecificSettings",
+              withDeviceSpecificSetting(settings, deviceId, "enabled", value),
+            )
+          }
+        />
+      </Row>
+      {enabled ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="self-start"
+          onClick={() =>
+            onSave(
+              "deviceSpecificSettings",
+              withoutDeviceSpecificSettings(settings, deviceId),
+            )
+          }
+        >
+          {t("Clear specific reader settings for this device")}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -378,7 +530,9 @@ function NumberRow({
           onBlur={() => onSave(Number(draft) || 0)}
           className="w-24 text-right"
         />
-        {suffix ? <span className="text-[12px] text-muted">{suffix}</span> : null}
+        {suffix ? (
+          <span className="text-[12px] text-muted">{suffix}</span>
+        ) : null}
       </div>
     </Row>
   );
@@ -419,6 +573,7 @@ function CustomRow({
   sources,
   folders,
   cacheBytes,
+  storagePath,
   serverVersion,
   jsCode,
   setJsCode,
@@ -436,6 +591,7 @@ function CustomRow({
   sources: { key: string; name: string }[];
   folders: { id: number; name: string }[];
   cacheBytes?: number;
+  storagePath?: string;
   serverVersion?: string;
   jsCode: string;
   setJsCode: (value: string) => void;
@@ -446,13 +602,13 @@ function CustomRow({
   onRunJs: () => void;
   onImport: () => void;
 }) {
-  if (itemKey === 'defaultSearchTarget') {
+  if (itemKey === "defaultSearchTarget") {
     return (
       <Field label={label} hint={hint}>
         <Select
-          value={String(settings.defaultSearchTarget ?? '')}
+          value={String(settings.defaultSearchTarget ?? "")}
           onChange={(event) =>
-            onSave('defaultSearchTarget', event.target.value || null)
+            onSave("defaultSearchTarget", event.target.value || null)
           }
         >
           <option value="">Default</option>
@@ -466,12 +622,14 @@ function CustomRow({
       </Field>
     );
   }
-  if (itemKey === 'quickFavorite') {
+  if (itemKey === "quickFavorite") {
     return (
       <Field label={label} hint={hint}>
         <Select
-          value={String(settings.quickFavorite ?? '')}
-          onChange={(event) => onSave('quickFavorite', event.target.value || null)}
+          value={String(settings.quickFavorite ?? "")}
+          onChange={(event) =>
+            onSave("quickFavorite", event.target.value || null)
+          }
         >
           <option value="">None</option>
           {folders.map((folder) => (
@@ -483,23 +641,48 @@ function CustomRow({
       </Field>
     );
   }
-  if (itemKey === 'cacheInfo') {
+  if (itemKey === "cacheInfo") {
     return (
       <Row label={label} hint={hint}>
         <span className="text-[13px] tabular text-muted">
-          {cacheBytes === undefined ? '…' : formatBytes(cacheBytes)}
+          {cacheBytes === undefined ? "…" : formatBytes(cacheBytes)}
         </span>
       </Row>
     );
   }
-  if (itemKey === 'serverVersion') {
+  if (itemKey === "storagePath") {
     return (
       <Row label={label} hint={hint}>
-        <span className="text-[13px] tabular text-muted">{serverVersion ?? '…'}</span>
+        <div className="flex items-center gap-2">
+          <code className="rounded bg-surface2 px-2 py-1 text-[11px] text-muted">
+            {storagePath ?? "…"}
+          </code>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!storagePath}
+            onClick={() =>
+              storagePath
+                ? copyText(storagePath).then(() => toast.success("Copied"))
+                : undefined
+            }
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </Row>
     );
   }
-  if (itemKey === 'jsEvaluator') {
+  if (itemKey === "serverVersion") {
+    return (
+      <Row label={label} hint={hint}>
+        <span className="text-[13px] tabular text-muted">
+          {serverVersion ?? "…"}
+        </span>
+      </Row>
+    );
+  }
+  if (itemKey === "jsEvaluator") {
     return (
       <div>
         <p className="mb-2 text-[13px] font-medium">{label}</p>
@@ -521,7 +704,7 @@ function CustomRow({
       </div>
     );
   }
-  if (itemKey === 'imageProcessing') {
+  if (itemKey === "imageProcessing") {
     return (
       <div>
         <p className="mb-2 text-[13px] font-medium">{label}</p>
@@ -534,14 +717,14 @@ function CustomRow({
           size="sm"
           variant="primary"
           className="mt-2"
-          onClick={() => onSave('customImageProcessing', processing)}
+          onClick={() => onSave("customImageProcessing", processing)}
         >
           Save
         </Button>
       </div>
     );
   }
-  if (itemKey === 'importBackup') {
+  if (itemKey === "importBackup") {
     return (
       <Row label={label} hint={hint}>
         <Button size="sm" variant="secondary" onClick={onImport}>
@@ -550,13 +733,13 @@ function CustomRow({
       </Row>
     );
   }
-  if (itemKey === 'deleteUnavailable') {
+  if (itemKey === "deleteUnavailable") {
     return (
       <Row label={label} hint={hint}>
         <Button
           size="sm"
           variant="danger"
-          onClick={() => onSave('__noop', null)}
+          onClick={() => onSave("__noop", null)}
         >
           <Trash2 className="h-3.5 w-3.5" /> Delete
         </Button>
@@ -568,352 +751,557 @@ function CustomRow({
 
 function buildItems(category: string): Item[] {
   const commonLanguage = {
-    kind: 'select' as const,
-    key: 'language',
-    label: 'Language',
+    kind: "select" as const,
+    key: "language",
+    label: "Language",
     options: [
-      { value: 'system', label: 'System' },
-      { value: 'zh-CN', label: '简体中文' },
-      { value: 'zh-TW', label: '繁體中文' },
-      { value: 'en-US', label: 'English' },
+      { value: "system", label: "System" },
+      { value: "zh-CN", label: "简体中文" },
+      { value: "zh-TW", label: "繁體中文" },
+      { value: "en-US", label: "English" },
     ],
   };
 
   switch (category) {
-    case 'explore':
+    case "explore":
       return [
         {
-          kind: 'select',
-          key: 'comicDisplayMode',
-          label: 'Display mode of comic tile',
+          kind: "select",
+          key: "comicDisplayMode",
+          label: "Display mode of comic tile",
           options: [
-            { value: 'detailed', label: 'Detailed' },
-            { value: 'brief', label: 'Brief' },
+            { value: "detailed", label: "Detailed" },
+            { value: "brief", label: "Brief" },
           ],
         },
         {
-          kind: 'slider',
-          key: 'comicTileScale',
-          label: 'Size of comic tile',
+          kind: "slider",
+          key: "comicTileScale",
+          label: "Size of comic tile",
           min: 0.5,
           max: 1.5,
           step: 0.05,
           format: (value) => `${value.toFixed(2)}x`,
         },
-        { kind: 'switch', key: 'showFavoriteStatusOnTile', label: 'Show favorite status on comic tile' },
-        { kind: 'switch', key: 'showHistoryStatusOnTile', label: 'Show history on comic tile' },
-        { kind: 'switch', key: 'reverseChapterOrder', label: 'Reverse default chapter order' },
-        { kind: 'custom', key: 'defaultSearchTarget', label: 'Default Search Target' },
         {
-          kind: 'select',
-          key: 'autoAddLanguageFilter',
-          label: 'Auto Language Filters',
+          kind: "switch",
+          key: "showFavoriteStatusOnTile",
+          label: "Show favorite status on comic tile",
+        },
+        {
+          kind: "switch",
+          key: "showHistoryStatusOnTile",
+          label: "Show history on comic tile",
+        },
+        {
+          kind: "switch",
+          key: "reverseChapterOrder",
+          label: "Reverse default chapter order",
+        },
+        {
+          kind: "custom",
+          key: "defaultSearchTarget",
+          label: "Default Search Target",
+        },
+        {
+          kind: "select",
+          key: "autoAddLanguageFilter",
+          label: "Auto Language Filters",
           options: [
-            { value: 'none', label: 'None' },
-            { value: 'chinese', label: 'Chinese' },
-            { value: 'english', label: 'English' },
-            { value: 'japanese', label: 'Japanese' },
+            { value: "none", label: "None" },
+            { value: "chinese", label: "Chinese" },
+            { value: "english", label: "English" },
+            { value: "japanese", label: "Japanese" },
           ],
         },
         {
-          kind: 'select',
-          key: 'initialPage',
-          label: 'Initial Page',
+          kind: "select",
+          key: "initialPage",
+          label: "Initial Page",
           options: [
-            { value: '0', label: 'Home' },
-            { value: '1', label: 'Favorites' },
-            { value: '2', label: 'Explore' },
-            { value: '3', label: 'Categories' },
+            { value: "0", label: "Home" },
+            { value: "1", label: "Favorites" },
+            { value: "2", label: "Explore" },
+            { value: "3", label: "Categories" },
           ],
         },
         {
-          kind: 'select',
-          key: 'comicListDisplayMode',
-          label: 'Display mode of comic list',
+          kind: "select",
+          key: "comicListDisplayMode",
+          label: "Display mode of comic list",
           options: [
-            { value: 'paging', label: 'Paging' },
-            { value: 'continuous', label: 'Continuous' },
+            { value: "paging", label: "Paging" },
+            { value: "continuous", label: "Continuous" },
           ],
         },
-        { kind: 'link', label: 'Explore Pages', to: '/settings/explore-pages' },
-        { kind: 'link', label: 'Category Pages', to: '/settings/category-pages' },
-        { kind: 'link', label: 'Network Favorite Pages', to: '/settings/favorites-pages' },
-        { kind: 'link', label: 'Search Sources', to: '/settings/search-sources' },
-        { kind: 'link', label: 'Keyword blocking', to: '/settings/blocked-words' },
-        { kind: 'link', label: 'Comment keyword blocking', to: '/settings/blocked-comments' },
+        { kind: "link", label: "Explore Pages", to: "/settings/explore-pages" },
+        {
+          kind: "link",
+          label: "Category Pages",
+          to: "/settings/category-pages",
+        },
+        {
+          kind: "link",
+          label: "Network Favorite Pages",
+          to: "/settings/favorites-pages",
+        },
+        {
+          kind: "link",
+          label: "Search Sources",
+          to: "/settings/search-sources",
+        },
+        {
+          kind: "link",
+          label: "Keyword blocking",
+          to: "/settings/blocked-words",
+        },
+        {
+          kind: "link",
+          label: "Comment keyword blocking",
+          to: "/settings/blocked-comments",
+        },
       ];
-    case 'reading':
+    case "reading":
       return [
         {
-          kind: 'select',
-          key: 'readerMode',
-          label: 'Reading mode',
+          kind: "custom",
+          key: "deviceSpecificSettings",
+          label: "Enable device specific settings",
+          hint: "Reader changes apply only to this browser until cleared.",
+        },
+        {
+          kind: "select",
+          key: "readerMode",
+          label: "Reading mode",
           options: readerModes.map(([value, label]) => ({ value, label })),
         },
-        { kind: 'switch', key: 'readerTwoPageSpread', label: 'Two-page spread' },
-        { kind: 'switch', key: 'readerPageMarginEnabled', label: 'Page margin' },
         {
-          kind: 'slider',
-          key: 'readerPageMarginPercent',
-          label: 'Page margin size',
+          kind: "switch",
+          key: "readerTwoPageSpread",
+          label: "Two-page spread",
+        },
+        {
+          kind: "switch",
+          key: "readerPageMarginEnabled",
+          label: "Page margin",
+        },
+        {
+          kind: "slider",
+          key: "readerPageMarginPercent",
+          label: "Page margin size",
           min: 0,
           max: 40,
           step: 0.5,
           format: (value) => `${value}%`,
         },
         {
-          kind: 'select',
-          key: 'readerScreenPicNumberForPortrait',
-          label: 'Images per screen (portrait)',
-          options: [1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: String(value) })),
+          kind: "select",
+          key: "readerScreenPicNumberForPortrait",
+          label: "Images per screen (portrait)",
+          options: [1, 2, 3, 4, 5].map((value) => ({
+            value: String(value),
+            label: String(value),
+          })),
         },
         {
-          kind: 'select',
-          key: 'readerScreenPicNumberForLandscape',
-          label: 'Images per screen (landscape)',
-          options: [1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: String(value) })),
+          kind: "select",
+          key: "readerScreenPicNumberForLandscape",
+          label: "Images per screen (landscape)",
+          options: [1, 2, 3, 4, 5].map((value) => ({
+            value: String(value),
+            label: String(value),
+          })),
         },
-        { kind: 'switch', key: 'enableTapToTurnPages', label: 'Tap to turn Pages' },
-        { kind: 'switch', key: 'reverseTapToTurnPages', label: 'Reverse tap to turn Pages' },
-        { kind: 'switch', key: 'enablePageAnimation', label: 'Page animation' },
-        { kind: 'switch', key: 'flashWhiteScreenOnPageTurn', label: 'Flash white screen on page turn' },
         {
-          kind: 'slider',
-          key: 'autoPageTurningInterval',
-          label: 'Auto page turning interval',
+          kind: "switch",
+          key: "enableTapToTurnPages",
+          label: "Tap to turn Pages",
+        },
+        {
+          kind: "switch",
+          key: "reverseTapToTurnPages",
+          label: "Reverse tap to turn Pages",
+        },
+        { kind: "switch", key: "enablePageAnimation", label: "Page animation" },
+        {
+          kind: "switch",
+          key: "flashWhiteScreenOnPageTurn",
+          label: "Flash white screen on page turn",
+        },
+        {
+          kind: "slider",
+          key: "autoPageTurningInterval",
+          label: "Auto page turning interval",
           min: 1,
           max: 20,
           format: (value) => `${value}s`,
         },
-        { kind: 'switch', key: 'showSingleImageOnFirstPage', label: 'Show single image on first page' },
         {
-          kind: 'slider',
-          key: 'readerScrollSpeed',
-          label: 'Mouse scroll speed',
+          kind: "switch",
+          key: "showSingleImageOnFirstPage",
+          label: "Show single image on first page",
+        },
+        {
+          kind: "slider",
+          key: "readerScrollSpeed",
+          label: "Mouse scroll speed",
           min: 0.5,
           max: 3,
           step: 0.1,
           format: (value) => value.toFixed(1),
         },
-        { kind: 'switch', key: 'enableDoubleTapToZoom', label: 'Double tap to zoom' },
-        { kind: 'switch', key: 'enableLongPressToZoom', label: 'Long press to zoom' },
         {
-          kind: 'select',
-          key: 'longPressZoomPosition',
-          label: 'Long press zoom position',
-          options: [
-            { value: 'press', label: 'Press position' },
-            { value: 'center', label: 'Screen center' },
-          ],
-        },
-        { kind: 'switch', key: 'limitImageWidth', label: 'Limit image width' },
-        { kind: 'switch', key: 'enableTurnPageByVolumeKey', label: 'Turn page by volume keys' },
-        { kind: 'switch', key: 'enableClockAndBatteryInfoInReader', label: 'Display time & battery info in reader' },
-        { kind: 'switch', key: 'showSystemStatusBar', label: 'Show system status bar' },
-        {
-          kind: 'select',
-          key: 'quickCollectImage',
-          label: 'Quick collect image',
-          options: [
-            { value: 'No', label: 'Not enable' },
-            { value: 'DoubleTap', label: 'Double Tap' },
-            { value: 'Swipe', label: 'Swipe' },
-          ],
+          kind: "switch",
+          key: "enableDoubleTapToZoom",
+          label: "Double tap to zoom",
         },
         {
-          kind: 'slider',
-          key: 'preloadImageCount',
-          label: 'Number of images preloaded',
+          kind: "switch",
+          key: "enableLongPressToZoom",
+          label: "Long press to zoom",
+        },
+        {
+          kind: "select",
+          key: "longPressZoomPosition",
+          label: "Long press zoom position",
+          options: [
+            { value: "press", label: "Press position" },
+            { value: "center", label: "Screen center" },
+          ],
+        },
+        { kind: "switch", key: "limitImageWidth", label: "Limit image width" },
+        {
+          kind: "switch",
+          key: "enableTurnPageByVolumeKey",
+          label: "Turn page by volume keys",
+        },
+        {
+          kind: "switch",
+          key: "enableClockAndBatteryInfoInReader",
+          label: "Display time & battery info in reader",
+        },
+        {
+          kind: "switch",
+          key: "showSystemStatusBar",
+          label: "Show system status bar",
+        },
+        {
+          kind: "select",
+          key: "quickCollectImage",
+          label: "Quick collect image",
+          options: [
+            { value: "No", label: "Not enable" },
+            { value: "DoubleTap", label: "Double Tap" },
+            { value: "Swipe", label: "Swipe" },
+          ],
+        },
+        {
+          kind: "slider",
+          key: "preloadImageCount",
+          label: "Number of images preloaded",
           min: 1,
           max: 16,
         },
-        { kind: 'switch', key: 'showPageNumberInReader', label: 'Show Page Number' },
-        { kind: 'switch', key: 'removeReadLaterOnComplete', label: 'Remove from Read Later when complete' },
-        { kind: 'switch', key: 'showChapterComments', label: 'Show Chapter Comments' },
-        { kind: 'switch', key: 'showChapterCommentsAtEnd', label: 'Show Comments at Chapter End' },
-        { kind: 'switch', key: 'hideDuplicateChapters', label: 'Hide Duplicate Chapters' },
         {
-          kind: 'select',
-          key: 'readerBackground',
-          label: 'Reader background',
+          kind: "switch",
+          key: "showPageNumberInReader",
+          label: "Show Page Number",
+        },
+        {
+          kind: "switch",
+          key: "removeReadLaterOnComplete",
+          label: "Remove from Read Later when complete",
+        },
+        {
+          kind: "switch",
+          key: "showChapterComments",
+          label: "Show Chapter Comments",
+        },
+        {
+          kind: "switch",
+          key: "showChapterCommentsAtEnd",
+          label: "Show Comments at Chapter End",
+        },
+        {
+          kind: "switch",
+          key: "hideDuplicateChapters",
+          label: "Hide Duplicate Chapters",
+        },
+        {
+          kind: "select",
+          key: "readerBackground",
+          label: "Reader background",
           options: [
-            { value: 'theme', label: 'Theme' },
-            { value: 'white', label: 'White' },
-            { value: 'gray', label: 'Gray' },
-            { value: 'black', label: 'Black' },
-            { value: 'sepia', label: 'Sepia' },
+            { value: "theme", label: "Theme" },
+            { value: "white", label: "White" },
+            { value: "gray", label: "Gray" },
+            { value: "black", label: "Black" },
+            { value: "sepia", label: "Sepia" },
           ],
         },
         {
-          kind: 'select',
-          key: 'readerNightMode',
-          label: 'Night mode',
+          kind: "select",
+          key: "readerNightMode",
+          label: "Night mode",
           options: [
-            { value: 'none', label: 'Off' },
-            { value: 'warm', label: 'Warm' },
-            { value: 'dark', label: 'Dark' },
-            { value: 'red', label: 'Red' },
+            { value: "none", label: "Off" },
+            { value: "warm", label: "Warm" },
+            { value: "dark", label: "Dark" },
+            { value: "red", label: "Red" },
           ],
         },
         {
-          kind: 'slider',
-          key: 'readerNightModeIntensity',
-          label: 'Night mode intensity',
+          kind: "slider",
+          key: "readerNightModeIntensity",
+          label: "Night mode intensity",
           min: 0,
           max: 0.8,
           step: 0.05,
           format: (value) => value.toFixed(2),
         },
         {
-          kind: 'select',
-          key: 'readerOrientationBehavior',
-          label: 'Reader screen orientation behavior',
+          kind: "select",
+          key: "readerOrientationBehavior",
+          label: "Reader screen orientation behavior",
           options: [
-            { value: 'keepAfterExit', label: 'Keep rotation after leaving reader' },
-            { value: 'sessionOnly', label: 'Restore pre-rotation state after leaving reader' },
-            { value: 'rememberGlobally', label: 'Remember for all comics' },
-            { value: 'rememberPerComic', label: 'Remember separately for each comic' },
+            {
+              value: "keepAfterExit",
+              label: "Keep rotation after leaving reader",
+            },
+            {
+              value: "sessionOnly",
+              label: "Restore pre-rotation state after leaving reader",
+            },
+            { value: "rememberGlobally", label: "Remember for all comics" },
+            {
+              value: "rememberPerComic",
+              label: "Remember separately for each comic",
+            },
           ],
         },
-        { kind: 'switch', key: 'enableCustomImageProcessing', label: 'Custom Image Processing' },
-        { kind: 'link', label: 'Edit image processing script', to: '/settings/reading/image-processing' },
+        {
+          kind: "switch",
+          key: "enableCustomImageProcessing",
+          label: "Custom Image Processing",
+        },
+        {
+          kind: "link",
+          label: "Edit image processing script",
+          to: "/settings/reading/image-processing",
+        },
       ];
-    case 'appearance':
+    case "appearance":
       return [
         {
-          kind: 'select',
-          key: 'theme_mode',
-          label: 'Theme Mode',
+          kind: "select",
+          key: "theme_mode",
+          label: "Theme Mode",
           options: [
-            { value: 'system', label: 'System' },
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
+            { value: "system", label: "System" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
           ],
         },
         {
-          kind: 'select',
-          key: 'color',
-          label: 'Theme Color',
+          kind: "select",
+          key: "color",
+          label: "Theme Color",
           options: [
-            { value: 'system', label: 'System' },
-            { value: 'red', label: 'Red' },
-            { value: 'pink', label: 'Pink' },
-            { value: 'purple', label: 'Purple' },
-            { value: 'green', label: 'Green' },
-            { value: 'orange', label: 'Orange' },
-            { value: 'blue', label: 'Blue' },
+            { value: "system", label: "System" },
+            { value: "red", label: "Red" },
+            { value: "pink", label: "Pink" },
+            { value: "purple", label: "Purple" },
+            { value: "green", label: "Green" },
+            { value: "orange", label: "Orange" },
+            { value: "blue", label: "Blue" },
           ],
         },
-        { kind: 'link', label: 'Customize home', to: '/settings/home-layout' },
+        { kind: "link", label: "Customize home", to: "/settings/home-layout" },
         commonLanguage,
       ];
-    case 'local-favorites':
+    case "local-favorites":
       return [
-        { kind: 'switch', key: 'localFavoritesFirst', label: 'Show local favorites before network favorites' },
-        { kind: 'switch', key: 'autoCloseFavoritePanel', label: 'Auto close favorite panel after operation' },
         {
-          kind: 'select',
-          key: 'favoriteFolderTitleAction',
-          label: 'Tap favorite folder name',
+          kind: "switch",
+          key: "localFavoritesFirst",
+          label: "Show local favorites before network favorites",
+        },
+        {
+          kind: "switch",
+          key: "autoCloseFavoritePanel",
+          label: "Auto close favorite panel after operation",
+        },
+        {
+          kind: "select",
+          key: "favoriteFolderTitleAction",
+          label: "Tap favorite folder name",
           options: [
-            { value: 'openSidebar', label: 'Open folder sidebar' },
-            { value: 'returnToOverview', label: 'Return to favorites overview' },
+            { value: "openSidebar", label: "Open folder sidebar" },
+            {
+              value: "returnToOverview",
+              label: "Return to favorites overview",
+            },
           ],
         },
         {
-          kind: 'select',
-          key: 'newFavoriteAddTo',
-          label: 'Add new favorite to',
+          kind: "select",
+          key: "newFavoriteAddTo",
+          label: "Add new favorite to",
           options: [
-            { value: 'start', label: 'Start' },
-            { value: 'end', label: 'End' },
+            { value: "start", label: "Start" },
+            { value: "end", label: "End" },
           ],
         },
         {
-          kind: 'select',
-          key: 'moveFavoriteAfterRead',
-          label: 'Move favorite after reading',
+          kind: "select",
+          key: "moveFavoriteAfterRead",
+          label: "Move favorite after reading",
           options: [
-            { value: 'none', label: 'None' },
-            { value: 'end', label: 'End' },
-            { value: 'start', label: 'Start' },
+            { value: "none", label: "None" },
+            { value: "end", label: "End" },
+            { value: "start", label: "Start" },
           ],
         },
-        { kind: 'custom', key: 'quickFavorite', label: 'Quick Favorite' },
+        { kind: "custom", key: "quickFavorite", label: "Quick Favorite" },
         {
-          kind: 'select',
-          key: 'onClickFavorite',
-          label: 'Click favorite',
+          kind: "select",
+          key: "onClickFavorite",
+          label: "Click favorite",
           options: [
-            { value: 'viewDetail', label: 'View Detail' },
-            { value: 'read', label: 'Read' },
+            { value: "viewDetail", label: "View Detail" },
+            { value: "read", label: "Read" },
           ],
         },
-        { kind: 'action', label: 'Delete all unavailable local favorite items', action: 'delete-unavailable', danger: true },
+        {
+          kind: "action",
+          label: "Delete all unavailable local favorite items",
+          action: "delete-unavailable",
+          danger: true,
+        },
       ];
-    case 'app':
+    case "app":
       return [
-        { kind: 'switch', key: 'showBackgroundTaskButton', label: 'Floating task button' },
-        { kind: 'link', label: 'Background tasks', to: '/tasks' },
-        { kind: 'custom', key: 'cacheInfo', label: 'Cache Size' },
-        { kind: 'action', label: 'Clear Cache', action: 'clear-cache' },
-        { kind: 'number', key: 'cacheSize', label: 'Cache Limit', suffix: 'MB' },
         {
-          kind: 'select',
-          key: 'cacheRetentionDays',
-          label: 'Keep unused cache',
+          kind: "switch",
+          key: "showBackgroundTaskButton",
+          label: "Floating task button",
+        },
+        { kind: "link", label: "Background tasks", to: "/tasks" },
+        { kind: "custom", key: "cacheInfo", label: "Cache Size" },
+        { kind: "action", label: "Clear Cache", action: "clear-cache" },
+        { kind: "custom", key: "storagePath", label: "Storage path" },
+        {
+          kind: "number",
+          key: "cacheSize",
+          label: "Cache Limit",
+          suffix: "MB",
+        },
+        {
+          kind: "select",
+          key: "cacheRetentionDays",
+          label: "Keep unused cache",
           options: [
-            { value: '0', label: 'Never' },
-            { value: '1', label: '1 day' },
-            { value: '3', label: '3 days' },
-            { value: '7', label: '7 days' },
-            { value: '30', label: '30 days' },
+            { value: "0", label: "Never" },
+            { value: "1", label: "1 day" },
+            { value: "3", label: "3 days" },
+            { value: "7", label: "7 days" },
+            { value: "30", label: "30 days" },
           ],
         },
         commonLanguage,
-        { kind: 'switch', key: 'convertTraditionalToSimplified', label: 'Convert Traditional Chinese to Simplified' },
-        { kind: 'switch', key: 'recordReadingStatistics', label: 'Record reading statistics' },
-        { kind: 'link', label: 'Reading statistics', to: '/statistics' },
-        { kind: 'link', label: 'Data Sync', to: '/settings/webdav' },
-        { kind: 'action', label: 'Export App Data', action: 'export' },
-        { kind: 'custom', key: 'importBackup', label: 'Import App Data' },
-        { kind: 'action', label: 'Refresh local library', action: 'refresh-library' },
-        { kind: 'switch', key: 'authorizationRequired', label: 'Authorization Required' },
+        {
+          kind: "switch",
+          key: "convertTraditionalToSimplified",
+          label: "Convert Traditional Chinese to Simplified",
+        },
+        {
+          kind: "switch",
+          key: "recordReadingStatistics",
+          label: "Record reading statistics",
+        },
+        { kind: "link", label: "Reading statistics", to: "/statistics" },
+        { kind: "link", label: "Data Sync", to: "/settings/webdav" },
+        { kind: "action", label: "Export App Data", action: "export" },
+        { kind: "custom", key: "importBackup", label: "Import App Data" },
+        {
+          kind: "action",
+          label: "Refresh local library",
+          action: "refresh-library",
+        },
+        {
+          kind: "switch",
+          key: "authorizationRequired",
+          label: "Authorization Required",
+        },
       ];
-    case 'network':
+    case "network":
       return [
         {
-          kind: 'text',
-          key: 'proxy',
-          label: 'Proxy',
-          hint: 'system, direct, or host:port (optionally user:pass@host:port)',
-          placeholder: 'system',
+          kind: "text",
+          key: "proxy",
+          label: "Proxy",
+          hint: "system, direct, or host:port (optionally user:pass@host:port)",
+          placeholder: "system",
         },
-        { kind: 'switch', key: 'enableDnsOverrides', label: 'Enable DNS Overrides' },
-        { kind: 'switch', key: 'sni', label: 'Server Name Indication' },
-        { kind: 'slider', key: 'downloadThreads', label: 'Download Threads', min: 1, max: 16 },
-        { kind: 'switch', key: 'ignoreBadCertificate', label: 'Ignore Certificate Errors' },
+        {
+          kind: "switch",
+          key: "enableDnsOverrides",
+          label: "Enable DNS Overrides",
+        },
+        { kind: "switch", key: "sni", label: "Server Name Indication" },
+        {
+          kind: "slider",
+          key: "downloadThreads",
+          label: "Download Threads",
+          min: 1,
+          max: 16,
+        },
+        {
+          kind: "switch",
+          key: "ignoreBadCertificate",
+          label: "Ignore Certificate Errors",
+        },
       ];
-    case 'about':
+    case "about":
       return [
-        { kind: 'custom', key: 'serverVersion', label: 'Server version' },
-        { kind: 'switch', key: 'checkUpdateOnStart', label: 'Check for updates on startup' },
-        { kind: 'switch', key: 'autoUpdateComicSources', label: 'Automatically update comic sources' },
-        { kind: 'action', label: 'Check for updates', action: 'check-update' },
-        { kind: 'link', label: 'GitHub', to: 'https://github.com/venera-app/venera-prime' },
-        { kind: 'link', label: 'Telegram group chat', to: 'https://t.me/venera_app' },
+        { kind: "custom", key: "serverVersion", label: "Server version" },
+        {
+          kind: "switch",
+          key: "checkUpdateOnStart",
+          label: "Check for updates on startup",
+        },
+        {
+          kind: "switch",
+          key: "autoUpdateComicSources",
+          label: "Automatically update comic sources",
+        },
+        { kind: "action", label: "Check for updates", action: "check-update" },
+        {
+          kind: "link",
+          label: "GitHub",
+          to: "https://github.com/venera-app/venera-prime",
+        },
+        {
+          kind: "link",
+          label: "Telegram group chat",
+          to: "https://t.me/venera_app",
+        },
       ];
-    case 'debug':
+    case "debug":
       return [
-        { kind: 'action', label: 'Reload Configs', action: 'reload-sources' },
-        { kind: 'action', label: 'Open Log', action: 'open-logs' },
-        { kind: 'switch', key: 'ignoreBadCertificate', label: 'Ignore Certificate Errors' },
-        { kind: 'custom', key: 'jsEvaluator', label: 'JS Evaluator' },
+        { kind: "action", label: "Reload Configs", action: "reload-sources" },
+        { kind: "action", label: "Open Log", action: "open-logs" },
+        {
+          kind: "switch",
+          key: "ignoreBadCertificate",
+          label: "Ignore Certificate Errors",
+        },
+        { kind: "custom", key: "jsEvaluator", label: "JS Evaluator" },
       ];
-    case 'image-processing':
+    case "image-processing":
       return [
-        { kind: 'switch', key: 'enableCustomImageProcessing', label: 'Enable' },
-        { kind: 'custom', key: 'imageProcessing', label: 'Script' },
+        { kind: "switch", key: "enableCustomImageProcessing", label: "Enable" },
+        { kind: "custom", key: "imageProcessing", label: "Script" },
       ];
     default:
       return [];

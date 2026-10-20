@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   FolderOpen,
@@ -8,18 +8,18 @@ import {
   Search,
   Trash2,
   Upload,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   api,
   completeUpload,
   downloadUrl,
   localCoverUrl,
   uploadFile,
-} from '../lib/api';
-import { toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import type { LocalComic } from '../lib/types';
-import { PageBody, PageHeader } from '../components/PageHeader';
+} from "../lib/api";
+import { toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import type { LocalComic } from "../lib/types";
+import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Badge,
   Button,
@@ -32,16 +32,18 @@ import {
   Select,
   Skeleton,
   Switch,
-} from '../components/ui';
+} from "../components/ui";
 
 export default function LocalComicsPage() {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('name');
-  const [importOpen, setImportOpen] = useState(location.pathname.endsWith('/import'));
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name");
+  const [importOpen, setImportOpen] = useState(
+    location.pathname.endsWith("/import"),
+  );
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -49,22 +51,25 @@ export default function LocalComicsPage() {
   const [removeFiles, setRemoveFiles] = useState(true);
   const [removeFavorites, setRemoveFavorites] = useState(true);
   const [chaptersTarget, setChaptersTarget] = useState<LocalComic | null>(null);
-  const [chapterSelection, setChapterSelection] = useState<Set<string>>(new Set());
+  const [chapterSelection, setChapterSelection] = useState<Set<string>>(
+    new Set(),
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const query = useQuery({
-    queryKey: ['local-comics', search, sort],
+    queryKey: ["local-comics", search, sort],
     queryFn: () => api.localComics({ q: search || undefined, sort }),
   });
   const items = query.data?.items ?? [];
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['local-comics'] });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["local-comics"] });
 
   const remove = useMutation({
     mutationFn: (comic: LocalComic) =>
       api.deleteLocalComic(comic.id, { removeFiles, removeFavorites }),
     onSuccess: () => {
-      toast.success('Deleted');
+      toast.success("Deleted");
       setDeleteTarget(null);
       invalidate();
     },
@@ -72,10 +77,15 @@ export default function LocalComicsPage() {
   });
 
   const deleteChapters = useMutation({
-    mutationFn: ({ comic, chapters }: { comic: LocalComic; chapters: string[] }) =>
-      api.deleteLocalChapters(comic.id, chapters),
+    mutationFn: ({
+      comic,
+      chapters,
+    }: {
+      comic: LocalComic;
+      chapters: string[];
+    }) => api.deleteLocalChapters(comic.id, chapters),
     onSuccess: () => {
-      toast.success('Deleted');
+      toast.success("Deleted");
       setChaptersTarget(null);
       setChapterSelection(new Set());
       invalidate();
@@ -84,7 +94,7 @@ export default function LocalComicsPage() {
   });
 
   useEffect(() => {
-    if (location.pathname.endsWith('/import')) setImportOpen(true);
+    if (location.pathname.endsWith("/import")) setImportOpen(true);
   }, [location.pathname]);
 
   const doImport = async () => {
@@ -94,7 +104,7 @@ export default function LocalComicsPage() {
     try {
       const result = await uploadFile(file, setProgress);
       const completed = await completeUpload(result.uploadId, true);
-      toast.success('Imported');
+      toast.success("Imported");
       setImportOpen(false);
       setFile(null);
       invalidate();
@@ -106,7 +116,10 @@ export default function LocalComicsPage() {
     }
   };
 
-  const exportComic = async (comic: LocalComic, format: 'cbz' | 'pdf' | 'epub') => {
+  const exportComic = async (
+    comic: LocalComic,
+    format: "cbz" | "pdf" | "epub",
+  ) => {
     try {
       await downloadUrl(
         `/api/local-comics/${comic.id}/export?format=${format}`,
@@ -120,14 +133,17 @@ export default function LocalComicsPage() {
   return (
     <>
       <PageHeader
-        title={t('Local')}
+        title={t("Local")}
         subtitle={`${items.length} comics`}
         actions={
           <>
-            <IconButton label={t('Import')} onClick={() => setImportOpen(true)}>
+            <IconButton label={t("Import")} onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" />
             </IconButton>
-            <IconButton label={t('Downloading')} onClick={() => navigate('/downloads')}>
+            <IconButton
+              label={t("Downloading")}
+              onClick={() => navigate("/downloads")}
+            >
               <Download className="h-4 w-4" />
             </IconButton>
           </>
@@ -140,11 +156,15 @@ export default function LocalComicsPage() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t('Search')}
+              placeholder={t("Search")}
               className="pl-9"
             />
           </div>
-          <Select value={sort} onChange={(event) => setSort(event.target.value)} className="w-[160px]">
+          <Select
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+            className="w-[160px]"
+          >
             <option value="name">Name</option>
             <option value="time_asc">Date</option>
             <option value="time_desc">Date Desc</option>
@@ -162,9 +182,13 @@ export default function LocalComicsPage() {
           </div>
         ) : items.length === 0 ? (
           <EmptyState
-            title={t('No data')}
+            title={t("No data")}
             description="Upload a CBZ/ZIP archive or download a comic from a source."
-            action={<Button variant="primary" onClick={() => setImportOpen(true)}>{t('Import')}</Button>}
+            action={
+              <Button variant="primary" onClick={() => setImportOpen(true)}>
+                {t("Import")}
+              </Button>
+            }
           />
         ) : (
           <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
@@ -181,15 +205,20 @@ export default function LocalComicsPage() {
                       loading="lazy"
                       className="h-full w-full object-cover"
                       onError={(event) => {
-                        (event.target as HTMLImageElement).style.visibility = 'hidden';
+                        (event.target as HTMLImageElement).style.visibility =
+                          "hidden";
                       }}
                     />
                     <span className="absolute left-1.5 top-1.5">
                       <Badge tone="accent">{comic.chapterList.length} ch</Badge>
                     </span>
                   </div>
-                  <p className="mt-2 line-clamp-2 text-[13px] font-medium leading-snug">{comic.title}</p>
-                  <p className="truncate text-[11px] text-muted">{comic.subtitle}</p>
+                  <p className="mt-2 line-clamp-2 text-[13px] font-medium leading-snug">
+                    {comic.title}
+                  </p>
+                  <p className="truncate text-[11px] text-muted">
+                    {comic.subtitle}
+                  </p>
                 </button>
                 <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
                   <Menu
@@ -205,38 +234,40 @@ export default function LocalComicsPage() {
                     )}
                     items={[
                       {
-                        label: t('Read'),
+                        label: t("Read"),
                         onSelect: () => navigate(`/reader/local/${comic.id}`),
                       },
                       {
-                        label: t('Open Folder'),
+                        label: t("Open Folder"),
                         icon: <FolderOpen className="h-3.5 w-3.5" />,
                         onSelect: () =>
                           navigator.clipboard
                             ?.writeText(comic.directory)
-                            .then(() => toast.success('Path copied to clipboard')),
+                            .then(() =>
+                              toast.success("Path copied to clipboard"),
+                            ),
                       },
                       {
-                        label: t('Export as cbz'),
-                        onSelect: () => exportComic(comic, 'cbz'),
+                        label: t("Export as cbz"),
+                        onSelect: () => exportComic(comic, "cbz"),
                       },
                       {
-                        label: t('Export as pdf'),
-                        onSelect: () => exportComic(comic, 'pdf'),
+                        label: t("Export as pdf"),
+                        onSelect: () => exportComic(comic, "pdf"),
                       },
                       {
-                        label: t('Export as epub'),
-                        onSelect: () => exportComic(comic, 'epub'),
+                        label: t("Export as epub"),
+                        onSelect: () => exportComic(comic, "epub"),
                       },
                       {
-                        label: t('Delete Chapters'),
+                        label: t("Delete Chapters"),
                         onSelect: () => {
                           setChaptersTarget(comic);
                           setChapterSelection(new Set());
                         },
                       },
                       {
-                        label: t('Delete'),
+                        label: t("Delete"),
                         danger: true,
                         icon: <Trash2 className="h-3.5 w-3.5" />,
                         onSelect: () => setDeleteTarget(comic),
@@ -253,20 +284,32 @@ export default function LocalComicsPage() {
       <Modal
         open={importOpen}
         onClose={() => !uploading && setImportOpen(false)}
-        title={t('Import Comics')}
+        title={t("Import Comics")}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setImportOpen(false)} disabled={uploading}>
-              {t('Cancel')}
+            <Button
+              variant="ghost"
+              onClick={() => setImportOpen(false)}
+              disabled={uploading}
+            >
+              {t("Cancel")}
             </Button>
-            <Button variant="primary" loading={uploading} disabled={!file} onClick={doImport}>
-              {t('Import')}
+            <Button
+              variant="primary"
+              loading={uploading}
+              disabled={!file}
+              onClick={doImport}
+            >
+              {t("Import")}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-4">
-          <Field label={t('An archive file')} hint="CBZ, ZIP (7z/CB7 are not supported on this build).">
+          <Field
+            label={t("An archive file")}
+            hint="CBZ, ZIP (7z/CB7 are not supported on this build)."
+          >
             <input
               ref={fileRef}
               type="file"
@@ -294,23 +337,28 @@ export default function LocalComicsPage() {
       <Modal
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title={`${t('Delete')} ${deleteTarget?.title ?? ''}`}
+        title={`${t("Delete")} ${deleteTarget?.title ?? ""}`}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>{t('Cancel')}</Button>
-            <Button variant="danger" onClick={() => deleteTarget && remove.mutate(deleteTarget)}>
-              {t('Delete')}
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => deleteTarget && remove.mutate(deleteTarget)}
+            >
+              {t("Delete")}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-3">
           <label className="flex items-center justify-between gap-3 text-[13px]">
-            {t('Remove local favorite and history')}
+            {t("Remove local favorite and history")}
             <Switch checked={removeFavorites} onChange={setRemoveFavorites} />
           </label>
           <label className="flex items-center justify-between gap-3 text-[13px]">
-            {t('Also remove files on disk')}
+            {t("Also remove files on disk")}
             <Switch checked={removeFiles} onChange={setRemoveFiles} />
           </label>
         </div>
@@ -319,10 +367,12 @@ export default function LocalComicsPage() {
       <Modal
         open={chaptersTarget !== null}
         onClose={() => setChaptersTarget(null)}
-        title={t('Delete Chapters')}
+        title={t("Delete Chapters")}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setChaptersTarget(null)}>{t('Cancel')}</Button>
+            <Button variant="ghost" onClick={() => setChaptersTarget(null)}>
+              {t("Cancel")}
+            </Button>
             <Button
               variant="danger"
               disabled={chapterSelection.size === 0}
@@ -334,7 +384,7 @@ export default function LocalComicsPage() {
                 })
               }
             >
-              {t('Delete')}
+              {t("Delete")}
             </Button>
           </>
         }

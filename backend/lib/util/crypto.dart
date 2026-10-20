@@ -106,8 +106,7 @@ class CryptoUtil {
     return base64UrlEncode(box.concatenation());
   }
 
-  static Future<String?> decryptSecret(
-      String? encoded, String secret) async {
+  static Future<String?> decryptSecret(String? encoded, String secret) async {
     if (encoded == null || encoded.isEmpty) return null;
     try {
       final bytes = base64Url.decode(encoded);

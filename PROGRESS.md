@@ -1,11 +1,17 @@
 # Progress
 
-Updated: 2026-10-19T17:05Z
+Updated: 2026-10-20T05:10Z
 
 ## Current phase
 
-All phases complete. Final delivery report issued after the Phase 8 audit;
-the repository, GHCR image and compose deployment are verified.
+Phase 8 audit complete; a gap-closing round (E-16) added CI test jobs,
+implemented previously-flagged rows (reader zoom, end-of-chapter comments,
+per-comic/device settings, cache policy, network-folder sync, suggestions,
+explore mixed/viewMore, reader context menu/rotate/select/hints, archives,
+storage path, release check, follow-updates scheduler, swipe photo view, logs
+clear, route aliases) and updated the matrix (342 DONE / 30 BLOCKED), plus
+BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
+(E-16).
 
 ## Completed
 

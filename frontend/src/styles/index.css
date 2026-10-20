@@ -39,8 +39,8 @@ body {
   background: rgb(var(--bg));
   color: rgb(var(--fg));
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, 'Noto Sans SC', sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
@@ -104,6 +104,21 @@ button {
 .reader-page {
   user-select: none;
   -webkit-user-select: none;
+}
+
+@keyframes reader-page-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.reader-page-anim {
+  animation: reader-page-in 160ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

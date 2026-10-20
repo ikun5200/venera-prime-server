@@ -74,7 +74,9 @@ class DownloadService {
         .where((j) =>
             j['comicId'] == comicId &&
             j['sourceKey'] == sourceKey &&
-            (j['state'] == 'queued' || j['state'] == 'running' || j['state'] == 'paused'))
+            (j['state'] == 'queued' ||
+                j['state'] == 'running' ||
+                j['state'] == 'paused'))
         .toList();
     if (existing.isNotEmpty) {
       return existing.first;
@@ -116,7 +118,8 @@ class DownloadService {
     for (final entry in chapters.entries) {
       if (entry.value is Map) {
         for (final chapter in (entry.value as Map).entries) {
-          add(chapter.key.toString(), chapter.value.toString(), entry.key.toString());
+          add(chapter.key.toString(), chapter.value.toString(),
+              entry.key.toString());
         }
       } else {
         add(entry.key.toString(), entry.value.toString());
@@ -158,7 +161,9 @@ class DownloadService {
       var totalPages = 0;
       var donePages = 0;
 
-      for (var chapterIndex = 0; chapterIndex < chapters.length; chapterIndex++) {
+      for (var chapterIndex = 0;
+          chapterIndex < chapters.length;
+          chapterIndex++) {
         if (control.cancelled) break;
         while (control.paused && !control.cancelled) {
           await Future.delayed(const Duration(milliseconds: 300));
@@ -171,9 +176,11 @@ class DownloadService {
         final chapterDir = Directory(p.join(comicDir.path, chapterName));
         chapterDir.createSync(recursive: true);
         try {
-          final imagesResult = await comics.chapterImages(
-              userId, sourceKey, comicId, chapterId);
-          final images = (imagesResult['images'] as List).map((e) => e.toString()).toList();
+          final imagesResult =
+              await comics.chapterImages(userId, sourceKey, comicId, chapterId);
+          final images = (imagesResult['images'] as List)
+              .map((e) => e.toString())
+              .toList();
           repository.updateChapter(jobId, chapterId,
               status: 'running', totalPages: images.length);
           totalPages += images.length;
@@ -189,8 +196,8 @@ class DownloadService {
               }
               if (control.cancelled) return;
               final index = queue.removeAt(0);
-              final target = File(p.join(
-                  chapterDir.path, '${(index + 1).toString().padLeft(4, '0')}.jpg'));
+              final target = File(p.join(chapterDir.path,
+                  '${(index + 1).toString().padLeft(4, '0')}.jpg'));
               if (target.existsSync() && target.lengthSync() > 0) {
                 chapterDone++;
                 donePages++;
@@ -200,11 +207,11 @@ class DownloadService {
               for (var attempt = 0; attempt < 4; attempt++) {
                 try {
                   final result = await comics
-                      .image(userId, sourceKey, comicId, chapterId, images[index])
+                      .image(
+                          userId, sourceKey, comicId, chapterId, images[index])
                       .timeout(const Duration(seconds: 40));
                   final ext = _extensionFor(result.mime);
-                  final path = p.join(
-                      chapterDir.path,
+                  final path = p.join(chapterDir.path,
                       '${(index + 1).toString().padLeft(4, '0')}.$ext');
                   await File(path).writeAsBytes(result.bytes);
                   chapterDone++;
@@ -226,7 +233,8 @@ class DownloadService {
             }
           }
 
-          await Future.wait(List.generate(threads.clamp(1, 8), (_) => worker()));
+          await Future.wait(
+              List.generate(threads.clamp(1, 8), (_) => worker()));
           if (control.cancelled) break;
           if (failed.isEmpty) {
             chapterMap[chapterId] = chapter['name'] ?? chapterId;
@@ -356,12 +364,13 @@ class DownloadService {
         .toList();
     final archive = Archive();
     for (final chapter in chapters) {
-      final files = local.chapterFiles(userId, localComicId, chapter['id'] as String);
+      final files =
+          local.chapterFiles(userId, localComicId, chapter['id'] as String);
       for (var i = 0; i < files.length; i++) {
         final name = '${chapter['title']}/${(i + 1).toString().padLeft(4, '0')}'
             '${p.extension(files[i].path)}';
-        archive.addFile(
-            ArchiveFile(name, files[i].lengthSync(), await files[i].readAsBytes()));
+        archive.addFile(ArchiveFile(
+            name, files[i].lengthSync(), await files[i].readAsBytes()));
       }
     }
     final bytes = ZipEncoder().encode(archive);
@@ -385,12 +394,14 @@ class DownloadService {
     if (chapters.isEmpty) throw ApiException.badRequest('No chapters selected');
     final archive = Archive();
     for (final chapter in chapters) {
-      final imagesResult =
-          await comics.chapterImages(userId, sourceKey, comicId, chapter['id'] as String);
-      final images = (imagesResult['images'] as List).map((e) => e.toString()).toList();
+      final imagesResult = await comics.chapterImages(
+          userId, sourceKey, comicId, chapter['id'] as String);
+      final images =
+          (imagesResult['images'] as List).map((e) => e.toString()).toList();
       for (var i = 0; i < images.length; i++) {
         final result = await comics
-            .image(userId, sourceKey, comicId, chapter['id'] as String, images[i])
+            .image(
+                userId, sourceKey, comicId, chapter['id'] as String, images[i])
             .timeout(const Duration(seconds: 40));
         final name = '${PathGuard.sanitizeName(chapter['name'] as String)}/'
             '${(i + 1).toString().padLeft(4, '0')}.${_extensionFor(result.mime)}';

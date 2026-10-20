@@ -82,10 +82,7 @@ class Log {
           String? route,
           Map<String, Object?>? extra}) =>
       add(LogLevel.debug, msg,
-          requestId: requestId,
-          userId: userId,
-          route: route,
-          extra: extra);
+          requestId: requestId, userId: userId, route: route, extra: extra);
 
   static void info(String msg,
           {String? requestId,
@@ -108,10 +105,7 @@ class Log {
           String? route,
           Map<String, Object?>? extra}) =>
       add(LogLevel.warning, msg,
-          requestId: requestId,
-          userId: userId,
-          route: route,
-          extra: extra);
+          requestId: requestId, userId: userId, route: route, extra: extra);
 
   static void error(String msg,
           {String? requestId,

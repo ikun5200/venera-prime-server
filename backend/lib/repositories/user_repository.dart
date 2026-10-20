@@ -46,8 +46,7 @@ class UserRepository {
   final Db db;
   UserRepository(this.db);
 
-  int count() =>
-      db.select('SELECT COUNT(*) AS c FROM users').first['c'] as int;
+  int count() => db.select('SELECT COUNT(*) AS c FROM users').first['c'] as int;
 
   UserRecord? byUsername(String username) {
     final rows = db.select(
@@ -80,8 +79,7 @@ class UserRepository {
     return byId(id)!;
   }
 
-  void update(int id,
-      {String? passwordHash, String? role, bool? disabled}) {
+  void update(int id, {String? passwordHash, String? role, bool? disabled}) {
     final sets = <String>[];
     final params = <Object?>[];
     if (passwordHash != null) {
@@ -103,7 +101,8 @@ class UserRepository {
 
   void delete(int id) => db.execute('DELETE FROM users WHERE id = ?', [id]);
 
-  int adminCount() => db.select(
+  int adminCount() => db
+      .select(
           "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND disabled = 0")
       .first['c'] as int;
 }
@@ -178,8 +177,8 @@ class SessionRepository {
   void deleteForUser(int userId) =>
       db.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
 
-  void deleteExpired() => db.execute(
-      'DELETE FROM sessions WHERE expires_at < ?', [nowMs()]);
+  void deleteExpired() =>
+      db.execute('DELETE FROM sessions WHERE expires_at < ?', [nowMs()]);
 }
 
 class SettingsRepository {
@@ -216,9 +215,8 @@ class SettingsRepository {
     });
   }
 
-  void delete(int userId, String key) =>
-      db.execute('DELETE FROM settings WHERE user_id = ? AND key = ?',
-          [userId, key]);
+  void delete(int userId, String key) => db.execute(
+      'DELETE FROM settings WHERE user_id = ? AND key = ?', [userId, key]);
 
   List<Map<String, Object?>> searchHistory(int userId, {int limit = 50}) => db
       .select(
@@ -251,6 +249,10 @@ class SettingsRepository {
 
   void clearSearchHistory(int userId) =>
       db.execute('DELETE FROM search_history WHERE user_id = ?', [userId]);
+
+  void deleteSearchHistory(int userId, String keyword) => db.execute(
+      'DELETE FROM search_history WHERE user_id = ? AND keyword = ?',
+      [userId, keyword]);
 }
 
 class AuditRepository {

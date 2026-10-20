@@ -1,23 +1,23 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
-import { api } from '../lib/api';
-import { useT } from '../lib/i18n';
-import type { Comic } from '../lib/types';
-import { ComicGrid } from '../components/ComicCard';
-import { PageBody, PageHeader } from '../components/PageHeader';
-import { Button, EmptyState, Input, Skeleton } from '../components/ui';
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
+import { api } from "../lib/api";
+import { useT } from "../lib/i18n";
+import type { Comic } from "../lib/types";
+import { ComicGrid } from "../components/ComicCard";
+import { PageBody, PageHeader } from "../components/PageHeader";
+import { Button, EmptyState, Input, Skeleton } from "../components/ui";
 
 export default function AggregatedSearchPage() {
   const t = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const keyword = params.get('q') ?? '';
+  const keyword = params.get("q") ?? "";
   const [input, setInput] = useState(keyword);
 
   const query = useQuery({
-    queryKey: ['aggregated-search', keyword],
+    queryKey: ["aggregated-search", keyword],
     queryFn: () => api.aggregatedSearch(keyword),
     enabled: Boolean(keyword),
   });
@@ -29,21 +29,21 @@ export default function AggregatedSearchPage() {
 
   return (
     <>
-      <PageHeader title={t('Aggregated Search')} subtitle={keyword} />
+      <PageHeader title={t("Aggregated Search")} subtitle={keyword} />
       <PageBody>
         <div className="mb-6 flex gap-2">
           <Input
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') submit();
+              if (event.key === "Enter") submit();
             }}
-            placeholder={t('Search comics')}
+            placeholder={t("Search comics")}
             className="h-11"
           />
           <Button variant="primary" className="h-11 shrink-0" onClick={submit}>
             <Search className="h-4 w-4" />
-            {t('Search')}
+            {t("Search")}
           </Button>
         </div>
 
@@ -62,12 +62,18 @@ export default function AggregatedSearchPage() {
           </div>
         ) : query.isError ? (
           <EmptyState
-            title={t('Error')}
-            description={query.error instanceof Error ? query.error.message : String(query.error)}
-            action={<Button onClick={() => query.refetch()}>{t('Retry')}</Button>}
+            title={t("Error")}
+            description={
+              query.error instanceof Error
+                ? query.error.message
+                : String(query.error)
+            }
+            action={
+              <Button onClick={() => query.refetch()}>{t("Retry")}</Button>
+            }
           />
         ) : (query.data?.sections.length ?? 0) === 0 ? (
-          <EmptyState title={t('No search results found')} />
+          <EmptyState title={t("No search results found")} />
         ) : (
           <div className="flex flex-col gap-8">
             {query.data?.sections.map((section) => (
@@ -91,7 +97,9 @@ export default function AggregatedSearchPage() {
                     {section.error}
                   </p>
                 ) : section.comics.length === 0 ? (
-                  <p className="text-[13px] text-muted">{t('No search results found')}</p>
+                  <p className="text-[13px] text-muted">
+                    {t("No search results found")}
+                  </p>
                 ) : (
                   <ComicGrid
                     comics={section.comics.slice(0, 12)}

@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   username: string;
-  role: 'admin' | 'user';
+  role: "admin" | "user";
   createdAt: number;
   disabled: boolean;
 }
@@ -37,7 +37,7 @@ export interface Progress {
   maxPage?: number | null;
 }
 
-export interface ComicDetails extends Omit<Comic, 'tags'> {
+export interface ComicDetails extends Omit<Comic, "tags"> {
   comicId: string;
   comicType: number;
   subTitle: string;
@@ -98,7 +98,7 @@ export interface Source {
 }
 
 export interface SourceSettingDef {
-  type: 'select' | 'switch' | 'input' | 'callback';
+  type: "select" | "switch" | "input" | "callback";
   title?: string;
   options?: { value: string; text: string }[];
   default?: unknown;
@@ -269,7 +269,7 @@ export interface TaskItem {
   id: string;
   type: string;
   title: string;
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  status: "running" | "completed" | "failed" | "cancelled";
   progress: number;
   message: string;
   error?: string | null;

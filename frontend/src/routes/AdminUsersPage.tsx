@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, MoreHorizontal, Plus, Trash2, UserX } from 'lucide-react';
-import { api } from '../lib/api';
-import { useAppStore, toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import type { User } from '../lib/types';
-import { formatDate } from '../lib/utils';
-import { PageBody, PageHeader } from '../components/PageHeader';
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { KeyRound, MoreHorizontal, Plus, Trash2, UserX } from "lucide-react";
+import { api } from "../lib/api";
+import { useAppStore, toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import type { User } from "../lib/types";
+import { formatDate } from "../lib/utils";
+import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Badge,
   Button,
@@ -20,39 +20,47 @@ import {
   PromptDialog,
   Select,
   Spinner,
-} from '../components/ui';
+} from "../components/ui";
 
 export default function AdminUsersPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const current = useAppStore((state) => state.user);
-  const query = useQuery({ queryKey: ['admin-users'], queryFn: api.adminUsers });
+  const query = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: api.adminUsers,
+  });
   const [createOpen, setCreateOpen] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"user" | "admin">("user");
   const [resetUser, setResetUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
 
   const create = useMutation({
     mutationFn: () => api.adminCreateUser(username, password, role),
     onSuccess: () => {
-      toast.success('User created');
+      toast.success("User created");
       setCreateOpen(false);
-      setUsername('');
-      setPassword('');
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setUsername("");
+      setPassword("");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
   });
 
   const update = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: { password?: string; disabled?: boolean; role?: string } }) =>
-      api.adminUpdateUser(id, body),
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: number;
+      body: { password?: string; disabled?: boolean; role?: string };
+    }) => api.adminUpdateUser(id, body),
     onSuccess: () => {
-      toast.success('Updated');
+      toast.success("Updated");
       setResetUser(null);
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -60,9 +68,9 @@ export default function AdminUsersPage() {
   const remove = useMutation({
     mutationFn: (id: number) => api.adminDeleteUser(id),
     onSuccess: () => {
-      toast.success('Deleted');
+      toast.success("Deleted");
       setDeleteUser(null);
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -72,10 +80,10 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader
-        title={t('Admin')}
+        title={t("Admin")}
         subtitle={`${users.length} users`}
         actions={
-          <IconButton label={t('Add')} onClick={() => setCreateOpen(true)}>
+          <IconButton label={t("Add")} onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
           </IconButton>
         }
@@ -94,12 +102,22 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-[14px] font-medium">{user.username}</p>
-                    <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'}>{user.role}</Badge>
-                    {user.disabled ? <Badge tone="warning">Disabled</Badge> : null}
-                    {current?.id === user.id ? <Badge tone="success">You</Badge> : null}
+                    <p className="truncate text-[14px] font-medium">
+                      {user.username}
+                    </p>
+                    <Badge tone={user.role === "admin" ? "accent" : "neutral"}>
+                      {user.role}
+                    </Badge>
+                    {user.disabled ? (
+                      <Badge tone="warning">Disabled</Badge>
+                    ) : null}
+                    {current?.id === user.id ? (
+                      <Badge tone="success">You</Badge>
+                    ) : null}
                   </div>
-                  <p className="text-[11px] text-muted">Created {formatDate(user.createdAt)}</p>
+                  <p className="text-[11px] text-muted">
+                    Created {formatDate(user.createdAt)}
+                  </p>
                 </div>
                 <Menu
                   trigger={({ onClick, ...rest }) => (
@@ -109,28 +127,33 @@ export default function AdminUsersPage() {
                   )}
                   items={[
                     {
-                      label: 'Reset password',
+                      label: "Reset password",
                       icon: <KeyRound className="h-3.5 w-3.5" />,
                       onSelect: () => setResetUser(user),
                     },
                     {
-                      label: user.disabled ? 'Enable' : 'Disable',
+                      label: user.disabled ? "Enable" : "Disable",
                       icon: <UserX className="h-3.5 w-3.5" />,
-                      disabled: current?.id === user.id,
-                      onSelect: () =>
-                        update.mutate({ id: user.id, body: { disabled: !user.disabled } }),
-                    },
-                    {
-                      label: user.role === 'admin' ? 'Make user' : 'Make admin',
                       disabled: current?.id === user.id,
                       onSelect: () =>
                         update.mutate({
                           id: user.id,
-                          body: { role: user.role === 'admin' ? 'user' : 'admin' },
+                          body: { disabled: !user.disabled },
                         }),
                     },
                     {
-                      label: t('Delete'),
+                      label: user.role === "admin" ? "Make user" : "Make admin",
+                      disabled: current?.id === user.id,
+                      onSelect: () =>
+                        update.mutate({
+                          id: user.id,
+                          body: {
+                            role: user.role === "admin" ? "user" : "admin",
+                          },
+                        }),
+                    },
+                    {
+                      label: t("Delete"),
                       danger: true,
                       icon: <Trash2 className="h-3.5 w-3.5" />,
                       disabled: current?.id === user.id,
@@ -150,23 +173,28 @@ export default function AdminUsersPage() {
         title="Create user"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>{t('Cancel')}</Button>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
+              {t("Cancel")}
+            </Button>
             <Button
               variant="primary"
               loading={create.isPending}
               disabled={!username.trim() || password.length < 6}
               onClick={() => create.mutate()}
             >
-              {t('Create')}
+              {t("Create")}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-3">
-          <Field label={t('Username')}>
-            <Input value={username} onChange={(event) => setUsername(event.target.value)} />
+          <Field label={t("Username")}>
+            <Input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
           </Field>
-          <Field label={t('Password')} hint="At least 6 characters.">
+          <Field label={t("Password")} hint="At least 6 characters.">
             <Input
               type="password"
               value={password}
@@ -174,7 +202,12 @@ export default function AdminUsersPage() {
             />
           </Field>
           <Field label="Role">
-            <Select value={role} onChange={(event) => setRole(event.target.value as 'user' | 'admin')}>
+            <Select
+              value={role}
+              onChange={(event) =>
+                setRole(event.target.value as "user" | "admin")
+              }
+            >
               <option value="user">User</option>
               <option value="admin">Administrator</option>
             </Select>
@@ -185,19 +218,20 @@ export default function AdminUsersPage() {
       <PromptDialog
         open={resetUser !== null}
         onClose={() => setResetUser(null)}
-        title={`Reset password for ${resetUser?.username ?? ''}`}
-        label={t('Password')}
+        title={`Reset password for ${resetUser?.username ?? ""}`}
+        label={t("Password")}
         onConfirm={(value) =>
-          resetUser && update.mutate({ id: resetUser.id, body: { password: value } })
+          resetUser &&
+          update.mutate({ id: resetUser.id, body: { password: value } })
         }
       />
 
       <ConfirmDialog
         open={deleteUser !== null}
         onClose={() => setDeleteUser(null)}
-        title={`Delete user '${deleteUser?.username ?? ''}' ?`}
+        title={`Delete user '${deleteUser?.username ?? ""}' ?`}
         message="All favorites, history, sources, uploads and sessions for this user are deleted."
-        confirmLabel={t('Delete')}
+        confirmLabel={t("Delete")}
         danger
         onConfirm={() => deleteUser && remove.mutate(deleteUser.id)}
       />

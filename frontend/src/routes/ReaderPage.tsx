@@ -1,36 +1,47 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bookmark,
   BookmarkPlus,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
+  Heart,
   Maximize2,
   MessageSquare,
   Minimize2,
   Moon,
+  RotateCw,
   Settings,
   Share2,
+  ThumbsUp,
   Timer,
-} from 'lucide-react';
+  X,
+} from "lucide-react";
+import { api, imageUrl, localImageUrl } from "../lib/api";
+import { useAppStore, toast } from "../lib/store";
+import { useT } from "../lib/i18n";
 import {
-  api,
-  imageUrl,
-  localImageUrl,
-} from '../lib/api';
-import { useAppStore, toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import type { Chapter, Comment } from '../lib/types';
-import {
-  chapterGroups,
-  clamp,
-  cn,
-  copyText,
-  flattenChapters,
-} from '../lib/utils';
+  comicSettingsKey,
+  effectiveReaderSettings,
+  getDeviceId,
+  isComicSpecificEnabled,
+  isDeviceSpecificEnabled,
+  withComicSpecificSetting,
+  withDeviceSpecificSetting,
+  withoutComicSpecificSettings,
+  withoutDeviceSpecificSettings,
+} from "../lib/readerSettings";
+import type { Chapter, Comment } from "../lib/types";
+import { clamp, cn, copyText, flattenChapters } from "../lib/utils";
 import {
   Button,
   Drawer,
@@ -42,9 +53,9 @@ import {
   Switch,
   Tabs,
   Textarea,
-} from '../components/ui';
+} from "../components/ui";
 
-type Direction = 'ltr' | 'rtl' | 'ttb';
+type Direction = "ltr" | "rtl" | "ttb";
 
 export default function ReaderPage() {
   const t = useT();
@@ -56,47 +67,75 @@ export default function ReaderPage() {
   const settings = useAppStore((state) => state.settings);
   const setSettings = useAppStore((state) => state.setSettings);
 
-  const isLocal = location.pathname.startsWith('/reader/local/');
-  const sourceKey = isLocal ? 'local' : params.source ?? '';
-  const comicId = params.id ?? '';
+  const isLocal = location.pathname.startsWith("/reader/local/");
+  const sourceKey = isLocal ? "local" : (params.source ?? "");
+  const comicId = params.id ?? "";
   const localId = Number(comicId);
+  const comicKey = comicSettingsKey(comicId, sourceKey);
+  const deviceId = useMemo(() => getDeviceId(), []);
+  const readerSettings = useMemo(
+    () => effectiveReaderSettings(settings, comicKey, deviceId),
+    [comicKey, deviceId, settings],
+  );
+  const comicSpecificEnabled = isComicSpecificEnabled(settings, comicKey);
+
+  const sourcesQuery = useQuery({
+    queryKey: ["sources"],
+    queryFn: api.sources,
+    enabled: !isLocal,
+  });
+  const sourceInfo = sourcesQuery.data?.items.find(
+    (item) => item.key === sourceKey,
+  );
 
   const comicQuery = useQuery({
-    queryKey: ['comic', sourceKey, comicId],
+    queryKey: ["comic", sourceKey, comicId],
     queryFn: () => api.comic(sourceKey, comicId),
     enabled: !isLocal && Boolean(sourceKey && comicId),
   });
   const localQuery = useQuery({
-    queryKey: ['local-comic', localId],
+    queryKey: ["local-comic", localId],
     queryFn: () => api.localComic(localId),
     enabled: isLocal && Number.isFinite(localId),
   });
 
   const chapters = useMemo<Chapter[]>(() => {
-    if (isLocal) {
-      return (localQuery.data?.chapterList ?? []).map((chapter) => ({
-        id: chapter.id,
-        title: chapter.title,
-        group: chapter.group ?? undefined,
-        index: chapter.index,
-      }));
-    }
-    return comicQuery.data ? flattenChapters(comicQuery.data.chapters) : [];
-  }, [comicQuery.data, isLocal, localQuery.data]);
+    const raw = isLocal
+      ? (localQuery.data?.chapterList ?? []).map((chapter) => ({
+          id: chapter.id,
+          title: chapter.title,
+          group: chapter.group ?? undefined,
+          index: chapter.index,
+        }))
+      : comicQuery.data
+        ? flattenChapters(comicQuery.data.chapters)
+        : [];
+    if (readerSettings.hideDuplicateChapters === false) return raw;
+    const seen = new Set<string>();
+    return raw.filter((chapter) => {
+      const key = chapter.title.trim().toLowerCase();
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [
+    comicQuery.data,
+    isLocal,
+    localQuery.data,
+    readerSettings.hideDuplicateChapters,
+  ]);
 
   const groups = useMemo(() => {
-    if (isLocal) {
-      const map = new Map<string, Chapter[]>();
-      for (const chapter of chapters) {
-        const key = chapter.group ?? '';
-        map.set(key, [...(map.get(key) ?? []), chapter]);
-      }
-      return [...map.entries()].map(([name, list]) => ({ name, chapters: list }));
+    const map = new Map<string, Chapter[]>();
+    for (const chapter of chapters) {
+      const key = chapter.group ?? "";
+      map.set(key, [...(map.get(key) ?? []), chapter]);
     }
-    return comicQuery.data ? chapterGroups(comicQuery.data.chapters) : [];
-  }, [chapters, comicQuery.data, isLocal]);
+    return [...map.entries()].map(([name, list]) => ({ name, chapters: list }));
+  }, [chapters]);
 
-  const [chapterId, setChapterId] = useState('');
+  const [chapterId, setChapterId] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [chaptersOpen, setChaptersOpen] = useState(false);
@@ -115,12 +154,110 @@ export default function ReaderPage() {
   const collectRef = useRef<() => void>(() => {});
   const firstPageEffect = useRef(true);
   const [flash, setFlash] = useState(false);
-  const [clock, setClock] = useState('');
+  const [clock, setClock] = useState("");
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<{
+    scale: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [rotation, setRotation] = useState(0);
+  const [swipeHint, setSwipeHint] = useState<string | null>(null);
+  const [downloadedEpisodes, setDownloadedEpisodes] = useState<Set<string>>(
+    new Set(),
+  );
+  const hintTimer = useRef<number | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressActive = useRef(false);
+  const suppressTapUntil = useRef(0);
+  const galleryRef = useRef<HTMLDivElement>(null);
+
+  const showHint = (text: string) => {
+    setSwipeHint(text);
+    if (hintTimer.current) window.clearTimeout(hintTimer.current);
+    hintTimer.current = window.setTimeout(() => setSwipeHint(null), 1200);
+  };
+
+  const downloadsQuery = useQuery({
+    queryKey: ["downloads"],
+    queryFn: api.downloads,
+    enabled: !isLocal,
+  });
+  useEffect(() => {
+    const set = new Set<string>();
+    for (const job of downloadsQuery.data?.items ?? []) {
+      if (job.sourceKey !== sourceKey || job.comicId !== comicId) continue;
+      for (const chapter of job.chapters ?? []) {
+        if (
+          chapter.status === "completed" ||
+          (chapter.totalPages > 0 &&
+            chapter.downloadedPages >= chapter.totalPages)
+        ) {
+          set.add(chapter.id);
+        }
+      }
+    }
+    setDownloadedEpisodes((previous) => new Set([...previous, ...set]));
+  }, [comicId, downloadsQuery.data, sourceKey]);
+
+  const localByComicQuery = useQuery({
+    queryKey: ["local-by-comic", sourceKey, comicId],
+    queryFn: () => api.localComics({ q: comicId }),
+    enabled: !isLocal,
+  });
+  useEffect(() => {
+    const match = (localByComicQuery.data?.items ?? []).find(
+      (item) => item.comicId === comicId && item.sourceKey === sourceKey,
+    );
+    if (!match) return;
+    setDownloadedEpisodes((previous) => {
+      const next = new Set(previous);
+      for (const chapter of match.downloadedChapters ?? [])
+        next.add(String(chapter));
+      return next;
+    });
+  }, [comicId, localByComicQuery.data, sourceKey]);
+
+  const cycleRotation = () => setRotation((value) => (value + 90) % 360);
+
+  const contextActions = [
+    { label: t("Reading"), action: () => setSettingsOpen(true) },
+    { label: t("Chapters"), action: () => setChaptersOpen(true) },
+    {
+      label: t("Full Screen"),
+      action: () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        } else {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        }
+      },
+    },
+    { label: t("Exit"), action: () => navigate(-1) },
+    {
+      label: t("Copy Link"),
+      action: () =>
+        copyText(window.location.href).then(() => toast.success("Copied")),
+    },
+    { label: t("Save Image"), action: () => void saveImage() },
+  ];
 
   useEffect(() => {
     const read = comicQuery.data?.progress?.readEpisode;
     if (Array.isArray(read)) {
-      setReadEpisodes(new Set(read.map((value) => Number(value)).filter((value) => Number.isFinite(value))));
+      setReadEpisodes(
+        new Set(
+          read
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value)),
+        ),
+      );
     }
   }, [comicQuery.data?.progress?.readEpisode]);
 
@@ -129,18 +266,20 @@ export default function ReaderPage() {
 
   useEffect(() => {
     if (chapterId || chapters.length === 0) return;
-    const requested = searchParams.get('chapter');
+    const requested = searchParams.get("chapter");
     if (requested && chapters.some((item) => item.id === requested)) {
       setChapterId(requested);
       return;
     }
     const progress = comicQuery.data?.progress;
-    const index = progress ? clamp((progress.ep ?? 1) - 1, 0, chapters.length - 1) : 0;
+    const index = progress
+      ? clamp((progress.ep ?? 1) - 1, 0, chapters.length - 1)
+      : 0;
     setChapterId(chapters[index]?.id ?? chapters[0].id);
   }, [chapterId, chapters, comicQuery.data?.progress, searchParams]);
 
   const imagesQuery = useQuery({
-    queryKey: ['reader-images', sourceKey, comicId, chapterId],
+    queryKey: ["reader-images", sourceKey, comicId, chapterId],
     queryFn: () =>
       isLocal
         ? api.localChapterImages(localId, chapterId)
@@ -159,23 +298,30 @@ export default function ReaderPage() {
     [chapterId, comicId, imageKeys, isLocal, localId, sourceKey],
   );
 
-  const mode = String(settings.readerMode ?? 'galleryLeftToRight');
-  const isContinuous = mode.startsWith('continuous');
-  const direction: Direction = mode.endsWith('RightToLeft')
-    ? 'rtl'
-    : mode.endsWith('TopToBottom')
-      ? 'ttb'
-      : 'ltr';
+  const mode = String(readerSettings.readerMode ?? "galleryLeftToRight");
+  const isContinuous = mode.startsWith("continuous");
+  const direction: Direction = mode.endsWith("RightToLeft")
+    ? "rtl"
+    : mode.endsWith("TopToBottom")
+      ? "ttb"
+      : "ltr";
   const twoPage =
-    !isContinuous && direction !== 'ttb' && settings.readerTwoPageSpread === true;
+    !isContinuous &&
+    direction !== "ttb" &&
+    readerSettings.readerTwoPageSpread === true;
   const landscape = window.innerWidth > window.innerHeight;
   const configuredPerPage = Number(
     landscape
-      ? settings.readerScreenPicNumberForLandscape ?? 1
-      : settings.readerScreenPicNumberForPortrait ?? 1,
+      ? (readerSettings.readerScreenPicNumberForLandscape ?? 1)
+      : (readerSettings.readerScreenPicNumberForPortrait ?? 1),
   );
-  const perPage = isContinuous ? 1 : twoPage ? 2 : clamp(configuredPerPage || 1, 1, 5);
-  const singleFirst = settings.showSingleImageOnFirstPage === true && perPage > 1;
+  const perPage = isContinuous
+    ? 1
+    : twoPage
+      ? 2
+      : clamp(configuredPerPage || 1, 1, 5);
+  const singleFirst =
+    readerSettings.showSingleImageOnFirstPage === true && perPage > 1;
 
   const pages = useMemo(() => {
     const result: { start: number; images: string[]; indexes: number[] }[] = [];
@@ -197,6 +343,14 @@ export default function ReaderPage() {
   }, [imageUrls, perPage, singleFirst]);
 
   const totalPages = pages.length;
+  const commentsAtEnd =
+    !isLocal &&
+    !isContinuous &&
+    direction !== "ttb" &&
+    readerSettings.showChapterComments === true &&
+    readerSettings.showChapterCommentsAtEnd === true &&
+    sourceInfo?.capabilities.chapterComments === true;
+  const onCommentsPage = commentsAtEnd && currentPage >= pages.length;
 
   useEffect(() => {
     if (imagesQuery.data && pages.length > 0) {
@@ -205,7 +359,7 @@ export default function ReaderPage() {
         setPendingLastPage(false);
         return;
       }
-      const requested = Number(searchParams.get('page') ?? '1');
+      const requested = Number(searchParams.get("page") ?? "1");
       setCurrentPage(clamp(requested - 1, 0, pages.length - 1));
     }
     // Only react to a new chapter's images.
@@ -215,8 +369,8 @@ export default function ReaderPage() {
   useEffect(() => {
     if (!chapterId) return;
     if (
-      searchParams.get('chapter') === chapterId &&
-      searchParams.get('page') === String(currentPage + 1)
+      searchParams.get("chapter") === chapterId &&
+      searchParams.get("page") === String(currentPage + 1)
     ) {
       return;
     }
@@ -226,13 +380,15 @@ export default function ReaderPage() {
     );
   }, [chapterId, currentPage, searchParams, setSearchParams]);
 
-  const title = isLocal ? localQuery.data?.title ?? '' : comicQuery.data?.title ?? '';
+  const title = isLocal
+    ? (localQuery.data?.title ?? "")
+    : (comicQuery.data?.title ?? "");
   const subtitle = isLocal
-    ? localQuery.data?.subtitle ?? ''
-    : comicQuery.data?.subtitle ?? '';
-  const cover = isLocal ? '' : comicQuery.data?.cover ?? '';
-  const comicType = isLocal ? 0 : comicQuery.data?.comicType ?? 0;
-  const chapterTitle = chapter?.title ?? '';
+    ? (localQuery.data?.subtitle ?? "")
+    : (comicQuery.data?.subtitle ?? "");
+  const cover = isLocal ? "" : (comicQuery.data?.cover ?? "");
+  const comicType = isLocal ? 0 : (comicQuery.data?.comicType ?? 0);
+  const chapterTitle = chapter?.title ?? "";
 
   const saveProgress = useCallback(
     (page: number) => {
@@ -252,7 +408,9 @@ export default function ReaderPage() {
           cover,
           ep: chapterIndex + 1,
           page: Math.min(page + 1, Math.max(1, imageKeys.length)),
-          chapterGroup: chapter?.group ? groups.findIndex((group) => group.name === chapter.group) + 1 : null,
+          chapterGroup: chapter?.group
+            ? groups.findIndex((group) => group.name === chapter.group) + 1
+            : null,
           maxPage: imageKeys.length,
           readEpisode: [...nextRead],
         })
@@ -261,11 +419,11 @@ export default function ReaderPage() {
       if (
         page >= pages.length - 1 &&
         chapterIndex === chapters.length - 1 &&
-        settings.removeReadLaterOnComplete !== false
+        readerSettings.removeReadLaterOnComplete !== false
       ) {
         api.removeReadLater(comicType, comicId).catch(() => {});
       }
-      queryClient.invalidateQueries({ queryKey: ['history'] });
+      queryClient.invalidateQueries({ queryKey: ["history"] });
     },
     [
       chapter,
@@ -294,7 +452,7 @@ export default function ReaderPage() {
   useEffect(() => {
     return () => {
       const seconds = Math.round((Date.now() - sessionStart.current) / 1000);
-      if (seconds > 5 && settings.recordReadingStatistics !== false) {
+      if (seconds > 5 && readerSettings.recordReadingStatistics !== false) {
         api
           .recordStatistics({
             comicId,
@@ -320,8 +478,12 @@ export default function ReaderPage() {
     if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, left: 0 });
   };
 
-  const readingOrder = String((settings.comicChapterReadingOrder as Record<string, string> | undefined)?.[`${comicId}@${sourceKey}`] ?? 'automatic');
-  const step = readingOrder === 'reverse' ? -1 : 1;
+  const readingOrder = String(
+    (settings.comicChapterReadingOrder as Record<string, string> | undefined)?.[
+      `${comicId}@${sourceKey}`
+    ] ?? "automatic",
+  );
+  const step = readingOrder === "reverse" ? -1 : 1;
 
   const nextChapter = chapters[chapterIndex + step];
   const prevChapter = chapters[chapterIndex - step];
@@ -330,81 +492,126 @@ export default function ReaderPage() {
     if (currentPage < totalPages - 1) {
       setCurrentPage((value) => value + 1);
       setControlsVisible(false);
+    } else if (commentsAtEnd && currentPage < totalPages) {
+      setCurrentPage(totalPages);
+      setControlsVisible(false);
     } else if (nextChapter) {
+      showHint(nextChapter.title);
       goToChapter(chapterIndex + step, 0);
+    } else if (chapterIndex === chapters.length - 1 || chapterIndex === 0) {
+      showHint(t("This is the last chapter"));
     }
-  }, [chapterIndex, currentPage, nextChapter, step, totalPages]);
+  }, [
+    chapterIndex,
+    chapters.length,
+    commentsAtEnd,
+    currentPage,
+    nextChapter,
+    step,
+    totalPages,
+  ]);
 
   const goPrev = useCallback(() => {
-    if (currentPage > 0) {
+    if (commentsAtEnd && currentPage >= totalPages) {
+      setCurrentPage(Math.max(0, totalPages - 1));
+      setControlsVisible(false);
+    } else if (currentPage > 0) {
       setCurrentPage((value) => value - 1);
       setControlsVisible(false);
     } else if (prevChapter) {
+      showHint(prevChapter.title);
       setPendingLastPage(true);
       goToChapter(chapterIndex - step, 0);
+    } else if (chapterIndex === 0 || chapterIndex === chapters.length - 1) {
+      showHint(t("This is the first chapter"));
     }
-  }, [chapterIndex, currentPage, prevChapter, step]);
+  }, [
+    chapterIndex,
+    chapters.length,
+    commentsAtEnd,
+    currentPage,
+    prevChapter,
+    step,
+    totalPages,
+  ]);
 
   const goToEnd = () => {
-    setCurrentPage(Math.max(0, totalPages - 1));
+    setCurrentPage(Math.max(0, commentsAtEnd ? totalPages : totalPages - 1));
   };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === 'f' || event.key === 'F') {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      )
+        return;
+      if (event.key === "f" || event.key === "F" || event.key === "F12") {
+        event.preventDefault();
         toggleFullscreen();
         return;
       }
-      if (event.key === 'Escape') {
-        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      if (event.key === "Escape") {
+        if (document.fullscreenElement)
+          document.exitFullscreen().catch(() => {});
         else navigate(-1);
         return;
       }
-      if (event.key === 'Home') {
+      if (event.key === "Home") {
         setCurrentPage(0);
         return;
       }
-      if (event.key === 'End') {
+      if (event.key === "End") {
         goToEnd();
         return;
       }
-      if (event.key === 'ArrowRight') {
+      if (event.key === "ArrowRight") {
         event.preventDefault();
-        if (direction === 'rtl') goPrev();
+        if (direction === "rtl") goPrev();
         else goNext();
-      } else if (event.key === 'ArrowLeft') {
+      } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        if (direction === 'rtl') goNext();
+        if (direction === "rtl") goNext();
         else goPrev();
-      } else if (event.key === 'ArrowDown') {
+      } else if (event.key === "ArrowDown") {
         event.preventDefault();
-        if (isContinuous) scrollRef.current?.scrollBy({ top: window.innerHeight * 0.25, behavior: 'smooth' });
+        if (isContinuous)
+          scrollRef.current?.scrollBy({
+            top: window.innerHeight * 0.25,
+            behavior: "smooth",
+          });
         else goNext();
-      } else if (event.key === 'ArrowUp') {
+      } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        if (isContinuous) scrollRef.current?.scrollBy({ top: -window.innerHeight * 0.25, behavior: 'smooth' });
+        if (isContinuous)
+          scrollRef.current?.scrollBy({
+            top: -window.innerHeight * 0.25,
+            behavior: "smooth",
+          });
         else goPrev();
       }
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [direction, goNext, goPrev, isContinuous, navigate]);
 
   useEffect(() => {
     if (!autoTurning) return;
-    const seconds = Number(settings.autoPageTurningInterval ?? 5);
-    const timer = window.setInterval(() => {
-      setCurrentPage((value) => {
-        if (value < totalPages - 1) return value + 1;
-        return value;
-      });
-    }, Math.max(1, seconds) * 1000);
+    const seconds = Number(readerSettings.autoPageTurningInterval ?? 5);
+    const timer = window.setInterval(
+      () => {
+        setCurrentPage((value) => {
+          if (value < totalPages - 1) return value + 1;
+          return value;
+        });
+      },
+      Math.max(1, seconds) * 1000,
+    );
     return () => window.clearInterval(timer);
-  }, [autoTurning, settings.autoPageTurningInterval, totalPages]);
+  }, [autoTurning, readerSettings.autoPageTurningInterval, totalPages]);
 
   useEffect(() => {
-    const count = Number(settings.preloadImageCount ?? 4);
+    const count = Number(readerSettings.preloadImageCount ?? 4);
     const start = pages[currentPage]?.start ?? 0;
     for (let offset = 1; offset <= count; offset++) {
       const url = imageUrls[start + offset];
@@ -413,20 +620,56 @@ export default function ReaderPage() {
         image.src = url;
       }
     }
-  }, [currentPage, imageUrls, pages, settings.preloadImageCount]);
+  }, [currentPage, imageUrls, pages, readerSettings.preloadImageCount]);
 
   useEffect(() => {
-    const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener('fullscreenchange', onFullscreen);
-    return () => document.removeEventListener('fullscreenchange', onFullscreen);
+    const onFullscreen = () =>
+      setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
   useEffect(() => {
     const update = () =>
-      setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setClock(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
     update();
     const timer = window.setInterval(update, 30000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    type BatteryManager = {
+      level: number;
+      addEventListener: (type: string, listener: () => void) => void;
+      removeEventListener: (type: string, listener: () => void) => void;
+    };
+    const nav = navigator as Navigator & {
+      getBattery?: () => Promise<BatteryManager>;
+    };
+    if (!nav.getBattery) return;
+    let battery: BatteryManager | null = null;
+    let cancelled = false;
+    const update = () => {
+      if (battery && !cancelled) setBatteryLevel(battery.level);
+    };
+    nav
+      .getBattery()
+      .then((value) => {
+        if (cancelled) return;
+        battery = value;
+        update();
+        value.addEventListener("levelchange", update);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      battery?.removeEventListener("levelchange", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -434,11 +677,11 @@ export default function ReaderPage() {
       firstPageEffect.current = false;
       return;
     }
-    if (settings.flashWhiteScreenOnPageTurn !== true) return;
+    if (readerSettings.flashWhiteScreenOnPageTurn !== true) return;
     setFlash(true);
     const timer = window.setTimeout(() => setFlash(false), 120);
     return () => window.clearTimeout(timer);
-  }, [currentPage, chapterId, settings.flashWhiteScreenOnPageTurn]);
+  }, [currentPage, chapterId, readerSettings.flashWhiteScreenOnPageTurn]);
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) {
@@ -449,28 +692,137 @@ export default function ReaderPage() {
   };
 
   const onWheel = (event: React.WheelEvent) => {
-    if (isContinuous || event.ctrlKey) return;
+    if (isContinuous || onCommentsPage || event.ctrlKey) return;
     const now = Date.now();
     if (now - lastWheel.current < 220) return;
-    if (Math.abs(event.deltaY) < 8) return;
+    const speed = Number(readerSettings.readerScrollSpeed ?? 1) || 1;
+    if (Math.abs(event.deltaY) * speed < 8) return;
     lastWheel.current = now;
     if (event.deltaY > 0) goNext();
     else goPrev();
   };
 
+  useEffect(() => {
+    setZoom(null);
+    longPressActive.current = false;
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }, [currentPage, chapterId]);
+
+  const zoomOrigin = (event: React.PointerEvent): { x: number; y: number } => {
+    if (readerSettings.longPressZoomPosition === "center")
+      return { x: 50, y: 50 };
+    const rect = galleryRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return { x: 50, y: 50 };
+    return {
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100),
+    };
+  };
+
+  const onGalleryPointerDown = (event: React.PointerEvent) => {
+    if (
+      isContinuous ||
+      onCommentsPage ||
+      readerSettings.enableLongPressToZoom !== true
+    )
+      return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressStart.current = { x: event.clientX, y: event.clientY };
+    longPressActive.current = false;
+    const origin = zoomOrigin(event);
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTimer.current = null;
+      longPressActive.current = true;
+      suppressTapUntil.current = Date.now() + 600;
+      setZoom({ scale: 1.75, ...origin });
+    }, 350);
+  };
+
+  const onGalleryPointerMove = (event: React.PointerEvent) => {
+    const start = longPressStart.current;
+    if (!start) return;
+    const distance = Math.hypot(
+      event.clientX - start.x,
+      event.clientY - start.y,
+    );
+    if (!longPressActive.current) {
+      if (distance > 10 && longPressTimer.current) {
+        window.clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      return;
+    }
+    const origin = zoomOrigin(event);
+    setZoom({ scale: 1.75, ...origin });
+  };
+
+  const endLongPress = () => {
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    longPressStart.current = null;
+    if (longPressActive.current) {
+      longPressActive.current = false;
+      suppressTapUntil.current = Date.now() + 400;
+      setZoom(null);
+    }
+  };
+
+  const zoneTapTimer = useRef<number | null>(null);
+  const scheduleTapZone = (zone: "left" | "center" | "right") => {
+    if (Date.now() < suppressTapUntil.current) return;
+    if (readerSettings.enableDoubleTapToZoom !== true) {
+      tapZone(zone);
+      return;
+    }
+    if (zoneTapTimer.current) window.clearTimeout(zoneTapTimer.current);
+    zoneTapTimer.current = window.setTimeout(() => {
+      zoneTapTimer.current = null;
+      tapZone(zone);
+    }, 220);
+  };
+
+  const onGalleryDoubleClick = (event: React.MouseEvent) => {
+    if (zoneTapTimer.current) {
+      window.clearTimeout(zoneTapTimer.current);
+      zoneTapTimer.current = null;
+    }
+    if (readerSettings.quickCollectImage === "DoubleTap") {
+      collectRef.current();
+      return;
+    }
+    if (readerSettings.enableDoubleTapToZoom !== true || onCommentsPage) return;
+    if (zoom) {
+      setZoom(null);
+      return;
+    }
+    const rect = galleryRef.current?.getBoundingClientRect();
+    const x =
+      rect && rect.width > 0
+        ? clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100)
+        : 50;
+    const y =
+      rect && rect.height > 0
+        ? clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100)
+        : 50;
+    setZoom({ scale: 2, x, y });
+  };
+
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const onTouchStart = (event: React.TouchEvent) => {
+    if (onCommentsPage) return;
     const touch = event.touches[0];
     touchStart.current = { x: touch.clientX, y: touch.clientY };
   };
   const onTouchEnd = (event: React.TouchEvent) => {
-    if (!touchStart.current) return;
+    if (onCommentsPage || !touchStart.current) return;
     const touch = event.changedTouches[0];
     const dx = touch.clientX - touchStart.current.x;
     const dy = touch.clientY - touchStart.current.y;
     touchStart.current = null;
-    if (settings.quickCollectImage === 'Swipe') {
-      const perpendicular = direction === 'ttb' ? Math.abs(dx) : Math.abs(dy);
+    if (readerSettings.quickCollectImage === "Swipe") {
+      const perpendicular = direction === "ttb" ? Math.abs(dx) : Math.abs(dy);
       if (perpendicular > 150) {
         collectRef.current();
         return;
@@ -478,35 +830,128 @@ export default function ReaderPage() {
     }
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
       if (dx < 0) {
-        if (direction === 'rtl') goPrev();
+        if (direction === "rtl") goPrev();
         else goNext();
       } else {
-        if (direction === 'rtl') goNext();
+        if (direction === "rtl") goNext();
         else goPrev();
       }
-    } else if (Math.abs(dy) > 80 && direction === 'ttb' && !isContinuous) {
+    } else if (Math.abs(dy) > 80 && direction === "ttb" && !isContinuous) {
       if (dy < 0) goNext();
       else goPrev();
     }
   };
 
-  const tapZone = (zone: 'left' | 'center' | 'right') => {
-    if (zone === 'center') {
+  const tapZone = (zone: "left" | "center" | "right") => {
+    if (zone === "center") {
       setControlsVisible((value) => !value);
       return;
     }
-    if (zone === 'left') {
-      if (direction === 'rtl') goNext();
+    if (readerSettings.enableTapToTurnPages === false) return;
+    const reverse = readerSettings.reverseTapToTurnPages === true;
+    const leftGoesNext = reverse ? direction !== "rtl" : direction === "rtl";
+    if (zone === "left") {
+      if (leftGoesNext) goNext();
       else goPrev();
     } else {
-      if (direction === 'rtl') goPrev();
+      if (leftGoesNext) goPrev();
       else goNext();
     }
   };
 
   const updateSetting = async (patch: Record<string, unknown>) => {
+    let payload: Record<string, unknown> = patch;
+    if (comicSpecificEnabled) {
+      let map = settings.comicSpecificSettings;
+      for (const [key, value] of Object.entries(patch)) {
+        map = withComicSpecificSetting(
+          { ...settings, comicSpecificSettings: map },
+          comicKey,
+          key,
+          value,
+        );
+      }
+      payload = { comicSpecificSettings: map };
+    } else if (isDeviceSpecificEnabled(settings, deviceId)) {
+      let map = settings.deviceSpecificSettings;
+      for (const [key, value] of Object.entries(patch)) {
+        map = withDeviceSpecificSetting(
+          { ...settings, deviceSpecificSettings: map },
+          deviceId,
+          key,
+          value,
+        );
+      }
+      payload = { deviceSpecificSettings: map };
+    }
     try {
-      setSettings(await api.updateSettings(patch));
+      setSettings(await api.updateSettings(payload));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const setComicSpecificEnabled = async (enabled: boolean) => {
+    try {
+      setSettings(
+        await api.updateSettings({
+          comicSpecificSettings: withComicSpecificSetting(
+            settings,
+            comicKey,
+            "enabled",
+            enabled,
+          ),
+        }),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const clearComicSpecific = async () => {
+    try {
+      setSettings(
+        await api.updateSettings({
+          comicSpecificSettings: withoutComicSpecificSettings(
+            settings,
+            comicKey,
+          ),
+        }),
+      );
+      toast.success(t("Cleared"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const setDeviceSpecificEnabled = async (enabled: boolean) => {
+    try {
+      setSettings(
+        await api.updateSettings({
+          deviceSpecificSettings: withDeviceSpecificSetting(
+            settings,
+            deviceId,
+            "enabled",
+            enabled,
+          ),
+        }),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const clearDeviceSpecific = async () => {
+    try {
+      setSettings(
+        await api.updateSettings({
+          deviceSpecificSettings: withoutDeviceSpecificSettings(
+            settings,
+            deviceId,
+          ),
+        }),
+      );
+      toast.success(t("Cleared"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }
@@ -516,7 +961,7 @@ export default function ReaderPage() {
     const page = pages[currentPage];
     if (!page || !chapter) return;
     const index = page.indexes[0] ?? page.start;
-    const key = imageKeys[index] ?? imageUrls[index] ?? '';
+    const key = imageKeys[index] ?? imageUrls[index] ?? "";
     try {
       await api.addImageFavorite({
         sourceKey,
@@ -535,8 +980,8 @@ export default function ReaderPage() {
         imageKey: key,
         auto: false,
       });
-      toast.success('Successfully collected');
-      queryClient.invalidateQueries({ queryKey: ['image-favorites'] });
+      toast.success("Successfully collected");
+      queryClient.invalidateQueries({ queryKey: ["image-favorites"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     }
@@ -548,29 +993,66 @@ export default function ReaderPage() {
 
   const saveImage = async () => {
     const page = pages[currentPage];
-    const url = page?.images[0];
+    const index =
+      selectedImage !== null && page?.images[selectedImage] ? selectedImage : 0;
+    const url = page?.images[index];
     if (!url) return;
     try {
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, { credentials: "include" });
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
+      const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = `${title}-${chapterTitle}-${currentPage + 1}.jpg`;
+      const pageIndex = page?.indexes[index] ?? currentPage;
+      anchor.download = `${title}-${chapterTitle}-${pageIndex + 1}.jpg`;
       anchor.click();
       URL.revokeObjectURL(objectUrl);
+      setSelectedImage(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const shareImage = async () => {
+    const page = pages[currentPage];
+    const index =
+      selectedImage !== null && page?.images[selectedImage] ? selectedImage : 0;
+    const url = page?.images[index];
+    if (!url) return;
+    try {
+      const response = await fetch(url, { credentials: "include" });
+      const blob = await response.blob();
+      const file = new File([blob], `${title}-${currentPage + 1}.jpg`, {
+        type: blob.type || "image/jpeg",
+      });
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files?: File[] }) => boolean;
+      };
+      if (navigator.share && nav.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${title} ${chapterTitle}`,
+        });
+      } else {
+        await copyText(window.location.href);
+        toast.success("Copied");
+      }
+      setSelectedImage(null);
+    } catch {
+      // Cancelled.
     }
   };
 
   const share = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${title} ${chapterTitle}`, url: window.location.href });
+        await navigator.share({
+          title: `${title} ${chapterTitle}`,
+          url: window.location.href,
+        });
       } else {
         await copyText(window.location.href);
-        toast.success('Copied');
+        toast.success("Copied");
       }
     } catch {
       // Cancelled.
@@ -578,35 +1060,71 @@ export default function ReaderPage() {
   };
 
   const nightColor =
-    settings.readerNightMode === 'warm'
-      ? '255,147,41'
-      : settings.readerNightMode === 'red'
-        ? '255,0,0'
-        : '0,0,0';
+    readerSettings.readerNightMode === "warm"
+      ? "255,147,41"
+      : readerSettings.readerNightMode === "red"
+        ? "255,0,0"
+        : "0,0,0";
   const nightAlpha =
-    settings.readerNightMode && settings.readerNightMode !== 'none'
-      ? Number(settings.readerNightModeIntensity ?? 0.25)
+    readerSettings.readerNightMode && readerSettings.readerNightMode !== "none"
+      ? Number(readerSettings.readerNightModeIntensity ?? 0.25)
       : 0;
   const background =
-    settings.readerBackground === 'white'
-      ? '#ffffff'
-      : settings.readerBackground === 'gray'
-        ? '#d0d0d0'
-        : settings.readerBackground === 'sepia'
-          ? '#f1e4c3'
-          : settings.readerBackground === 'black'
-            ? '#000000'
-            : '#000000';
-  const marginPercent = settings.readerPageMarginEnabled
-    ? Number(settings.readerPageMarginPercent ?? 19.3)
+    readerSettings.readerBackground === "white"
+      ? "#ffffff"
+      : readerSettings.readerBackground === "gray"
+        ? "#d0d0d0"
+        : readerSettings.readerBackground === "sepia"
+          ? "#f1e4c3"
+          : readerSettings.readerBackground === "black"
+            ? "#000000"
+            : "#000000";
+  const marginPercent = readerSettings.readerPageMarginEnabled
+    ? Number(readerSettings.readerPageMarginPercent ?? 19.3)
     : 0;
 
-  const loading = comicQuery.isLoading || localQuery.isLoading || imagesQuery.isLoading;
+  const handleContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  const loading =
+    comicQuery.isLoading || localQuery.isLoading || imagesQuery.isLoading;
+
+  if (!loading && imagesQuery.isError) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-black p-6 text-white">
+        <EmptyState
+          title={t("Error")}
+          description={
+            imagesQuery.error instanceof Error
+              ? imagesQuery.error.message
+              : String(imagesQuery.error)
+          }
+          action={
+            <>
+              <Button onClick={() => imagesQuery.refetch()}>
+                {t("Retry")}
+              </Button>
+              <Button variant="secondary" onClick={() => navigate(-1)}>
+                {t("Back")}
+              </Button>
+            </>
+          }
+        />
+      </div>
+    );
+  }
 
   if (!loading && chapters.length === 0) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-black p-6 text-white">
-        <EmptyState title="Comic not found" action={<Button onClick={() => navigate(-1)}>Back</Button>} />
+        <EmptyState
+          title="Comic not found"
+          action={<Button onClick={() => navigate(-1)}>Back</Button>}
+        />
       </div>
     );
   }
@@ -624,28 +1142,34 @@ export default function ReaderPage() {
         <div
           ref={scrollRef}
           className={cn(
-            'flex-1 scrollbar-thin',
-            direction === 'ttb'
-              ? 'overflow-y-auto overflow-x-hidden'
-              : direction === 'rtl'
-                ? 'flex flex-row-reverse overflow-x-auto overflow-y-hidden'
-                : 'flex flex-row overflow-x-auto overflow-y-hidden',
+            "flex-1 scrollbar-thin",
+            direction === "ttb"
+              ? "overflow-y-auto overflow-x-hidden"
+              : direction === "rtl"
+                ? "flex flex-row-reverse overflow-x-auto overflow-y-hidden"
+                : "flex flex-row overflow-x-auto overflow-y-hidden",
           )}
           style={{
-            paddingLeft: direction !== 'ttb' ? `${marginPercent}%` : 0,
-            paddingRight: direction !== 'ttb' ? `${marginPercent}%` : 0,
-            paddingTop: direction === 'ttb' ? `${marginPercent / 2}%` : 0,
-            paddingBottom: direction === 'ttb' ? `${marginPercent / 2}%` : 0,
+            paddingLeft: direction !== "ttb" ? `${marginPercent}%` : 0,
+            paddingRight: direction !== "ttb" ? `${marginPercent}%` : 0,
+            paddingTop: direction === "ttb" ? `${marginPercent / 2}%` : 0,
+            paddingBottom: direction === "ttb" ? `${marginPercent / 2}%` : 0,
           }}
           onScroll={() => {
             const container = scrollRef.current;
             if (!container) return;
-            const children = Array.from(container.querySelectorAll<HTMLElement>('[data-page-index]'));
-            const position = direction === 'ttb' ? container.scrollTop : Math.abs(container.scrollLeft);
+            const children = Array.from(
+              container.querySelectorAll<HTMLElement>("[data-page-index]"),
+            );
+            const position =
+              direction === "ttb"
+                ? container.scrollTop
+                : Math.abs(container.scrollLeft);
             let closest = 0;
             let distance = Infinity;
             for (const child of children) {
-              const offset = direction === 'ttb' ? child.offsetTop : child.offsetLeft;
+              const offset =
+                direction === "ttb" ? child.offsetTop : child.offsetLeft;
               const delta = Math.abs(offset - position);
               if (delta < distance) {
                 distance = delta;
@@ -657,7 +1181,10 @@ export default function ReaderPage() {
         >
           {prevChapter ? (
             <div className="flex min-h-[80px] w-full items-center justify-center p-4">
-              <Button variant="secondary" onClick={() => goToChapter(chapterIndex - step, 0)}>
+              <Button
+                variant="secondary"
+                onClick={() => goToChapter(chapterIndex - step, 0)}
+              >
                 <ChevronLeft className="h-4 w-4" />
                 {prevChapter.title}
               </Button>
@@ -668,8 +1195,8 @@ export default function ReaderPage() {
               key={`${url}-${retryNonce}-${index}`}
               data-page-index={index}
               className={cn(
-                'relative flex shrink-0 items-center justify-center',
-                direction === 'ttb' ? 'w-full' : 'h-full',
+                "relative flex shrink-0 items-center justify-center",
+                direction === "ttb" ? "w-full" : "h-full",
               )}
             >
               {failed[index] ? (
@@ -686,15 +1213,21 @@ export default function ReaderPage() {
                 <img
                   src={url}
                   alt={`${title} page ${index + 1}`}
-                  loading={Math.abs(index - currentPage) <= 3 ? 'eager' : 'lazy'}
+                  loading={
+                    Math.abs(index - currentPage) <= 3 ? "eager" : "lazy"
+                  }
                   decoding="async"
                   draggable={false}
-                  onError={() => setFailed((value) => ({ ...value, [index]: true }))}
+                  onError={() =>
+                    setFailed((value) => ({ ...value, [index]: true }))
+                  }
                   onClick={() => setControlsVisible((value) => !value)}
                   className={cn(
-                    'reader-page select-none object-contain',
-                    direction === 'ttb' ? 'w-full' : 'max-h-full',
-                    settings.limitImageWidth === false && direction === 'ttb' ? 'max-w-none' : 'max-w-full',
+                    "reader-page select-none object-contain",
+                    direction === "ttb" ? "w-full" : "max-h-full",
+                    readerSettings.limitImageWidth === false
+                      ? "max-w-none"
+                      : "max-w-full",
                   )}
                 />
               )}
@@ -702,7 +1235,10 @@ export default function ReaderPage() {
           ))}
           {nextChapter ? (
             <div className="flex min-h-[80px] w-full items-center justify-center p-4">
-              <Button variant="secondary" onClick={() => goToChapter(chapterIndex + step, 0)}>
+              <Button
+                variant="secondary"
+                onClick={() => goToChapter(chapterIndex + step, 0)}
+              >
                 {nextChapter.title}
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -711,73 +1247,154 @@ export default function ReaderPage() {
         </div>
       ) : (
         <div
+          ref={galleryRef}
           className="relative flex flex-1 items-center justify-center overflow-hidden"
+          style={{ transform: rotation ? `rotate(${rotation}deg)` : undefined }}
           onWheel={onWheel}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
-          onDoubleClick={() => {
-            if (settings.quickCollectImage === 'DoubleTap') collectRef.current();
-          }}
+          onPointerDown={onGalleryPointerDown}
+          onPointerMove={onGalleryPointerMove}
+          onPointerUp={endLongPress}
+          onPointerCancel={endLongPress}
+          onPointerLeave={endLongPress}
+          onDoubleClick={onGalleryDoubleClick}
+          onContextMenu={handleContextMenu}
         >
-          <button
-            className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
-            aria-label="Previous"
-            onClick={() => tapZone('left')}
-          />
-          <button
-            className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
-            aria-label="Toggle controls"
-            onClick={() => tapZone('center')}
-          />
-          <button
-            className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
-            aria-label="Next"
-            onClick={() => tapZone('right')}
-          />
+          {!onCommentsPage ? (
+            <>
+              <button
+                className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
+                aria-label="Previous"
+                onClick={() => scheduleTapZone("left")}
+              />
+              <button
+                className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
+                aria-label="Toggle controls"
+                onClick={() => scheduleTapZone("center")}
+              />
+              <button
+                className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
+                aria-label="Next"
+                onClick={() => scheduleTapZone("right")}
+              />
+            </>
+          ) : null}
+          {onCommentsPage ? (
+            <ChapterCommentsEndPage
+              source={sourceKey}
+              comicId={comicId}
+              epId={chapterId}
+              comicTitle={title}
+              chapterTitle={chapterTitle}
+              onExit={() => setCurrentPage(Math.max(0, totalPages - 1))}
+            />
+          ) : (
+            <div
+              key={`${chapterId}-${currentPage}`}
+              className={cn(
+                "flex h-full w-full items-center justify-center gap-px",
+                direction === "rtl" ? "flex-row-reverse" : "flex-row",
+                readerSettings.enablePageAnimation !== false &&
+                  !zoom &&
+                  "reader-page-anim",
+              )}
+              style={{
+                paddingLeft: `${marginPercent}%`,
+                paddingRight: `${marginPercent}%`,
+                transform: zoom ? `scale(${zoom.scale})` : undefined,
+                transformOrigin: zoom ? `${zoom.x}% ${zoom.y}%` : undefined,
+                transition: longPressActive.current
+                  ? "none"
+                  : "transform 160ms ease-out",
+              }}
+            >
+              {pages[currentPage]?.images.map((url, index) => {
+                const pageIndex = pages[currentPage]?.indexes[index] ?? 0;
+                return failed[pageIndex] ? (
+                  <button
+                    key={`${pageIndex}-${retryNonce}`}
+                    className="m-4 rounded border border-white/20 px-4 py-3 text-sm"
+                    onClick={() => {
+                      setFailed((value) => ({ ...value, [pageIndex]: false }));
+                      setRetryNonce((value) => value + 1);
+                    }}
+                  >
+                    Retry
+                  </button>
+                ) : (
+                  <img
+                    key={`${pageIndex}-${retryNonce}`}
+                    src={url}
+                    alt={`${title} page ${pageIndex + 1}`}
+                    draggable={false}
+                    onError={() =>
+                      setFailed((value) => ({ ...value, [pageIndex]: true }))
+                    }
+                    onClick={() => {
+                      if (pages[currentPage]?.images.length > 1) {
+                        setSelectedImage((previous) =>
+                          previous === index ? null : index,
+                        );
+                      } else {
+                        setControlsVisible((value) => !value);
+                      }
+                    }}
+                    className={cn(
+                      "reader-page max-h-full min-w-0 flex-1 select-none object-contain transition-opacity duration-150",
+                      selectedImage === index &&
+                        "ring-2 ring-accent brightness-110",
+                    )}
+                  />
+                );
+              })}
+            </div>
+          )}
           <div
-            className={cn(
-              'flex h-full w-full items-center justify-center gap-px',
-              direction === 'rtl' ? 'flex-row-reverse' : 'flex-row',
-            )}
+            className="pointer-events-none absolute inset-0 bg-black"
             style={{
-              paddingLeft: `${marginPercent}%`,
-              paddingRight: `${marginPercent}%`,
+              opacity: nightAlpha,
+              backgroundColor: `rgb(${nightColor})`,
             }}
-          >
-            {pages[currentPage]?.images.map((url, index) => {
-              const pageIndex = pages[currentPage]?.indexes[index] ?? 0;
-              return failed[pageIndex] ? (
-                <button
-                  key={`${pageIndex}-${retryNonce}`}
-                  className="m-4 rounded border border-white/20 px-4 py-3 text-sm"
-                  onClick={() => {
-                    setFailed((value) => ({ ...value, [pageIndex]: false }));
-                    setRetryNonce((value) => value + 1);
-                  }}
-                >
-                  Retry
-                </button>
-              ) : (
-                <img
-                  key={`${pageIndex}-${retryNonce}`}
-                  src={url}
-                  alt={`${title} page ${pageIndex + 1}`}
-                  draggable={false}
-                  onError={() => setFailed((value) => ({ ...value, [pageIndex]: true }))}
-                  className="reader-page max-h-full min-w-0 flex-1 select-none object-contain transition-opacity duration-150"
-                />
-              );
-            })}
-          </div>
-          <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: nightAlpha, backgroundColor: `rgb(${nightColor})` }} />
+          />
+          {selectedImage !== null && pages[currentPage]?.images.length > 1 ? (
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 backdrop-blur-sm">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void saveImage()}
+              >
+                {t("Save")}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void shareImage()}
+              >
+                {t("Share")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedImage(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : null}
+          {swipeHint ? (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/75 px-4 py-2 text-[13px] text-white backdrop-blur-sm">
+              {swipeHint}
+            </div>
+          ) : null}
         </div>
       )}
 
       {/* Top controls */}
       <div
         className={cn(
-          'absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-black/70 px-3 py-2 backdrop-blur-md transition-transform duration-200 ease-enter',
-          controlsVisible ? 'translate-y-0' : '-translate-y-full',
+          "absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-black/70 px-3 py-2 backdrop-blur-md transition-transform duration-200 ease-enter",
+          controlsVisible ? "translate-y-0" : "-translate-y-full",
         )}
       >
         <IconButton
@@ -791,9 +1408,9 @@ export default function ReaderPage() {
           <p className="truncate text-[13px] font-medium">{title}</p>
           <p className="truncate text-[11px] text-white/60">{chapterTitle}</p>
         </div>
-        {!isLocal && settings.showChapterComments !== false ? (
+        {!isLocal && readerSettings.showChapterComments !== false ? (
           <IconButton
-            label={t('Chapter Comments')}
+            label={t("Chapter Comments")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={() => setCommentsOpen(true)}
           >
@@ -801,7 +1418,7 @@ export default function ReaderPage() {
           </IconButton>
         ) : null}
         <IconButton
-          label={t('Settings')}
+          label={t("Settings")}
           className="text-white hover:bg-white/10 hover:text-white"
           onClick={() => setSettingsOpen(true)}
         >
@@ -812,29 +1429,31 @@ export default function ReaderPage() {
       {/* Bottom controls */}
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 z-20 bg-black/70 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md transition-transform duration-200 ease-enter',
-          controlsVisible ? 'translate-y-0' : 'translate-y-full',
+          "absolute inset-x-0 bottom-0 z-20 bg-black/70 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md transition-transform duration-200 ease-enter",
+          controlsVisible ? "translate-y-0" : "translate-y-full",
         )}
       >
         {!isContinuous ? (
           <div className="mb-2 flex items-center gap-3">
-            <button className="text-[11px] text-white/70" onClick={() => setCurrentPage(0)}>
-              {t('First')}
+            <button
+              className="text-[11px] text-white/70"
+              onClick={() => setCurrentPage(0)}
+            >
+              {t("First")}
             </button>
             <input
               type="range"
               min={1}
               max={Math.max(1, totalPages)}
               value={currentPage + 1}
-              onChange={(event) => setCurrentPage(Number(event.target.value) - 1)}
+              onChange={(event) =>
+                setCurrentPage(Number(event.target.value) - 1)
+              }
               className="h-1.5 flex-1 accent-white"
               aria-label="Page"
             />
-            <button
-              className="text-[11px] text-white/70"
-              onClick={goToEnd}
-            >
-              {t('Last')}
+            <button className="text-[11px] text-white/70" onClick={goToEnd}>
+              {t("Last")}
             </button>
             <span className="w-16 text-right text-[11px] tabular text-white/70">
               {currentPage + 1} / {totalPages}
@@ -861,7 +1480,7 @@ export default function ReaderPage() {
             <ChevronRight className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label={t('Chapters')}
+            label={t("Chapters")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={() => setChaptersOpen(true)}
           >
@@ -875,14 +1494,14 @@ export default function ReaderPage() {
             <BookmarkPlus className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label={t('Share')}
+            label={t("Share")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={share}
           >
             <Share2 className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label={t('Save Image')}
+            label={t("Save Image")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={saveImage}
           >
@@ -890,34 +1509,74 @@ export default function ReaderPage() {
           </IconButton>
           <IconButton
             label="Auto Page Turning"
-            className={cn('text-white hover:bg-white/10 hover:text-white', autoTurning && 'text-accent')}
+            className={cn(
+              "text-white hover:bg-white/10 hover:text-white",
+              autoTurning && "text-accent",
+            )}
             onClick={() => setAutoTurning((value) => !value)}
           >
             <Timer className="h-5 w-5" />
           </IconButton>
           <IconButton
-            label={t('Page margin')}
+            label={t("Page margin")}
             className="text-white hover:bg-white/10 hover:text-white"
             onClick={() =>
-              updateSetting({ readerPageMarginEnabled: !settings.readerPageMarginEnabled })
+              updateSetting({
+                readerPageMarginEnabled:
+                  !readerSettings.readerPageMarginEnabled,
+              })
             }
           >
             <Maximize2 className="h-5 w-5" />
           </IconButton>
+          {readerSettings.readerPageMarginEnabled ? (
+            <div className="flex w-32 items-center gap-2 px-1">
+              <input
+                type="range"
+                min={0}
+                max={40}
+                step={0.5}
+                value={Number(readerSettings.readerPageMarginPercent ?? 19.3)}
+                onChange={(event) =>
+                  updateSetting({
+                    readerPageMarginPercent: Number(event.target.value),
+                  })
+                }
+                className="h-1.5 flex-1 accent-white"
+                aria-label={t("Page margin size")}
+              />
+              <span className="text-[10px] tabular text-white/60">
+                {Number(readerSettings.readerPageMarginPercent ?? 19.3)}%
+              </span>
+            </div>
+          ) : null}
           <IconButton
-            label={t('Full Screen')}
+            label={t("Rotate")}
+            className="text-white hover:bg-white/10 hover:text-white"
+            onClick={cycleRotation}
+          >
+            <RotateCw className="h-5 w-5" />
+          </IconButton>
+          <IconButton
+            label={t("Full Screen")}
             className="ml-auto text-white hover:bg-white/10 hover:text-white"
             onClick={toggleFullscreen}
           >
-            {fullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+            {fullscreen ? (
+              <Minimize2 className="h-5 w-5" />
+            ) : (
+              <Maximize2 className="h-5 w-5" />
+            )}
           </IconButton>
         </div>
       </div>
 
       {/* Page number overlay */}
-      {settings.showPageNumberInReader !== false ? (
+      {readerSettings.showPageNumberInReader !== false ? (
         <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-2.5 py-0.5 text-[10px] tabular text-white/80">
-          {currentPage + 1} / {Math.max(1, totalPages)}
+          {onCommentsPage
+            ? t("Chapter Comments")
+            : `${Math.min(currentPage + 1, totalPages)} / ${Math.max(1, totalPages)}`}
         </div>
       ) : null}
 
@@ -929,29 +1588,72 @@ export default function ReaderPage() {
         />
       ) : null}
 
-      {settings.enableClockAndBatteryInfoInReader !== false ? (
+      {readerSettings.enableClockAndBatteryInfoInReader !== false ? (
         <div className="pointer-events-none absolute left-2 top-16 z-10 rounded bg-black/50 px-2 py-0.5 text-[10px] tabular text-white/80">
           {clock}
+          {batteryLevel !== null ? ` · ${Math.round(batteryLevel * 100)}%` : ""}
         </div>
       ) : null}
 
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 z-30 bg-white transition-opacity duration-100',
-          flash ? 'opacity-100' : 'opacity-0',
+          "pointer-events-none absolute inset-0 z-30 bg-white transition-opacity duration-100",
+          flash ? "opacity-100" : "opacity-0",
         )}
       />
 
+      {/* Context menu (right-click) */}
+      {contextMenu ? (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={closeContextMenu}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              closeContextMenu();
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-[180px] overflow-hidden rounded-card border border-border bg-surface py-1 shadow-pop"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 200),
+              top: Math.min(contextMenu.y, window.innerHeight - 260),
+            }}
+          >
+            {contextActions.map((item) => (
+              <button
+                key={item.label}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-surface2"
+                onClick={() => {
+                  closeContextMenu();
+                  item.action();
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
       {/* Chapters drawer */}
-      <Drawer open={chaptersOpen} onClose={() => setChaptersOpen(false)} title={t('Chapters')}>
+      <Drawer
+        open={chaptersOpen}
+        onClose={() => setChaptersOpen(false)}
+        title={t("Chapters")}
+      >
         <div className="flex flex-col gap-3">
           {groups.length > 1 ? (
             <Tabs
-              items={groups.map((group) => ({ value: group.name, label: group.name || 'Default' }))}
-              value={chapter?.group ?? groups[0]?.name ?? ''}
+              items={groups.map((group) => ({
+                value: group.name,
+                label: group.name || "Default",
+              }))}
+              value={chapter?.group ?? groups[0]?.name ?? ""}
               onChange={(value) => {
                 const group = groups.find((item) => item.name === value);
-                if (group?.chapters[0]) goToChapter(chapters.indexOf(group.chapters[0]));
+                if (group?.chapters[0])
+                  goToChapter(chapters.indexOf(group.chapters[0]));
               }}
             />
           ) : null}
@@ -961,11 +1663,16 @@ export default function ReaderPage() {
                 key={item.id}
                 onClick={() => goToChapter(index)}
                 className={cn(
-                  'flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-[13px] last:border-b-0',
-                  item.id === chapterId ? 'bg-accent/10 text-accent' : 'hover:bg-surface2',
+                  "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-[13px] last:border-b-0",
+                  item.id === chapterId
+                    ? "bg-accent/10 text-accent"
+                    : "hover:bg-surface2",
                 )}
               >
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                {downloadedEpisodes.has(item.id) ? (
+                  <span className="text-[10px] text-accent">downloaded</span>
+                ) : null}
                 {readEpisodes.has(index) ? (
                   <span className="text-[10px] text-muted">read</span>
                 ) : null}
@@ -976,55 +1683,110 @@ export default function ReaderPage() {
       </Drawer>
 
       {/* Settings drawer */}
-      <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title={t('Reading')}>
+      <Drawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title={t("Reading")}
+      >
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px]">{t('Reading mode')}</span>
+            <span className="text-[13px]">
+              {t("Enable comic specific settings")}
+            </span>
+            <Switch
+              checked={comicSpecificEnabled}
+              onChange={setComicSpecificEnabled}
+            />
+          </div>
+          {comicSpecificEnabled ? (
+            <Button size="sm" variant="secondary" onClick={clearComicSpecific}>
+              {t("Clear specific reader settings for this comic")}
+            </Button>
+          ) : null}
+          <div className="h-px bg-border" />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px]">
+              {t("Enable device specific settings")}
+            </span>
+            <Switch
+              checked={isDeviceSpecificEnabled(settings, deviceId)}
+              onChange={setDeviceSpecificEnabled}
+            />
+          </div>
+          {isDeviceSpecificEnabled(settings, deviceId) ? (
+            <Button size="sm" variant="secondary" onClick={clearDeviceSpecific}>
+              {t("Clear specific reader settings for this device")}
+            </Button>
+          ) : null}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px]">{t("Reading mode")}</span>
             <Select
               value={mode}
-              onChange={(event) => updateSetting({ readerMode: event.target.value })}
+              onChange={(event) =>
+                updateSetting({ readerMode: event.target.value })
+              }
               className="w-[190px]"
             >
-              <option value="galleryLeftToRight">Gallery (Left to Right)</option>
-              <option value="galleryRightToLeft">Gallery (Right to Left)</option>
-              <option value="galleryTopToBottom">Gallery (Top to Bottom)</option>
-              <option value="continuousLeftToRight">Continuous (Left to Right)</option>
-              <option value="continuousRightToLeft">Continuous (Right to Left)</option>
-              <option value="continuousTopToBottom">Continuous (Top to Bottom)</option>
+              <option value="galleryLeftToRight">
+                Gallery (Left to Right)
+              </option>
+              <option value="galleryRightToLeft">
+                Gallery (Right to Left)
+              </option>
+              <option value="galleryTopToBottom">
+                Gallery (Top to Bottom)
+              </option>
+              <option value="continuousLeftToRight">
+                Continuous (Left to Right)
+              </option>
+              <option value="continuousRightToLeft">
+                Continuous (Right to Left)
+              </option>
+              <option value="continuousTopToBottom">
+                Continuous (Top to Bottom)
+              </option>
             </Select>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px]">{t('Two-page spread')}</span>
+            <span className="text-[13px]">{t("Two-page spread")}</span>
             <Switch
-              checked={settings.readerTwoPageSpread === true}
-              onChange={(value) => updateSetting({ readerTwoPageSpread: value })}
+              checked={readerSettings.readerTwoPageSpread === true}
+              onChange={(value) =>
+                updateSetting({ readerTwoPageSpread: value })
+              }
             />
           </div>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px]">{t('Page margin')}</span>
+            <span className="text-[13px]">{t("Page margin")}</span>
             <Switch
-              checked={settings.readerPageMarginEnabled === true}
-              onChange={(value) => updateSetting({ readerPageMarginEnabled: value })}
+              checked={readerSettings.readerPageMarginEnabled === true}
+              onChange={(value) =>
+                updateSetting({ readerPageMarginEnabled: value })
+              }
             />
           </div>
-          {settings.readerPageMarginEnabled ? (
+          {readerSettings.readerPageMarginEnabled ? (
             <Slider
-              label={t('Page margin size')}
+              label={t("Page margin size")}
               min={0}
               max={40}
               step={0.5}
-              value={Number(settings.readerPageMarginPercent ?? 19.3)}
-              onChange={(value) => updateSetting({ readerPageMarginPercent: value })}
+              value={Number(readerSettings.readerPageMarginPercent ?? 19.3)}
+              onChange={(value) =>
+                updateSetting({ readerPageMarginPercent: value })
+              }
               format={(value) => `${value}%`}
             />
           ) : null}
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-[13px]">
-              <Moon className="h-4 w-4" /> {t('Night mode')}
+              <Moon className="h-4 w-4" /> {t("Night mode")}
             </span>
             <Select
-              value={String(settings.readerNightMode ?? 'none')}
-              onChange={(event) => updateSetting({ readerNightMode: event.target.value })}
+              value={String(readerSettings.readerNightMode ?? "none")}
+              onChange={(event) =>
+                updateSetting({ readerNightMode: event.target.value })
+              }
               className="w-[140px]"
             >
               <option value="none">Off</option>
@@ -1034,46 +1796,54 @@ export default function ReaderPage() {
             </Select>
           </div>
           <Slider
-            label={t('Night mode intensity')}
+            label={t("Night mode intensity")}
             min={0}
             max={0.8}
             step={0.05}
-            value={Number(settings.readerNightModeIntensity ?? 0.25)}
-            onChange={(value) => updateSetting({ readerNightModeIntensity: value })}
+            value={Number(readerSettings.readerNightModeIntensity ?? 0.25)}
+            onChange={(value) =>
+              updateSetting({ readerNightModeIntensity: value })
+            }
             format={(value) => value.toFixed(2)}
           />
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px]">{t('Show Page Number')}</span>
+            <span className="text-[13px]">{t("Show Page Number")}</span>
             <Switch
-              checked={settings.showPageNumberInReader !== false}
-              onChange={(value) => updateSetting({ showPageNumberInReader: value })}
+              checked={readerSettings.showPageNumberInReader !== false}
+              onChange={(value) =>
+                updateSetting({ showPageNumberInReader: value })
+              }
             />
           </div>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px]">{t('Number of images preloaded')}</span>
-            <span className="text-[13px] tabular text-muted">{String(settings.preloadImageCount ?? 4)}</span>
+            <span className="text-[13px]">
+              {t("Number of images preloaded")}
+            </span>
+            <span className="text-[13px] tabular text-muted">
+              {String(readerSettings.preloadImageCount ?? 4)}
+            </span>
           </div>
           <Slider
-            label={t('Number of images preloaded')}
+            label={t("Number of images preloaded")}
             min={1}
             max={16}
-            value={Number(settings.preloadImageCount ?? 4)}
+            value={Number(readerSettings.preloadImageCount ?? 4)}
             onChange={(value) => updateSetting({ preloadImageCount: value })}
           />
           <Button
             variant="secondary"
             onClick={() => {
               setSettingsOpen(false);
-              navigate('/settings/reading');
+              navigate("/settings/reading");
             }}
           >
-            {t('Settings')}
+            {t("Settings")}
           </Button>
         </div>
       </Drawer>
 
       {/* Chapter comments drawer */}
-      {!isLocal && settings.showChapterComments !== false ? (
+      {!isLocal && readerSettings.showChapterComments !== false ? (
         <ChapterCommentsDrawer
           open={commentsOpen}
           onClose={() => setCommentsOpen(false)}
@@ -1083,6 +1853,172 @@ export default function ReaderPage() {
           title={chapterTitle}
         />
       ) : null}
+    </div>
+  );
+}
+
+function ChapterCommentsEndPage({
+  source,
+  comicId,
+  epId,
+  comicTitle,
+  chapterTitle,
+  onExit,
+}: {
+  source: string;
+  comicId: string;
+  epId: string;
+  comicTitle: string;
+  chapterTitle: string;
+  onExit: () => void;
+}) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [content, setContent] = useState("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const query = useQuery({
+    queryKey: ["chapter-comments-end", source, comicId, epId, page],
+    queryFn: () => api.chapterComments(source, comicId, epId, page),
+    enabled: Boolean(epId),
+  });
+  const send = useMutation({
+    mutationFn: () => api.sendChapterComment(source, comicId, epId, content),
+    onSuccess: () => {
+      setContent("");
+      setPage(1);
+      queryClient.invalidateQueries({
+        queryKey: ["chapter-comments-end", source, comicId, epId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["chapter-comments", source, comicId, epId],
+      });
+      toast.success("Comment sent");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  useEffect(() => {
+    if (!query.data) return;
+    setComments((previous) => {
+      if (page === 1) return query.data.comments;
+      const seen = new Set(previous.map((comment) => comment.id));
+      return [
+        ...previous,
+        ...query.data.comments.filter((comment) => !seen.has(comment.id)),
+      ];
+    });
+  }, [page, query.data]);
+
+  const maxPage = query.data?.maxPage ?? 1;
+
+  return (
+    <div className="flex h-full w-full flex-col bg-[#111] text-white">
+      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+        <IconButton
+          label={t("Exit")}
+          className="text-white hover:bg-white/10 hover:text-white"
+          onClick={onExit}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </IconButton>
+        <MessageSquare className="h-5 w-5 shrink-0 text-white/70" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-medium">
+            {t("Chapter Comments")}
+          </p>
+          <p className="truncate text-[11px] text-white/60">
+            {comicTitle ? `${comicTitle} · ` : ""}
+            {chapterTitle}
+          </p>
+        </div>
+      </div>
+      <div className="scrollbar-thin flex-1 overflow-y-auto p-3">
+        {query.isLoading ? (
+          <div className="flex justify-center py-10">
+            <Spinner className="h-6 w-6 text-white" />
+          </div>
+        ) : query.isError ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-[13px] text-white/70">
+              {query.error instanceof Error
+                ? query.error.message
+                : String(query.error)}
+            </p>
+            <Button variant="secondary" onClick={() => query.refetch()}>
+              {t("Retry")}
+            </Button>
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="py-12 text-center text-[13px] text-white/60">
+            {t("No comments yet")}
+          </div>
+        ) : (
+          <>
+            <div className="columns-1 gap-3 md:columns-2">
+              {comments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="mb-3 break-inside-avoid rounded-lg border border-white/10 bg-white/5 p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    {comment.avatar ? (
+                      <img
+                        src={comment.avatar}
+                        alt=""
+                        className="h-6 w-6 rounded-full object-cover"
+                      />
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                      {comment.userName}
+                    </span>
+                    <span className="text-[10px] text-white/45">
+                      {comment.time}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+                    {comment.content}
+                  </p>
+                  {comment.replyCount ? (
+                    <p className="mt-1 text-[10px] text-white/45">
+                      {comment.replyCount} {t("replies")}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            {page < maxPage ? (
+              <div className="flex justify-center py-3">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={query.isFetching}
+                  onClick={() => setPage((value) => value + 1)}
+                >
+                  {t("Load more")}
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+      <div className="flex shrink-0 gap-2 border-t border-white/10 p-3">
+        <Textarea
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          placeholder={t("Write a comment…")}
+          className="min-h-[44px] flex-1 border-white/15 bg-white/5 py-2 text-white placeholder:text-white/35"
+        />
+        <Button
+          variant="primary"
+          className="shrink-0 self-end"
+          loading={send.isPending}
+          disabled={!content.trim()}
+          onClick={() => send.mutate()}
+        >
+          {t("Send")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1104,43 +2040,131 @@ function ChapterCommentsDrawer({
 }) {
   const t = useT();
   const queryClient = useQueryClient();
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [page, setPage] = useState(1);
   const query = useQuery({
-    queryKey: ['chapter-comments', source, comicId, epId, page],
+    queryKey: ["chapter-comments", source, comicId, epId, page],
     queryFn: () => api.chapterComments(source, comicId, epId, page),
     enabled: open && Boolean(epId),
   });
   const send = useMutation({
     mutationFn: () => api.sendChapterComment(source, comicId, epId, content),
     onSuccess: () => {
-      setContent('');
-      queryClient.invalidateQueries({ queryKey: ['chapter-comments', source, comicId, epId] });
-      toast.success('Comment sent');
+      setContent("");
+      queryClient.invalidateQueries({
+        queryKey: ["chapter-comments", source, comicId, epId],
+      });
+      toast.success("Comment sent");
     },
+    onError: (error) => toast.error(error.message),
+  });
+  const like = useMutation({
+    mutationFn: (comment: Comment) =>
+      api.likeChapterComment(
+        source,
+        comicId,
+        epId,
+        comment.id,
+        !comment.isLiked,
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["chapter-comments", source, comicId, epId],
+      }),
+    onError: (error) => toast.error(error.message),
+  });
+  const vote = useMutation({
+    mutationFn: ({ comment, up }: { comment: Comment; up: boolean }) =>
+      api.voteChapterComment(
+        source,
+        comicId,
+        epId,
+        comment.id,
+        up,
+        comment.voteStatus === (up ? 1 : -1),
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["chapter-comments", source, comicId, epId],
+      }),
     onError: (error) => toast.error(error.message),
   });
 
   return (
-    <Drawer open={open} onClose={onClose} title={`${t('Chapter Comments')} · ${title}`}>
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title={`${t("Chapter Comments")} · ${title}`}
+    >
       <div className="flex flex-col gap-3">
         {query.isLoading ? (
           <Spinner />
+        ) : query.isError ? (
+          <EmptyState
+            title={t("Error")}
+            description={
+              query.error instanceof Error
+                ? query.error.message
+                : String(query.error)
+            }
+            action={
+              <Button size="sm" onClick={() => query.refetch()}>
+                {t("Retry")}
+              </Button>
+            }
+          />
         ) : (query.data?.comments.length ?? 0) === 0 ? (
-          <EmptyState title={t('No comments yet')} />
+          <EmptyState title={t("No comments yet")} />
         ) : (
           query.data?.comments.map((comment: Comment) => (
             <div key={comment.id} className="rounded border border-border p-3">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-medium">{comment.userName}</span>
+                <span className="text-[12px] font-medium">
+                  {comment.userName}
+                </span>
                 <span className="text-[10px] text-muted">{comment.time}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-[13px]">{comment.content}</p>
+              <p className="mt-1 whitespace-pre-wrap text-[13px]">
+                {comment.content}
+              </p>
+              <div className="mt-2 flex items-center gap-3 text-[11px] text-muted">
+                <button
+                  className={cn(
+                    "flex items-center gap-1",
+                    comment.voteStatus === 1 && "text-accent",
+                  )}
+                  onClick={() => vote.mutate({ comment, up: true })}
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" /> {comment.score ?? ""}
+                </button>
+                <button
+                  className={cn(
+                    "flex items-center gap-1",
+                    comment.voteStatus === -1 && "text-accent",
+                  )}
+                  onClick={() => vote.mutate({ comment, up: false })}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className={cn(
+                    "flex items-center gap-1",
+                    comment.isLiked && "text-accent",
+                  )}
+                  onClick={() => like.mutate(comment)}
+                >
+                  <Heart className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           ))
         )}
         <div className="flex items-center justify-center gap-2">
-          <Button size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
+          <Button
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage((value) => value - 1)}
+          >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
           <span className="text-[11px] text-muted">

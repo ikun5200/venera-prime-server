@@ -6,8 +6,7 @@ class SettingsService {
   final SettingsRepository repository;
   SettingsService(this.repository);
 
-  Map<String, Object?> get(int userId) =>
-      mergeSettings(repository.all(userId));
+  Map<String, Object?> get(int userId) => mergeSettings(repository.all(userId));
 
   Map<String, Object?> update(int userId, Map<String, Object?> patch) {
     final clean = <String, Object?>{};
@@ -49,9 +48,17 @@ class SettingsService {
       repository.searchHistory(userId);
 
   void addSearchHistory(int userId, String keyword) {
-    if (keyword.trim().isEmpty) throw ApiException.badRequest('Keyword required');
+    if (keyword.trim().isEmpty)
+      throw ApiException.badRequest('Keyword required');
     repository.addSearchHistory(userId, keyword);
   }
 
   void clearSearchHistory(int userId) => repository.clearSearchHistory(userId);
+
+  void deleteSearchHistory(int userId, String keyword) {
+    if (keyword.trim().isEmpty) {
+      throw ApiException.badRequest('Keyword required');
+    }
+    repository.deleteSearchHistory(userId, keyword);
+  }
 }

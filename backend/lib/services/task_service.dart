@@ -78,8 +78,7 @@ class TaskService {
     return task;
   }
 
-  void update(String id,
-      {double? progress, String? message, Object? result}) {
+  void update(String id, {double? progress, String? message, Object? result}) {
     final task = _tasks[id];
     if (task == null) return;
     if (progress != null) task.progress = progress.clamp(0, 1);

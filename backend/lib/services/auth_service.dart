@@ -44,7 +44,8 @@ class AuthService {
     final hash = await CryptoUtil.hashPassword(password);
     final user = users.create(
         username: username.trim(), passwordHash: hash, role: 'admin');
-    audit.log('init', userId: user.id, ip: ip, detail: {'username': user.username});
+    audit.log('init',
+        userId: user.id, ip: ip, detail: {'username': user.username});
     Log.info('Initialized administrator', userId: user.id);
     return user;
   }
@@ -112,8 +113,8 @@ class AuthService {
     }
     final remaining = session.expiresAt - DateTime.now().millisecondsSinceEpoch;
     if (remaining < const Duration(days: 25).inMilliseconds) {
-      sessions.touch(
-          session.id, DateTime.now().add(sessionLifetime).millisecondsSinceEpoch);
+      sessions.touch(session.id,
+          DateTime.now().add(sessionLifetime).millisecondsSinceEpoch);
     }
     return AuthContext(user, session);
   }

@@ -57,9 +57,8 @@ class FavoriteService {
         status: status,
         page: page,
         pageSize: pageSize);
-    final items = (result['items'] as List)
-        .whereType<Map<String, Object?>>()
-        .map((item) {
+    final items =
+        (result['items'] as List).whereType<Map<String, Object?>>().map((item) {
       final type = (item['comicType'] as int?) ?? 0;
       item['sourceKey'] = _sourceKeyForType(userId, type) ?? '';
       return item;
@@ -88,10 +87,15 @@ class FavoriteService {
   void removeFromAll(int userId, String comicId, int comicType) =>
       favorites.removeFromAll(userId, comicId, comicType);
 
-  void moveOrCopy(int userId, int from, int to, List<Map<String, Object?>> items,
+  void moveOrCopy(
+          int userId, int from, int to, List<Map<String, Object?>> items,
           {required bool move}) =>
       favorites.moveOrCopy(
-          userId: userId, fromFolder: from, toFolder: to, comics: items, move: move);
+          userId: userId,
+          fromFolder: from,
+          toFolder: to,
+          comics: items,
+          move: move);
 
   void batchDelete(int userId, List<Map<String, Object?>> items) =>
       favorites.batchDelete(userId, items);
@@ -118,14 +122,15 @@ class FavoriteService {
   }
 
   Map<String, Object?> importFolder(int userId, Map<String, Object?> data) {
-    final name = (data['name'] ?? (data['info'] is Map ? (data['info'] as Map)['name'] : null) ?? '')
+    final name = (data['name'] ??
+            (data['info'] is Map ? (data['info'] as Map)['name'] : null) ??
+            '')
         .toString();
-    if (name.trim().isEmpty) throw ApiException.badRequest('Folder name is required');
+    if (name.trim().isEmpty)
+      throw ApiException.badRequest('Folder name is required');
     var folderName = name;
     var index = 1;
-    while (favorites
-        .folders(userId)
-        .any((f) => f['name'] == folderName)) {
+    while (favorites.folders(userId).any((f) => f['name'] == folderName)) {
       folderName = '$name($index)';
       index++;
     }
@@ -150,6 +155,113 @@ class FavoriteService {
     return favorites.folder(userId, folderId)!;
   }
 
+  Map<String, Object?> linkFolder(
+    int userId,
+    int folderId, {
+    String? sourceKey,
+    String? sourceFolder,
+  }) {
+    if (sourceKey != null && sourceKey.isNotEmpty) {
+      sourceService.require(userId, sourceKey);
+    }
+    favorites.linkFolder(
+      userId,
+      folderId,
+      sourceKey: sourceKey?.isEmpty == true ? null : sourceKey,
+      sourceFolder: sourceFolder?.isEmpty == true ? null : sourceFolder,
+    );
+    return favorites.folder(userId, folderId)!;
+  }
+
+  /// Imports a network favorite folder into a local folder and records the
+  /// link used by the "Update" action. Mirrors the original import flow.
+  Future<Map<String, Object?>> importNetworkFolder(
+    int userId, {
+    required String sourceKey,
+    String? networkFolder,
+    String? name,
+    int pages = 20,
+  }) async {
+    final source = sourceService.require(userId, sourceKey);
+    final folderName =
+        name != null && name.trim().isNotEmpty ? name.trim() : source.name;
+    final matches = favorites
+        .folders(userId)
+        .where((item) => item['name'] == folderName)
+        .toList();
+    Map<String, Object?>? folder = matches.isEmpty ? null : matches.first;
+    final int folderId;
+    if (folder != null) {
+      final linkedSource = folder['sourceKey']?.toString() ?? '';
+      final linkedFolder = folder['sourceFolder']?.toString() ?? '';
+      if (linkedSource != sourceKey || linkedFolder != (networkFolder ?? '')) {
+        throw ApiException.conflict('Folder already exists');
+      }
+      folderId = folder['id'] as int;
+    } else {
+      folderId = favorites.createFolder(userId, folderName);
+      favorites.linkFolder(userId, folderId,
+          sourceKey: sourceKey, sourceFolder: networkFolder ?? '');
+    }
+    final imported = await syncNetworkFolder(userId, folderId, pages: pages);
+    return {
+      'folder': favorites.folder(userId, folderId),
+      ...imported,
+    };
+  }
+
+  /// Refreshes a linked local folder from its network folder. Existing local
+  /// favorites are preserved; new comics are appended.
+  Future<Map<String, Object?>> syncNetworkFolder(
+    int userId,
+    int folderId, {
+    int pages = 20,
+  }) async {
+    final folder = favorites.folder(userId, folderId);
+    if (folder == null) throw ApiException.notFound('Folder not found');
+    final sourceKey = folder['sourceKey']?.toString() ?? '';
+    if (sourceKey.isEmpty) {
+      throw ApiException.badRequest('Folder is not linked to a network source');
+    }
+    final networkFolder = folder['sourceFolder']?.toString() ?? '';
+    final limit = pages.clamp(1, 10000);
+    final existing = favorites
+        .allInFolder(userId, folderId)
+        .map((item) => '${item.comicType}:${item.comicId}')
+        .toSet();
+    var received = 0;
+    var imported = 0;
+    var loadedPages = 0;
+    for (var page = 1; page <= limit; page++) {
+      final result = await networkComics(
+        userId,
+        sourceKey,
+        networkFolder.isEmpty ? null : networkFolder,
+        page,
+      );
+      final list = (result['comics'] as List).whereType<Map>().toList();
+      received += list.length;
+      loadedPages++;
+      for (final raw in list) {
+        final comic = raw.map((key, value) => MapEntry(key.toString(), value));
+        final identity =
+            '${comic['comicType'] ?? comicTypeForSource(sourceKey)}:${comic['id']}';
+        if (!existing.add(identity)) continue;
+        add(userId, folderId, comic);
+        imported++;
+      }
+      final maxPage = result['maxPage'];
+      if (list.isEmpty || (maxPage is int && maxPage > 0 && page >= maxPage)) {
+        break;
+      }
+    }
+    return {
+      'imported': imported,
+      'received': received,
+      'pages': loadedPages,
+    };
+  }
+
   void updateInfo(int userId, {int? folderId}) {
     final folderIds = folderId != null
         ? [folderId]
@@ -157,8 +269,10 @@ class FavoriteService {
     final allItems = {
       for (final id in folderIds) id: favorites.allInFolder(userId, id),
     };
-    final total = allItems.values.fold<int>(0, (sum, list) => sum + list.length);
-    tasks.run(userId, 'favorites_update_info', 'Update Comics Info', (task) async {
+    final total =
+        allItems.values.fold<int>(0, (sum, list) => sum + list.length);
+    tasks.run(userId, 'favorites_update_info', 'Update Comics Info',
+        (task) async {
       var done = 0;
       final errors = <String>[];
       for (final entry in allItems.entries) {
@@ -218,7 +332,8 @@ class FavoriteService {
           unavailable = !sourceTypes.contains(item.comicType);
         }
         if (unavailable) {
-          favorites.removeFavorite(userId, folderId, item.comicId, item.comicType);
+          favorites.removeFavorite(
+              userId, folderId, item.comicId, item.comicType);
           removed++;
         }
       }
@@ -236,14 +351,14 @@ class FavoriteService {
 
   // ---- network favorites ------------------------------------------------
 
-  Future<Map<String, Object?>> networkFolders(
-      int userId, String sourceKey, {String? comicId}) async {
+  Future<Map<String, Object?>> networkFolders(int userId, String sourceKey,
+      {String? comicId}) async {
     final source = sourceService.require(userId, sourceKey);
     if (source.capabilities['favorites'] != true) {
       throw ApiException.badRequest('This source does not support favorites');
     }
-    final result = await sourceService.callValue(
-        userId, sourceKey, 'favorites.loadFolders', [comicId]);
+    final result = await sourceService
+        .callValue(userId, sourceKey, 'favorites.loadFolders', [comicId]);
     final map = result is Map ? result : const {};
     return {
       'folders': map['folders'] ?? const {},
@@ -257,8 +372,8 @@ class FavoriteService {
     Object? folder,
     int page,
   ) async {
-    final result = await sourceService.callValue(
-        userId, sourceKey, 'favorites.loadComics', [page, folder]);
+    final result = await sourceService
+        .callValue(userId, sourceKey, 'favorites.loadComics', [page, folder]);
     final map = result is Map ? result : const {};
     final comics = map['comics'] is List
         ? (map['comics'] as List).whereType<Map>().map((raw) {
@@ -292,15 +407,13 @@ class FavoriteService {
     );
   }
 
-  Future<Object?> networkAddFolder(
-          int userId, String sourceKey, String name) =>
-      sourceService.callValue(
-          userId, sourceKey, 'favorites.addFolder', [name]);
+  Future<Object?> networkAddFolder(int userId, String sourceKey, String name) =>
+      sourceService.callValue(userId, sourceKey, 'favorites.addFolder', [name]);
 
   Future<Object?> networkDeleteFolder(
           int userId, String sourceKey, Object? folderId) =>
-      sourceService.callValue(
-          userId, sourceKey, 'favorites.deleteFolder', [folderId]);
+      sourceService
+          .callValue(userId, sourceKey, 'favorites.deleteFolder', [folderId]);
 }
 
 class HistoryService {
@@ -324,8 +437,7 @@ class HistoryService {
         'items': repository.recent(userId, 20).map((h) => h.toJson()).toList(),
       };
 
-  Map<String, Object?> progress(
-      int userId, String sourceKey, String comicId) {
+  Map<String, Object?> progress(int userId, String sourceKey, String comicId) {
     final record =
         repository.progress(userId, comicId, comicTypeForSource(sourceKey));
     return record?.toJson() ?? const {};
@@ -333,8 +445,10 @@ class HistoryService {
 
   void upsert(int userId, Map<String, Object?> body) {
     final comic = body['comic'];
-    final comicMap = comic is Map ? comic.map((k, v) => MapEntry(k.toString(), v)) : body;
-    final sourceKey = (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
+    final comicMap =
+        comic is Map ? comic.map((k, v) => MapEntry(k.toString(), v)) : body;
+    final sourceKey =
+        (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
     final comicId = (body['comicId'] ?? comicMap['id'] ?? '').toString();
     if (comicId.isEmpty) throw ApiException.badRequest('comicId is required');
     repository.upsert(
@@ -348,7 +462,8 @@ class HistoryService {
       ep: (body['ep'] as int?) ?? 1,
       page: (body['page'] as int?) ?? 1,
       chapterGroup: body['chapterGroup'] as int?,
-      readEpisode: body['readEpisode'] is List ? body['readEpisode'] as List : const [],
+      readEpisode:
+          body['readEpisode'] is List ? body['readEpisode'] as List : const [],
       maxPage: body['maxPage'] as int?,
     );
   }
@@ -360,7 +475,8 @@ class HistoryService {
       repository.clear(userId, unfavoritedOnly: unfavoritedOnly);
 
   void refresh(int userId, {List<Map<String, Object?>>? ids}) {
-    final items = ids ?? repository.recent(userId, 500).map((h) => h.toJson()).toList();
+    final items =
+        ids ?? repository.recent(userId, 500).map((h) => h.toJson()).toList();
     tasks.run(userId, 'history_refresh', 'Refresh All Histories', (task) async {
       var success = 0;
       var failed = 0;
@@ -405,8 +521,7 @@ class ReadLaterService {
   List<Map<String, Object?>> list(int userId, {String? query}) =>
       repository.list(userId, query: query).map((r) => r.toJson()).toList();
 
-  bool add(int userId, Map<String, Object?> comic) =>
-      repository.add(userId, {
+  bool add(int userId, Map<String, Object?> comic) => repository.add(userId, {
         ...comic,
         'comicType': comic['comicType'] ??
             comicTypeForSource((comic['sourceKey'] ?? '').toString()),
@@ -444,11 +559,13 @@ class ImageFavoriteService {
 
   void add(int userId, Map<String, Object?> body) {
     final comic = body['comic'];
-    final comicMap =
-        comic is Map ? comic.map((k, v) => MapEntry(k.toString(), v)) : <String, Object?>{};
+    final comicMap = comic is Map
+        ? comic.map((k, v) => MapEntry(k.toString(), v))
+        : <String, Object?>{};
     final sourceKey =
         (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
-    if (sourceKey.isEmpty) throw ApiException.badRequest('sourceKey is required');
+    if (sourceKey.isEmpty)
+      throw ApiException.badRequest('sourceKey is required');
     repository.add(
       userId: userId,
       comic: comicMap,
@@ -465,7 +582,8 @@ class ImageFavoriteService {
   void removeComic(int userId, String comicId, String sourceKey) =>
       repository.removeComic(userId, comicId, sourceKey);
 
-  void removePage(int userId, Map<String, Object?> body) => repository.removePage(
+  void removePage(int userId, Map<String, Object?> body) =>
+      repository.removePage(
         userId,
         (body['comicId'] ?? '').toString(),
         (body['sourceKey'] ?? '').toString(),
@@ -597,7 +715,8 @@ class FollowUpdateService {
         final item = items[i];
         final lastAttempt = item.lastAttemptTime ?? 0;
         final lastCheck = item.lastCheckTime ?? 0;
-        if (now - (lastAttempt > lastCheck ? lastAttempt : lastCheck) < intervalMs) {
+        if (now - (lastAttempt > lastCheck ? lastAttempt : lastCheck) <
+            intervalMs) {
           continue;
         }
         final sourceKey = _sourceKeyForType(userId, item.comicType);
@@ -639,10 +758,52 @@ class FollowUpdateService {
               extra: {'comic': item.comicId, 'error': '$error'});
         }
         tasks.update(task.id,
-            progress: (i + 1) / items.length, message: '$checked checked, $updated updates');
+            progress: (i + 1) / items.length,
+            message: '$checked checked, $updated updates');
       }
       return {'checked': checked, 'updated': updated, 'failed': failed};
     });
+  }
+
+  /// Runs the check for every user whose config has an interval or fixed time
+  /// that is due. Called by the hourly server timer.
+  void runDueChecks() {
+    final configs = repository.allConfigs();
+    final now = DateTime.now();
+    for (final entry in configs) {
+      final userId = entry.userId;
+      final config = entry.config;
+      try {
+        final folder = favorites.folder(userId, config.folderId!);
+        if (folder == null) continue;
+        final lastRun = repository.lastRunAt(userId);
+        final intervalHrs =
+            config.intervalHours > 0 ? config.intervalHours : 24;
+        var due = lastRun == null ||
+            now.difference(DateTime.fromMillisecondsSinceEpoch(lastRun)) >=
+                Duration(hours: intervalHrs);
+        if (config.fixedTime.isNotEmpty) {
+          final parts = config.fixedTime.split(':');
+          if (parts.length >= 2) {
+            final hour = int.tryParse(parts[0]) ?? 0;
+            final minute = int.tryParse(parts[1]) ?? 0;
+            final today = DateTime(now.year, now.month, now.day, hour, minute);
+            due = now.isAfter(today) &&
+                now.difference(today) < const Duration(hours: 1) &&
+                (lastRun == null ||
+                    now.difference(
+                            DateTime.fromMillisecondsSinceEpoch(lastRun)) >=
+                        const Duration(hours: 1));
+          }
+        }
+        if (!due) continue;
+        repository.recordRun(userId);
+        check(userId);
+      } catch (error) {
+        Log.warning('Scheduled follow update check failed',
+            userId: userId, extra: {'error': '$error'});
+      }
+    }
   }
 
   String? _sourceKeyForType(int userId, int comicType) {

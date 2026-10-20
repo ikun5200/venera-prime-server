@@ -80,13 +80,23 @@ is: record, choose the most conservative/complete option, continue.
 - Impact: per-user proxy/DNS overrides and disabling TLS verification have no
   effect on source requests.
 
-## B-010 — Linked network-folder sync / network→local import
-- Issue: the original can link a local favorite folder to a network favorite
-  folder and import network favorites into the local library.
-- Conservative choice: local favorites and network favorites work
-  independently; users can add network comics to local folders manually. The
-  link columns exist in the schema but no sync worker is implemented.
-- Impact: automatic two-way folder sync is unavailable.
+## B-010 — Linked network-folder sync / network→local import (RESOLVED)
+- Resolved: `/api/favorites/import-network` creates a local folder, records the
+  source link and imports pages up to the configured count (FAV-26). Linked
+  folders expose an "Update" control (page count selector) that refreshes new
+  comics through `/api/favorites/folders/<id>/sync` (FAV-16). See E-16.
+
+## B-012 — Cache retention and size limit (RESOLVED)
+- Resolved: the image proxy now reads `cacheRetentionDays` (0/1/3/7/30) and
+  `cacheSize` (MB) from the per-user settings. Expired entries are deleted on
+  read; writes enforce the MB limit by evicting least-recently-used files.
+  `/api/maintenance/cache-size` and `clear-cache` back the settings UI.
+
+## B-015 — End-of-chapter comments page (RESOLVED)
+- Resolved: gallery readers render an embedded end-of-chapter comments page
+  when `showChapterComments` and `showChapterCommentsAtEnd` are enabled and the
+  source supports chapter comments. It includes header, masonry feed (1/2
+  columns), load-more, error/retry and a composer. See E-16.
 
 ## B-011 — Catalog version check / update availability
 - Issue: the original compares installed source versions with a catalog and
@@ -95,20 +105,6 @@ is: record, choose the most conservative/complete option, continue.
   from the source URL and re-parse it. Catalog entries can be installed or
   switched, but no background version comparison is shown.
 - Impact: no proactive update badge; updating is explicit.
-
-## B-012 — Cache retention and size limit
-- Issue: `cacheRetentionDays` and `cacheSize` are stored but the image proxy
-  uses a fixed 7-day TTL and does not enforce the MB limit.
-- Conservative choice: fixed TTL plus per-user cache directory; "Clear Cache"
-  works. A full LRU implementation is deferred.
-- Impact: cache may exceed the configured limit on very large libraries.
-
-## B-015 — End-of-chapter comments page
-- Issue: the original can render a masonry comments page after the last image
-  in horizontal gallery modes.
-- Conservative choice: chapter comments are available in the reader top-bar
-  drawer, including pagination and posting. The inline end page is not rendered.
-- Impact: one navigation difference; the data and actions are present.
 
 ## B-016 — Web-specific gesture/behavior gaps
 - Issue: mouse scroll speed, double-tap/long-press zoom with an anchor,

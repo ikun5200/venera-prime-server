@@ -64,8 +64,7 @@ class LocalService {
     required this.paths,
   });
 
-  String libraryRoot(int userId) =>
-      paths.ensureUserDir(userId, 'library');
+  String libraryRoot(int userId) => paths.ensureUserDir(userId, 'library');
 
   List<Map<String, Object?>> list(int userId,
           {String? query, String sort = 'name'}) =>
@@ -85,15 +84,15 @@ class LocalService {
     return {
       ...comic.toJson(),
       'chapterList': chapters,
-      'coverUrl': comic.cover.isEmpty
-          ? null
-          : '/api/local-comics/${comic.id}/cover',
+      'coverUrl':
+          comic.cover.isEmpty ? null : '/api/local-comics/${comic.id}/cover',
     };
   }
 
   List<Map<String, Object?>> _chapterList(LocalComicRecord comic) {
     final chapters = comic.chapters;
-    final downloaded = comic.downloadedChapters.map((e) => e.toString()).toSet();
+    final downloaded =
+        comic.downloadedChapters.map((e) => e.toString()).toSet();
     final result = <Map<String, Object?>>[];
     var index = 1;
     void add(String id, String title, [String? group]) {
@@ -150,8 +149,8 @@ class LocalService {
     final files = target
         .listSync()
         .whereType<File>()
-        .where((f) => isImageFile(f.path) &&
-            !p.basename(f.path).startsWith('.'))
+        .where(
+            (f) => isImageFile(f.path) && !p.basename(f.path).startsWith('.'))
         .toList()
       ..sort((a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
     return files;
@@ -181,7 +180,8 @@ class LocalService {
     if (comic == null) throw ApiException.notFound('Local comic not found');
     final root = libraryRoot(userId);
     if (comic.cover.isNotEmpty) {
-      final file = File(paths.resolveInside(root, p.join(comic.directory, comic.cover)));
+      final file =
+          File(paths.resolveInside(root, p.join(comic.directory, comic.cover)));
       if (file.existsSync()) {
         return (bytes: await file.readAsBytes(), mime: _mimeFor(file.path));
       }
@@ -192,7 +192,10 @@ class LocalService {
       if (chapters.isNotEmpty) {
         final files = chapterFiles(userId, id, chapters.first['id'] as String);
         if (files.isNotEmpty) {
-          return (bytes: await files.first.readAsBytes(), mime: _mimeFor(files.first.path));
+          return (
+            bytes: await files.first.readAsBytes(),
+            mime: _mimeFor(files.first.path)
+          );
         }
       }
     } catch (_) {}
@@ -222,13 +225,15 @@ class LocalService {
     }
     repository.delete(userId, id);
     if (removeFavorites) {
-      history.delete(userId, comic.comicIdExt ?? comic.id.toString(), comic.comicType);
+      history.delete(
+          userId, comic.comicIdExt ?? comic.id.toString(), comic.comicType);
       favorites.removeFromAll(
           userId, comic.comicIdExt ?? comic.id.toString(), comic.comicType);
     }
   }
 
-  Future<void> deleteChapters(int userId, int id, List<String> chapterIds) async {
+  Future<void> deleteChapters(
+      int userId, int id, List<String> chapterIds) async {
     final comic = repository.get(userId, id);
     if (comic == null) throw ApiException.notFound('Local comic not found');
     final root = libraryRoot(userId);
@@ -339,7 +344,8 @@ class LocalService {
       for (final entry in archive) {
         if (!entry.isFile) continue;
         count++;
-        if (count > 20000) throw ApiException.badRequest('Too many archive entries');
+        if (count > 20000)
+          throw ApiException.badRequest('Too many archive entries');
         final name = _safeArchiveName(entry.name);
         if (name == null) continue;
         final content = entry.content;
@@ -413,16 +419,15 @@ class LocalService {
     final rootImages = dir
         .listSync()
         .whereType<File>()
-        .where((f) => isImageFile(f.path) && !p.basename(f.path).startsWith('.'))
+        .where(
+            (f) => isImageFile(f.path) && !p.basename(f.path).startsWith('.'))
         .toList()
       ..sort((a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
     final chapterDirs = dir
         .listSync()
         .whereType<Directory>()
-        .where((d) => d
-            .listSync()
-            .whereType<File>()
-            .any((f) => isImageFile(f.path)))
+        .where((d) =>
+            d.listSync().whereType<File>().any((f) => isImageFile(f.path)))
         .toList()
       ..sort((a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
     final metadata = _readMetadata(dir);
@@ -440,7 +445,8 @@ class LocalService {
     }
     String cover = '';
     final coverFile = rootImages
-        .where((f) => p.basenameWithoutExtension(f.path).toLowerCase() == 'cover')
+        .where(
+            (f) => p.basenameWithoutExtension(f.path).toLowerCase() == 'cover')
         .firstOrNull;
     if (coverFile != null) {
       cover = p.relative(coverFile.path, from: directory);
@@ -452,7 +458,8 @@ class LocalService {
           .whereType<File>()
           .where((f) => isImageFile(f.path))
           .toList()
-        ..sort((a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
+        ..sort(
+            (a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
       if (images.isNotEmpty) {
         cover = p.relative(images.first.path, from: directory);
       }
@@ -516,7 +523,8 @@ class LocalService {
     if (xmlFile.existsSync()) {
       try {
         final doc = XmlDocument.parse(xmlFile.readAsStringSync());
-        String? text(String name) => doc.findAllElements(name).firstOrNull?.innerText;
+        String? text(String name) =>
+            doc.findAllElements(name).firstOrNull?.innerText;
         result['title'] ??= text('Title');
         result['author'] ??= text('Writer') ?? text('Penciller');
         result['description'] ??= text('Summary');
@@ -571,8 +579,8 @@ class LocalService {
     }
     final info = '<?xml version="1.0" encoding="utf-8"?>\n'
         '<ComicInfo><Title>${_xmlEscape(title)}</Title></ComicInfo>';
-    archive.addFile(
-        ArchiveFile('ComicInfo.xml', info.length, utf8.encode(info)));
+    archive
+        .addFile(ArchiveFile('ComicInfo.xml', info.length, utf8.encode(info)));
     final data = ZipEncoder().encode(archive);
     return Uint8List.fromList(data);
   }
@@ -595,8 +603,8 @@ class LocalService {
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(8),
           build: (context) => pw.Center(
-            child: pw.Image(pw.MemoryImage(image.bytes),
-                fit: pw.BoxFit.contain),
+            child:
+                pw.Image(pw.MemoryImage(image.bytes), fit: pw.BoxFit.contain),
           ),
         ),
       );
@@ -616,20 +624,20 @@ class LocalService {
     }
 
     add('mimetype', utf8.encode('application/epub+zip'), store: true);
-    add('META-INF/container.xml', utf8.encode(
-        '<?xml version="1.0"?><container version="1.0" '
-        'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
-        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
-        'media-type="application/oebps-package+xml"/></rootfiles></container>'));
+    add(
+        'META-INF/container.xml',
+        utf8.encode('<?xml version="1.0"?><container version="1.0" '
+            'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>'));
     final manifest = StringBuffer();
     final spine = StringBuffer();
     final navPoints = StringBuffer();
     var chapterIndex = 0;
     for (final chapter in chapters) {
       chapterIndex++;
-      final chapterImages = images
-          .where((i) => i.name.startsWith('${chapter['id']}_'))
-          .toList();
+      final chapterImages =
+          images.where((i) => i.name.startsWith('${chapter['id']}_')).toList();
       final html = StringBuffer(
           '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${_xmlEscape(chapter['title'].toString())}</title></head><body>');
       for (var i = 0; i < chapterImages.length; i++) {
@@ -680,7 +688,8 @@ class LocalService {
       int userId, String name, int size, String mime) {
     if (size < 0) throw ApiException.badRequest('Invalid size');
     final safeName = PathGuard.sanitizeFileName(name);
-    final id = 'up_${DateTime.now().millisecondsSinceEpoch}_${size.toRadixString(16)}';
+    final id =
+        'up_${DateTime.now().millisecondsSinceEpoch}_${size.toRadixString(16)}';
     final dir = Directory(uploadDir(userId));
     final path = p.join(dir.path, '$id.part');
     File(path).createSync(recursive: true);
@@ -737,8 +746,7 @@ class LocalService {
       return {'upload': repository.upload(userId, uploadId)};
     }
     final bytes = await file.readAsBytes();
-    final comic = await importArchive(
-        userId, bytes, upload['name'] as String);
+    final comic = await importArchive(userId, bytes, upload['name'] as String);
     return {'upload': repository.upload(userId, uploadId), 'comic': comic};
   }
 

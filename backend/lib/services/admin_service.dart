@@ -15,8 +15,7 @@ class AdminService {
     required this.audit,
   });
 
-  List<Map<String, Object?>> list() =>
-      users.all().map(userJson).toList();
+  List<Map<String, Object?>> list() => users.all().map(userJson).toList();
 
   Future<UserRecord> create({
     required String username,
@@ -30,10 +29,12 @@ class AdminService {
       throw ApiException.conflict('Username already exists');
     }
     final hash = await CryptoUtil.hashPassword(password);
-    final user = users.create(
-        username: username.trim(), passwordHash: hash, role: role);
+    final user =
+        users.create(username: username.trim(), passwordHash: hash, role: role);
     audit.log('user_create',
-        userId: actorId, ip: ip, detail: {'target': user.id, 'username': user.username});
+        userId: actorId,
+        ip: ip,
+        detail: {'target': user.id, 'username': user.username});
     Log.info('User created', userId: actorId, extra: {'target': user.id});
     return user;
   }
@@ -88,7 +89,9 @@ class AdminService {
     }
     users.delete(id);
     audit.log('user_delete',
-        userId: actorId, ip: ip, detail: {'target': id, 'username': user.username});
+        userId: actorId,
+        ip: ip,
+        detail: {'target': id, 'username': user.username});
     Log.info('User deleted', userId: actorId, extra: {'target': id});
   }
 

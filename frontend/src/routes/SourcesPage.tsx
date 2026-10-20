@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownUp,
   CheckCircle2,
@@ -9,13 +9,13 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-} from 'lucide-react';
-import { api } from '../lib/api';
-import { toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import type { Source } from '../lib/types';
-import { cn } from '../lib/utils';
-import { PageBody, PageHeader } from '../components/PageHeader';
+} from "lucide-react";
+import { api } from "../lib/api";
+import { toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import type { Source } from "../lib/types";
+import { cn } from "../lib/utils";
+import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Badge,
   Button,
@@ -31,44 +31,50 @@ import {
   Switch,
   Tabs,
   Textarea,
-} from '../components/ui';
+} from "../components/ui";
 
 export default function SourcesPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const query = useQuery({ queryKey: ['sources'], queryFn: api.sources });
+  const query = useQuery({ queryKey: ["sources"], queryFn: api.sources });
   const [addOpen, setAddOpen] = useState(false);
-  const [mode, setMode] = useState<'paste' | 'url' | 'file'>('paste');
-  const [script, setScript] = useState('');
-  const [url, setUrl] = useState('');
+  const [mode, setMode] = useState<"paste" | "url" | "file">("paste");
+  const [script, setScript] = useState("");
+  const [url, setUrl] = useState("");
   const [reorderOpen, setReorderOpen] = useState(false);
   const [order, setOrder] = useState<string[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Source | null>(null);
-  const [check, setCheck] = useState<{ open: boolean; key: string; data: unknown; loading: boolean }>({
+  const [check, setCheck] = useState<{
+    open: boolean;
+    key: string;
+    data: unknown;
+    loading: boolean;
+  }>({
     open: false,
-    key: '',
+    key: "",
     data: null,
     loading: false,
   });
 
   const sources = query.data?.items ?? [];
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['sources'] });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["sources"] });
 
   const importSource = useMutation({
     mutationFn: async () => {
-      if (mode === 'url') return api.addSourceUrl(url.trim());
-      if (mode === 'file') return api.importSourceFile(script);
+      if (mode === "url") return api.addSourceUrl(url.trim());
+      if (mode === "file") return api.importSourceFile(script);
       return api.importSource(script);
     },
     onSuccess: (result) => {
-      toast.success('Added');
+      toast.success("Added");
       setAddOpen(false);
-      setScript('');
-      setUrl('');
+      setScript("");
+      setUrl("");
       refresh();
       if (result.source?.key) navigate(`/sources/${result.source.key}`);
     },
@@ -78,7 +84,7 @@ export default function SourcesPage() {
   const updateSource = useMutation({
     mutationFn: (source: Source) => api.updateSourceFromUrl(source.key),
     onSuccess: () => {
-      toast.success('Updated');
+      toast.success("Updated");
       refresh();
     },
     onError: (error) => toast.error(error.message),
@@ -87,7 +93,7 @@ export default function SourcesPage() {
   const deleteSource = useMutation({
     mutationFn: (source: Source) => api.deleteSource(source.key),
     onSuccess: () => {
-      toast.success('Deleted');
+      toast.success("Deleted");
       setDeleteTarget(null);
       refresh();
     },
@@ -112,7 +118,7 @@ export default function SourcesPage() {
       }
     },
     onSuccess: () => {
-      toast.success('Update check completed');
+      toast.success("Update check completed");
       refresh();
     },
   });
@@ -120,7 +126,7 @@ export default function SourcesPage() {
   const saveOrder = useMutation({
     mutationFn: () => api.reorderSources(order),
     onSuccess: () => {
-      toast.success('Saved');
+      toast.success("Saved");
       setReorderOpen(false);
       refresh();
     },
@@ -136,7 +142,10 @@ export default function SourcesPage() {
       setCheck({
         open: true,
         key: source.key,
-        data: { status: 'failed', message: error instanceof Error ? error.message : String(error) },
+        data: {
+          status: "failed",
+          message: error instanceof Error ? error.message : String(error),
+        },
         loading: false,
       });
     }
@@ -150,20 +159,36 @@ export default function SourcesPage() {
   return (
     <>
       <PageHeader
-        title={t('Comic Source')}
+        title={t("Comic Source")}
         subtitle={`${sources.length} sources`}
         actions={
           <>
-            <IconButton label={t('Update all')} onClick={() => updateAll.mutate()} disabled={sources.length === 0}>
-              <RefreshCw className={cn('h-4 w-4', updateAll.isPending && 'animate-spin')} />
+            <IconButton
+              label={t("Update all")}
+              onClick={() => updateAll.mutate()}
+              disabled={sources.length === 0}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", updateAll.isPending && "animate-spin")}
+              />
             </IconButton>
-            <IconButton label={t('Reorder')} onClick={openReorder} disabled={sources.length < 2}>
+            <IconButton
+              label={t("Reorder")}
+              onClick={openReorder}
+              disabled={sources.length < 2}
+            >
               <ArrowDownUp className="h-4 w-4" />
             </IconButton>
-            <IconButton label={t('Source libraries')} onClick={() => navigate('/sources/libraries')}>
+            <IconButton
+              label={t("Source libraries")}
+              onClick={() => navigate("/sources/libraries")}
+            >
               <FolderGit2 className="h-4 w-4" />
             </IconButton>
-            <IconButton label={t('Add comic source')} onClick={() => setAddOpen(true)}>
+            <IconButton
+              label={t("Add comic source")}
+              onClick={() => setAddOpen(true)}
+            >
               <Plus className="h-4 w-4" />
             </IconButton>
           </>
@@ -176,11 +201,11 @@ export default function SourcesPage() {
           </div>
         ) : sources.length === 0 ? (
           <EmptyState
-            title={t('No Search Sources')}
-            description={t('Please add some sources')}
+            title={t("No Search Sources")}
+            description={t("Please add some sources")}
             action={
               <Button variant="primary" onClick={() => setAddOpen(true)}>
-                {t('Add comic source')}
+                {t("Add comic source")}
               </Button>
             }
           />
@@ -193,10 +218,16 @@ export default function SourcesPage() {
                   onClick={() => navigate(`/sources/${source.key}`)}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-[14px] font-medium">{source.name}</p>
+                    <p className="truncate text-[14px] font-medium">
+                      {source.name}
+                    </p>
                     <Badge>v{source.version}</Badge>
-                    {!source.enabled ? <Badge tone="warning">Disabled</Badge> : null}
-                    {source.account.loggedIn ? <Badge tone="success">Logged in</Badge> : null}
+                    {!source.enabled ? (
+                      <Badge tone="warning">Disabled</Badge>
+                    ) : null}
+                    {source.account.loggedIn ? (
+                      <Badge tone="success">Logged in</Badge>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted">
                     {source.key} · {capabilitySummary(source)}
@@ -204,7 +235,9 @@ export default function SourcesPage() {
                 </button>
                 <Switch
                   checked={source.enabled}
-                  onChange={(enabled) => toggleSource.mutate({ source, enabled })}
+                  onChange={(enabled) =>
+                    toggleSource.mutate({ source, enabled })
+                  }
                 />
                 <Menu
                   trigger={({ onClick, ...rest }) => (
@@ -213,28 +246,34 @@ export default function SourcesPage() {
                     </IconButton>
                   )}
                   items={[
-                    { label: t('Edit'), onSelect: () => navigate(`/sources/${source.key}?tab=edit`) },
                     {
-                      label: t('Source settings'),
-                      onSelect: () => navigate(`/sources/${source.key}?tab=settings`),
+                      label: t("Edit"),
+                      onSelect: () =>
+                        navigate(`/sources/${source.key}?tab=edit`),
                     },
                     {
-                      label: t('Log in'),
-                      onSelect: () => navigate(`/sources/${source.key}?tab=account`),
+                      label: t("Source settings"),
+                      onSelect: () =>
+                        navigate(`/sources/${source.key}?tab=settings`),
                     },
                     {
-                      label: t('Update'),
+                      label: t("Log in"),
+                      onSelect: () =>
+                        navigate(`/sources/${source.key}?tab=account`),
+                    },
+                    {
+                      label: t("Update"),
                       icon: <RefreshCw className="h-3.5 w-3.5" />,
                       disabled: !source.url,
                       onSelect: () => updateSource.mutate(source),
                     },
                     {
-                      label: t('Check readability'),
+                      label: t("Check readability"),
                       icon: <CheckCircle2 className="h-3.5 w-3.5" />,
                       onSelect: () => runCheck(source),
                     },
                     {
-                      label: t('Delete'),
+                      label: t("Delete"),
                       danger: true,
                       icon: <Trash2 className="h-3.5 w-3.5" />,
                       onSelect: () => setDeleteTarget(source),
@@ -250,18 +289,20 @@ export default function SourcesPage() {
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title={t('Add comic source')}
+        title={t("Add comic source")}
         width="max-w-2xl"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>{t('Cancel')}</Button>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              {t("Cancel")}
+            </Button>
             <Button
               variant="primary"
               loading={importSource.isPending}
-              disabled={mode === 'url' ? !url.trim() : !script.trim()}
+              disabled={mode === "url" ? !url.trim() : !script.trim()}
               onClick={() => importSource.mutate()}
             >
-              {t('Add')}
+              {t("Add")}
             </Button>
           </>
         }
@@ -269,22 +310,25 @@ export default function SourcesPage() {
         <div className="flex flex-col gap-4">
           <Tabs
             items={[
-              { value: 'paste', label: 'Paste script' },
-              { value: 'url', label: 'URL' },
-              { value: 'file', label: t('Use a config file') },
+              { value: "paste", label: "Paste script" },
+              { value: "url", label: "URL" },
+              { value: "file", label: t("Use a config file") },
             ]}
             value={mode}
             onChange={(value) => setMode(value)}
           />
-          {mode === 'url' ? (
-            <Field label="Source URL" hint="The script is downloaded and validated on the server.">
+          {mode === "url" ? (
+            <Field
+              label="Source URL"
+              hint="The script is downloaded and validated on the server."
+            >
               <Input
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
                 placeholder="https://example.com/source.js"
               />
             </Field>
-          ) : mode === 'file' ? (
+          ) : mode === "file" ? (
             <>
               <input
                 ref={fileRef}
@@ -297,11 +341,16 @@ export default function SourcesPage() {
                 className="block w-full text-[13px] text-muted file:mr-3 file:rounded file:border-0 file:bg-surface2 file:px-3 file:py-2 file:text-[13px] file:text-fg"
               />
               {script ? (
-                <p className="text-[12px] text-muted">{script.length} characters loaded.</p>
+                <p className="text-[12px] text-muted">
+                  {script.length} characters loaded.
+                </p>
               ) : null}
             </>
           ) : (
-            <Field label="Source script" hint="A JavaScript class extending ComicSource.">
+            <Field
+              label="Source script"
+              hint="A JavaScript class extending ComicSource."
+            >
               <Textarea
                 value={script}
                 onChange={(event) => setScript(event.target.value)}
@@ -316,12 +365,18 @@ export default function SourcesPage() {
       <Modal
         open={reorderOpen}
         onClose={() => setReorderOpen(false)}
-        title={t('Reorder comic sources')}
+        title={t("Reorder comic sources")}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setReorderOpen(false)}>{t('Cancel')}</Button>
-            <Button variant="primary" loading={saveOrder.isPending} onClick={() => saveOrder.mutate()}>
-              {t('Confirm')}
+            <Button variant="ghost" onClick={() => setReorderOpen(false)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              loading={saveOrder.isPending}
+              onClick={() => saveOrder.mutate()}
+            >
+              {t("Confirm")}
             </Button>
           </>
         }
@@ -356,8 +411,8 @@ export default function SourcesPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title={`Delete comic source '${deleteTarget?.name ?? ''}' ?`}
-        confirmLabel={t('Delete')}
+        title={`Delete comic source '${deleteTarget?.name ?? ""}' ?`}
+        confirmLabel={t("Delete")}
         danger
         onConfirm={() => deleteTarget && deleteSource.mutate(deleteTarget)}
       />
@@ -365,10 +420,13 @@ export default function SourcesPage() {
       <Modal
         open={check.open}
         onClose={() => setCheck({ ...check, open: false })}
-        title={t('Check readability')}
+        title={t("Check readability")}
         footer={
-          <Button variant="ghost" onClick={() => setCheck({ ...check, open: false })}>
-            {t('Close')}
+          <Button
+            variant="ghost"
+            onClick={() => setCheck({ ...check, open: false })}
+          >
+            {t("Close")}
           </Button>
         }
       >
@@ -386,42 +444,62 @@ export default function SourcesPage() {
 
 function capabilitySummary(source: Source): string {
   const labels: [string, string][] = [
-    ['search', 'search'],
-    ['explore', 'explore'],
-    ['category', 'categories'],
-    ['favorites', 'favorites'],
-    ['comments', 'comments'],
-    ['imageLoad', 'images'],
-    ['login', 'login'],
+    ["search", "search"],
+    ["explore", "explore"],
+    ["category", "categories"],
+    ["favorites", "favorites"],
+    ["comments", "comments"],
+    ["imageLoad", "images"],
+    ["login", "login"],
   ];
   const active = labels
     .filter(([key]) => source.capabilities[key] === true)
     .map(([, label]) => label);
-  return active.join(' · ') || 'no capabilities';
+  return active.join(" · ") || "no capabilities";
 }
 
 function CheckResult({ data }: { data: unknown }) {
   const t = useT();
-  if (!data || typeof data !== 'object') {
-    return <p className="text-[13px] text-muted">{t('No data')}</p>;
+  if (!data || typeof data !== "object") {
+    return <p className="text-[13px] text-muted">{t("No data")}</p>;
   }
-  const result = data as { status?: string; stage?: string; message?: string; stages?: Record<string, unknown> };
+  const result = data as {
+    status?: string;
+    stage?: string;
+    message?: string;
+    stages?: Record<string, unknown>;
+  };
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <Badge tone={result.status === 'readable' ? 'success' : 'danger'}>
-          {result.status ?? 'unknown'}
+        <Badge tone={result.status === "readable" ? "success" : "danger"}>
+          {result.status ?? "unknown"}
         </Badge>
-        {result.stage ? <span className="text-[12px] text-muted">stage: {result.stage}</span> : null}
+        {result.stage ? (
+          <span className="text-[12px] text-muted">stage: {result.stage}</span>
+        ) : null}
       </div>
       {result.message ? (
-        <p className="rounded bg-danger/10 px-3 py-2 text-[12px] text-danger">{result.message}</p>
+        <p className="rounded bg-danger/10 px-3 py-2 text-[12px] text-danger">
+          {result.message}
+        </p>
       ) : null}
       <div className="flex flex-col gap-1">
         {Object.entries(result.stages ?? {}).map(([stage, value]) => (
-          <div key={stage} className="flex items-center justify-between rounded border border-border px-3 py-2 text-[12px]">
+          <div
+            key={stage}
+            className="flex items-center justify-between rounded border border-border px-3 py-2 text-[12px]"
+          >
             <span>{stage}</span>
-            <span className={cn(value === 'ok' ? 'text-success' : value === 'failed' ? 'text-danger' : 'text-muted')}>
+            <span
+              className={cn(
+                value === "ok"
+                  ? "text-success"
+                  : value === "failed"
+                    ? "text-danger"
+                    : "text-muted",
+              )}
+            >
               {String(value)}
             </span>
           </div>

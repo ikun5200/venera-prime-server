@@ -111,7 +111,9 @@ Router buildApiRouter(AppContext ctx) {
 
   router.post('/api/auth/logout', (Request request) {
     ctx.auth.logout(optionalAuth(request));
-    return _json({'ok': true}, headers: {
+    return _json({
+      'ok': true
+    }, headers: {
       'set-cookie': AuthService.clearCookieHeader(),
     });
   });
@@ -164,8 +166,7 @@ Router buildApiRouter(AppContext ctx) {
     ctx.admin.delete(userId, actorId: auth.user.id, ip: clientIp(request));
     try {
       final dir = Directory(root);
-      if (dir.existsSync() &&
-          root.startsWith(ctx.paths.absoluteDataDir)) {
+      if (dir.existsSync() && root.startsWith(ctx.paths.absoluteDataDir)) {
         await dir.delete(recursive: true);
       }
     } catch (error) {
@@ -199,7 +200,8 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/settings/search-history', (Request request) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
-    ctx.settings.addSearchHistory(auth.user.id, (body['keyword'] ?? '').toString());
+    ctx.settings
+        .addSearchHistory(auth.user.id, (body['keyword'] ?? '').toString());
     return _json({'items': ctx.settings.searchHistory(auth.user.id)});
   });
 
@@ -207,6 +209,15 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     ctx.settings.clearSearchHistory(auth.user.id);
     return _json({'ok': true});
+  });
+
+  router.delete('/api/settings/search-history/<keyword>',
+      (Request request, String keyword) {
+    final auth = requireAuth(request);
+    final raw = _decodeParam(keyword);
+    ctx.settings
+        .deleteSearchHistory(auth.user.id, raw is String ? raw : '$raw');
+    return _json({'items': ctx.settings.searchHistory(auth.user.id)});
   });
 
   router.get('/api/tasks', (Request request) {
@@ -250,10 +261,36 @@ Router buildApiRouter(AppContext ctx) {
     });
   });
 
+  router.delete('/api/logs', (Request request) {
+    requireAdmin(request);
+    ctx.db.execute('DELETE FROM request_logs');
+    Log.clear();
+    return _json({'ok': true});
+  });
+
+  router.get('/api/settings/storage', (Request request) {
+    requireAuth(request);
+    return _json({'path': ctx.config.dataDir});
+  });
+
+  // ---- maintenance -----------------------------------------------------
+  router.get('/api/maintenance/cache-size', (Request request) {
+    final auth = requireAuth(request);
+    return _json({'bytes': ctx.comics.cacheBytes(auth.user.id)});
+  });
+
+  router.post('/api/maintenance/clear-cache', (Request request) async {
+    final auth = requireAuth(request);
+    await ctx.comics.clearCache(auth.user.id);
+    return _json({'ok': true});
+  });
+
   // ---- sources ---------------------------------------------------------
   router.get('/api/sources', (Request request) {
     final auth = requireAuth(request);
-    return _json({'items': ctx.sources.list(auth.user.id).map((s) => s.toJson()).toList()});
+    return _json({
+      'items': ctx.sources.list(auth.user.id).map((s) => s.toJson()).toList()
+    });
   });
 
   router.post('/api/sources', (Request request) async {
@@ -276,7 +313,8 @@ Router buildApiRouter(AppContext ctx) {
     } else {
       script = utf8.decode(await _rawBody(request, maxBytes: 8 * 1024 * 1024));
     }
-    if (script.trim().isEmpty) throw ApiException.badRequest('script is required');
+    if (script.trim().isEmpty)
+      throw ApiException.badRequest('script is required');
     final source = await ctx.sources.importScript(auth.user.id, script,
         replace: true, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -287,8 +325,8 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final url = (body['url'] ?? '').toString();
     if (url.isEmpty) throw ApiException.badRequest('url is required');
-    final source = await ctx.sources.installFromUrl(auth.user.id, url,
-        ip: clientIp(request));
+    final source = await ctx.sources
+        .installFromUrl(auth.user.id, url, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
   });
 
@@ -297,8 +335,11 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final keys = body['keys'];
     if (keys is! List) throw ApiException.badRequest('keys must be a list');
-    ctx.sourceRepository.reorder(auth.user.id, keys.map((e) => e.toString()).toList());
-    return _json({'items': ctx.sources.list(auth.user.id).map((s) => s.toJson()).toList()});
+    ctx.sourceRepository
+        .reorder(auth.user.id, keys.map((e) => e.toString()).toList());
+    return _json({
+      'items': ctx.sources.list(auth.user.id).map((s) => s.toJson()).toList()
+    });
   });
 
   router.get('/api/sources/<key>', (Request request, String key) {
@@ -315,8 +356,8 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final script = (body['script'] ?? '').toString();
     if (script.isEmpty) throw ApiException.badRequest('script is required');
-    final source = await ctx.sources.updateScript(auth.user.id, key, script,
-        ip: clientIp(request));
+    final source = await ctx.sources
+        .updateScript(auth.user.id, key, script, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
   });
 
@@ -324,8 +365,8 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     if (body['enabled'] is bool) {
-      ctx.sourceRepository.setEnabled(
-          auth.user.id, key, body['enabled'] as bool);
+      ctx.sourceRepository
+          .setEnabled(auth.user.id, key, body['enabled'] as bool);
     }
     return _json({'source': ctx.sources.require(auth.user.id, key).toJson()});
   });
@@ -340,9 +381,10 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/update', (Request request, String key) async {
     final auth = requireAuth(request);
     final source = ctx.sources.require(auth.user.id, key);
-    if (source.url.isEmpty) throw ApiException.badRequest('Source has no update URL');
-    final updated = await ctx.sources.installFromUrl(auth.user.id, source.url,
-        ip: clientIp(request));
+    if (source.url.isEmpty)
+      throw ApiException.badRequest('Source has no update URL');
+    final updated = await ctx.sources
+        .installFromUrl(auth.user.id, source.url, ip: clientIp(request));
     return _json({'source': updated.toJson()});
   });
 
@@ -351,11 +393,13 @@ Router buildApiRouter(AppContext ctx) {
     return _json(ctx.sources.settingsFor(auth.user.id, key));
   });
 
-  router.put('/api/sources/<key>/settings', (Request request, String key) async {
+  router.put('/api/sources/<key>/settings',
+      (Request request, String key) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final values = body['values'];
-    if (values is! Map) throw ApiException.badRequest('values must be an object');
+    if (values is! Map)
+      throw ApiException.badRequest('values must be an object');
     await ctx.sources.updateSettings(
       auth.user.id,
       key,
@@ -367,8 +411,8 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/settings/<setting>/callback',
       (Request request, String key, String setting) async {
     final auth = requireAuth(request);
-    final result = await ctx.sources.callValue(
-        auth.user.id, key, 'settings.$setting.callback', const []);
+    final result = await ctx.sources
+        .callValue(auth.user.id, key, 'settings.$setting.callback', const []);
     return _json({'result': result});
   });
 
@@ -389,7 +433,8 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final values = body['values'];
-    if (values is! Map) throw ApiException.badRequest('values must be an object');
+    if (values is! Map)
+      throw ApiException.badRequest('values must be an object');
     await ctx.sources.loginCookies(
       auth.user.id,
       key,
@@ -403,7 +448,8 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final cookies = body['cookies'];
-    if (cookies is! List) throw ApiException.badRequest('cookies must be a list');
+    if (cookies is! List)
+      throw ApiException.badRequest('cookies must be a list');
     await ctx.sources.importCookies(
       auth.user.id,
       key,
@@ -477,15 +523,16 @@ Router buildApiRouter(AppContext ctx) {
       id: id,
       name: (body['name'] ?? existing['name']).toString(),
       url: existing['url'] as String,
-      enabled: body['enabled'] is bool ? body['enabled'] as bool : existing['enabled'] as bool,
+      enabled: body['enabled'] is bool
+          ? body['enabled'] as bool
+          : existing['enabled'] as bool,
       priority: existing['priority'] as int,
       lastChecked: existing['lastChecked'] as int?,
     );
     return _json({'items': ctx.sourceRepository.libraries(auth.user.id)});
   });
 
-  router.delete('/api/source-libraries/<id>',
-      (Request request, String id) {
+  router.delete('/api/source-libraries/<id>', (Request request, String id) {
     final auth = requireAuth(request);
     ctx.sourceRepository.deleteLibrary(auth.user.id, id);
     return _json({'items': ctx.sourceRepository.libraries(auth.user.id)});
@@ -533,7 +580,9 @@ Router buildApiRouter(AppContext ctx) {
     }
     if (url.isEmpty) throw ApiException.badRequest('Entry has no download URL');
     final source = await ctx.sources.installFromUrl(auth.user.id, url,
-        libraryId: id, originId: (body['entryId'] ?? '').toString(), ip: clientIp(request));
+        libraryId: id,
+        originId: (body['entryId'] ?? '').toString(),
+        ip: clientIp(request));
     return _json({'source': source.toJson()});
   });
 
@@ -559,8 +608,24 @@ Router buildApiRouter(AppContext ctx) {
   });
 
   router.get('/api/search/suggestions', (Request request) {
-    requireAuth(request);
-    return _json({'items': const []});
+    final auth = requireAuth(request);
+    final text = _q(request, 'q') ?? '';
+    return _json({
+      'items': ctx.comics
+          .suggestions(auth.user.id, text, sourceKey: _q(request, 'source')),
+    });
+  });
+
+  router.post('/api/search/suggestion', (Request request) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final result = await ctx.comics.selectSuggestion(
+      auth.user.id,
+      (body['source'] ?? '').toString(),
+      (body['namespace'] ?? '').toString(),
+      (body['tag'] ?? '').toString(),
+    );
+    return _json({'result': result});
   });
 
   router.get('/api/explore', (Request request) async {
@@ -569,7 +634,8 @@ Router buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('source is required');
     }
-    return _json(await ctx.comics.explore(auth.user.id, source, _page(request)));
+    return _json(
+        await ctx.comics.explore(auth.user.id, source, _page(request)));
   });
 
   router.get('/api/explore/next', (Request request) async {
@@ -578,8 +644,8 @@ Router buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('source is required');
     }
-    return _json(
-        await ctx.comics.explore(auth.user.id, source, _qi(request, 'next', 1)));
+    return _json(await ctx.comics
+        .explore(auth.user.id, source, _qi(request, 'next', 1)));
   });
 
   router.get('/api/categories', (Request request) async {
@@ -622,7 +688,8 @@ Router buildApiRouter(AppContext ctx) {
   });
 
   // ---- comic -----------------------------------------------------------
-  router.get('/api/comic/<source>/<id>', (Request request, String source, String id) async {
+  router.get('/api/comic/<source>/<id>',
+      (Request request, String source, String id) async {
     final auth = requireAuth(request);
     return _json(await ctx.comics.comicInfo(auth.user.id, source, id));
   });
@@ -700,8 +767,8 @@ Router buildApiRouter(AppContext ctx) {
       (Request request, String source, String id) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
-    final result = await ctx.comics.like(
-        auth.user.id, source, id, body['like'] == true);
+    final result =
+        await ctx.comics.like(auth.user.id, source, id, body['like'] == true);
     return _json({'result': result});
   });
 
@@ -710,8 +777,8 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final stars = (body['rating'] as num?)?.toInt() ?? 0;
-    final result = await ctx.comics.rate(
-        auth.user.id, source, id, (stars * 2).clamp(0, 10));
+    final result = await ctx.comics
+        .rate(auth.user.id, source, id, (stars * 2).clamp(0, 10));
     return _json({'result': result});
   });
 
@@ -726,6 +793,37 @@ Router buildApiRouter(AppContext ctx) {
       body['subId']?.toString(),
       (body['commentId'] ?? '').toString(),
       body['like'] == true,
+    );
+    return _json({'result': result});
+  });
+
+  router.post('/api/comic/<source>/<id>/chapter/<ep>/comment-like',
+      (Request request, String source, String id, String ep) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final result = await ctx.comics.likeChapterComment(
+      auth.user.id,
+      source,
+      id,
+      ep,
+      (body['commentId'] ?? '').toString(),
+      body['like'] == true,
+    );
+    return _json({'result': result});
+  });
+
+  router.post('/api/comic/<source>/<id>/chapter/<ep>/comment-vote',
+      (Request request, String source, String id, String ep) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final result = await ctx.comics.voteChapterComment(
+      auth.user.id,
+      source,
+      id,
+      ep,
+      (body['commentId'] ?? '').toString(),
+      body['up'] == true,
+      body['cancel'] == true,
     );
     return _json({'result': result});
   });
@@ -824,8 +922,8 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/favorites/folders', (Request request) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
-    final id = ctx.favorites.createFolder(
-        auth.user.id, (body['name'] ?? '').toString());
+    final id = ctx.favorites
+        .createFolder(auth.user.id, (body['name'] ?? '').toString());
     return _json({'id': id, 'items': ctx.favorites.folders(auth.user.id)});
   });
 
@@ -835,14 +933,47 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final folderId = int.tryParse(id) ?? 0;
     if (body['name'] != null) {
-      ctx.favorites.renameFolder(
-          auth.user.id, folderId, body['name'].toString());
+      ctx.favorites
+          .renameFolder(auth.user.id, folderId, body['name'].toString());
+    }
+    if (body.containsKey('sourceKey')) {
+      ctx.favorites.linkFolder(
+        auth.user.id,
+        folderId,
+        sourceKey: body['sourceKey']?.toString(),
+        sourceFolder: body['sourceFolder']?.toString(),
+      );
     }
     return _json({'items': ctx.favorites.folders(auth.user.id)});
   });
 
-  router.delete('/api/favorites/folders/<id>',
-      (Request request, String id) {
+  router.post('/api/favorites/folders/<id>/sync',
+      (Request request, String id) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final pages = (body['pages'] as num?)?.toInt() ?? 20;
+    return _json(await ctx.favorites.syncNetworkFolder(
+      auth.user.id,
+      int.tryParse(id) ?? 0,
+      pages: pages,
+    ));
+  });
+
+  router.post('/api/favorites/import-network', (Request request) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final source = (body['source'] ?? '').toString();
+    if (source.isEmpty) throw ApiException.badRequest('source is required');
+    return _json(await ctx.favorites.importNetworkFolder(
+      auth.user.id,
+      sourceKey: source,
+      networkFolder: body['folder']?.toString(),
+      name: body['name']?.toString(),
+      pages: (body['pages'] as num?)?.toInt() ?? 20,
+    ));
+  });
+
+  router.delete('/api/favorites/folders/<id>', (Request request, String id) {
     final auth = requireAuth(request);
     ctx.favorites.deleteFolder(auth.user.id, int.tryParse(id) ?? 0);
     return _json({'items': ctx.favorites.folders(auth.user.id)});
@@ -1019,8 +1150,8 @@ Router buildApiRouter(AppContext ctx) {
   router.delete('/api/favorites/network/<source>/folder/<folderId>',
       (Request request, String source, String folderId) async {
     final auth = requireAuth(request);
-    final result = await ctx.favorites.networkDeleteFolder(
-        auth.user.id, source, _decodeParam(folderId));
+    final result = await ctx.favorites
+        .networkDeleteFolder(auth.user.id, source, _decodeParam(folderId));
     return _json({'result': result});
   });
 
@@ -1052,8 +1183,8 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/history/clear', (Request request) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
-    ctx.history.clear(auth.user.id,
-        unfavoritedOnly: body['unfavoritedOnly'] == true);
+    ctx.history
+        .clear(auth.user.id, unfavoritedOnly: body['unfavoritedOnly'] == true);
     return _json({'ok': true});
   });
 
@@ -1085,8 +1216,8 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final comic = body['comic'];
     if (comic is! Map) throw ApiException.badRequest('comic is required');
-    final added = ctx.readLater.add(
-        auth.user.id, comic.map((k, v) => MapEntry(k.toString(), v)));
+    final added = ctx.readLater
+        .add(auth.user.id, comic.map((k, v) => MapEntry(k.toString(), v)));
     return _json({'added': added});
   });
 
@@ -1099,8 +1230,7 @@ Router buildApiRouter(AppContext ctx) {
   router.delete('/api/read-later/<comicType>/<comicId>',
       (Request request, String comicType, String comicId) {
     final auth = requireAuth(request);
-    ctx.readLater.remove(
-        auth.user.id, comicId, int.tryParse(comicType) ?? 0);
+    ctx.readLater.remove(auth.user.id, comicId, int.tryParse(comicType) ?? 0);
     return _json({'ok': true});
   });
 
@@ -1233,7 +1363,8 @@ Router buildApiRouter(AppContext ctx) {
     if (localComic == null) {
       throw ApiException.notFound('Downloaded comic not found');
     }
-    final result = await ctx.downloads.localArchive(auth.user.id, localComic.id);
+    final result =
+        await ctx.downloads.localArchive(auth.user.id, localComic.id);
     return _file(result.bytes, 'application/zip', result.filename);
   });
 
@@ -1270,7 +1401,8 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final chapters = body['chapters'];
-    if (chapters is! List) throw ApiException.badRequest('chapters must be a list');
+    if (chapters is! List)
+      throw ApiException.badRequest('chapters must be a list');
     await ctx.local.deleteChapters(
       auth.user.id,
       int.tryParse(id) ?? 0,
@@ -1282,8 +1414,8 @@ Router buildApiRouter(AppContext ctx) {
   router.get('/api/local-comics/<id>/chapter/<chapter>/images',
       (Request request, String id, String chapter) async {
     final auth = requireAuth(request);
-    return _json(await ctx.local.chapterImages(
-        auth.user.id, int.tryParse(id) ?? 0, chapter));
+    return _json(await ctx.local
+        .chapterImages(auth.user.id, int.tryParse(id) ?? 0, chapter));
   });
 
   router.get('/api/local-comics/<id>/image/<chapter>/<page>',
@@ -1301,7 +1433,8 @@ Router buildApiRouter(AppContext ctx) {
     });
   });
 
-  router.get('/api/local-comics/<id>/cover', (Request request, String id) async {
+  router.get('/api/local-comics/<id>/cover',
+      (Request request, String id) async {
     final auth = requireAuth(request);
     final result = await ctx.local.cover(auth.user.id, int.tryParse(id) ?? 0);
     return Response.ok(result.bytes, headers: {
@@ -1310,10 +1443,12 @@ Router buildApiRouter(AppContext ctx) {
     });
   });
 
-  router.get('/api/local-comics/<id>/export', (Request request, String id) async {
+  router.get('/api/local-comics/<id>/export',
+      (Request request, String id) async {
     final auth = requireAuth(request);
     final format = _q(request, 'format') ?? 'cbz';
-    final bytes = await ctx.local.export(auth.user.id, int.tryParse(id) ?? 0, format);
+    final bytes =
+        await ctx.local.export(auth.user.id, int.tryParse(id) ?? 0, format);
     final comic = ctx.local.get(auth.user.id, int.tryParse(id) ?? 0);
     final name = '${comic?['title'] ?? 'comic'}.$format';
     final mime = switch (format) {
@@ -1418,15 +1553,16 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/backup/import', (Request request) async {
     final auth = requireAuth(request);
     final bytes = await _rawBody(request);
-    final result = await ctx.backup.importBytes(auth.user.id, bytes,
-        ip: clientIp(request));
+    final result = await ctx.backup
+        .importBytes(auth.user.id, bytes, ip: clientIp(request));
     return _json(result);
   });
 
   // ---- statistics ------------------------------------------------------
   router.get('/api/statistics', (Request request) {
     final auth = requireAuth(request);
-    return _json(ctx.statistics.summary(auth.user.id, days: _qi(request, 'days', 30)));
+    return _json(
+        ctx.statistics.summary(auth.user.id, days: _qi(request, 'days', 30)));
   });
 
   router.post('/api/statistics', (Request request) async {
@@ -1445,8 +1581,8 @@ Router buildApiRouter(AppContext ctx) {
   router.delete('/api/statistics/<comicType>/<comicId>',
       (Request request, String comicType, String comicId) {
     final auth = requireAuth(request);
-    ctx.statistics.deleteComic(
-        auth.user.id, comicId, int.tryParse(comicType) ?? 0);
+    ctx.statistics
+        .deleteComic(auth.user.id, comicId, int.tryParse(comicType) ?? 0);
     return _json({'ok': true});
   });
 
@@ -1492,8 +1628,8 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/toolbox/link', (Request request) async {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
-    final result =
-        await ctx.comics.resolveLink(auth.user.id, (body['url'] ?? '').toString());
+    final result = await ctx.comics
+        .resolveLink(auth.user.id, (body['url'] ?? '').toString());
     return _json({'result': result});
   });
 

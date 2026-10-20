@@ -15,8 +15,8 @@ void main() {
     admin = app.client();
     await admin.init('admin', 'admin123');
     await admin.login('admin', 'admin123');
-    final created = await admin.post('/api/admin/users',
-        {'username': 'bob', 'password': 'bob12345'});
+    final created = await admin
+        .post('/api/admin/users', {'username': 'bob', 'password': 'bob12345'});
     bobId = (created.body['user'] as Map)['id'] as int;
     bob = app.client();
     await bob.login('bob', 'bob12345');
@@ -25,7 +25,8 @@ void main() {
   tearDown(() => app.dispose());
 
   test('sources are per-user and cross-user reads return 404', () async {
-    final imported = await admin.post('/api/sources', {'script': testSourceScript});
+    final imported =
+        await admin.post('/api/sources', {'script': testSourceScript});
     expect(imported.status, 200);
 
     expect((await bob.get('/api/sources')).body['items'], isEmpty);
@@ -40,7 +41,8 @@ void main() {
 
   test('favorites, history, read later and image favorites are isolated',
       () async {
-    final folder = await admin.post('/api/favorites/folders', {'name': 'Admin'});
+    final folder =
+        await admin.post('/api/favorites/folders', {'name': 'Admin'});
     final folderId = folder.body['id'] as int;
     await admin.post('/api/favorites', {
       'folderId': folderId,
@@ -68,7 +70,8 @@ void main() {
     });
 
     expect((await bob.get('/api/favorites')).body['total'], 0);
-    expect((await bob.get('/api/favorites?folderId=$folderId')).body['total'], 0);
+    expect(
+        (await bob.get('/api/favorites?folderId=$folderId')).body['total'], 0);
     expect((await bob.get('/api/history')).body['total'], 0);
     expect((await bob.get('/api/read-later')).body['items'], isEmpty);
     expect((await bob.get('/api/image-favorites')).body['items'], isEmpty);
@@ -81,7 +84,9 @@ void main() {
       'comic': {'id': 'b1', 'title': 'Bob Comic', 'sourceKey': 'test_source'}
     });
     expect((await admin.get('/api/favorites')).body['total'], 1);
-    expect((await admin.get('/api/favorites?folderId=$bobFolderId')).body['total'], 0);
+    expect(
+        (await admin.get('/api/favorites?folderId=$bobFolderId')).body['total'],
+        0);
   });
 
   test('settings are per-user', () async {
@@ -105,7 +110,8 @@ void main() {
   test('local comics and uploads are isolated', () async {
     // Create a local comic for the admin directly on disk.
     final root = app.ctx.local.libraryRoot(1);
-    final directory = Directory('$root/AdminComic')..createSync(recursive: true);
+    final directory = Directory('$root/AdminComic')
+      ..createSync(recursive: true);
     File('${directory.path}/1.jpg').writeAsBytesSync([0xff, 0xd8, 0xff, 0xd9]);
     final localId = app.ctx.localRepository.create(
       userId: 1,
@@ -119,7 +125,8 @@ void main() {
     expect((await bob.get('/api/local-comics')).body['items'], isEmpty);
     expect((await bob.get('/api/local-comics/$localId')).status, 404);
     expect((await bob.get('/api/local-comics/$localId/cover')).status, 404);
-    expect((await bob.get('/api/local-comics/$localId/chapter/1/images')).status,
+    expect(
+        (await bob.get('/api/local-comics/$localId/chapter/1/images')).status,
         404);
     expect((await bob.delete('/api/local-comics/$localId')).status, 404);
 
@@ -147,12 +154,14 @@ void main() {
     expect(deleted.status, 200);
 
     expect((await bob.get('/api/auth/me')).status, 401);
-    final login = await app.client().post(
-        '/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
+    final login = await app
+        .client()
+        .post('/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
     expect(login.status, 401);
 
     final rows = app.db.select(
-        'SELECT COUNT(*) AS c FROM favorite_folders WHERE user_id = ?', [bobId]);
+        'SELECT COUNT(*) AS c FROM favorite_folders WHERE user_id = ?',
+        [bobId]);
     expect(rows.first['c'], 0);
     expect(Directory(app.ctx.paths.userRoot(bobId)).existsSync(), false);
   });

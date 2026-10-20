@@ -82,7 +82,9 @@ class SourceRecord {
         'capabilities': capabilities,
         'account': {
           'loggedIn': loggedIn,
-          'kind': data['account'] is List ? 'password' : (loggedIn ? 'cookies' : null),
+          'kind': data['account'] is List
+              ? 'password'
+              : (loggedIn ? 'cookies' : null),
         },
         'createdAt': createdAt,
         'updatedAt': updatedAt,
@@ -131,9 +133,8 @@ class SourceRepository {
     final existing = get(userId, key);
     final order = existing?.sortOrder ??
         (db.select(
-                'SELECT COALESCE(MAX(sort_order),-1)+1 AS n FROM sources WHERE user_id = ?',
-                [userId])
-            .first['n'] as int);
+            'SELECT COALESCE(MAX(sort_order),-1)+1 AS n FROM sources WHERE user_id = ?',
+            [userId]).first['n'] as int);
     db.execute(
       'INSERT INTO sources (user_id,source_key,name,version,url,min_app_version,'
       'script,data_json,settings_json,translation_json,capabilities_json,'
@@ -207,8 +208,8 @@ class SourceRepository {
       [enabled ? 1 : 0, nowMs(), userId, key]);
 
   void delete(int userId, String key) {
-    db.execute(
-        'DELETE FROM sources WHERE user_id = ? AND source_key = ?', [userId, key]);
+    db.execute('DELETE FROM sources WHERE user_id = ? AND source_key = ?',
+        [userId, key]);
     db.execute(
         'DELETE FROM source_provenance WHERE user_id = ? AND source_key = ?',
         [userId, key]);
@@ -228,8 +229,10 @@ class SourceRepository {
   // ---- libraries -------------------------------------------------------
 
   List<Map<String, Object?>> libraries(int userId) => db
-      .select('SELECT * FROM source_libraries WHERE user_id = ? '
-          'ORDER BY priority, name COLLATE NOCASE', [userId])
+      .select(
+          'SELECT * FROM source_libraries WHERE user_id = ? '
+          'ORDER BY priority, name COLLATE NOCASE',
+          [userId])
       .map((r) => {
             'id': r['library_id'],
             'name': r['name'],

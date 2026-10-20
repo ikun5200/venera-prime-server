@@ -138,3 +138,37 @@
   Dart FFI loader expects; `mkdir -p /out` fixes the Dart AOT output path.
 - Impact: local Docker builds are offline for Rust; GitHub Actions uses the
   normal crates.io path.
+
+## D-016 — Reader gesture implementation on the web
+- Choice: long-press and double-tap zoom are implemented with pointer events
+  and a CSS transform on the image container (scale 1.75/2, anchor at press
+  point or center per `longPressZoomPosition`); tap zones and wheel speed read
+  `enableTapToTurnPages`, `reverseTapToTurnPages` and `readerScrollSpeed`.
+- Reason: browser zoom is not page-coherent in the reader; an in-layer transform
+  preserves tile navigation and page state while honoring the original
+  settings.
+- Impact: pinch is still browser-native; long-press/double-tap match the
+  original gestures.
+
+## D-017 — Per-comic and per-device reader settings
+- Choice: `comicSpecificSettings` and `deviceSpecificSettings` are stored in the
+  per-user settings table. A `deviceId` persists in `localStorage` (UUID) and
+  overrides apply with comic-specific > device-specific > global precedence,
+  mirroring `appdata.dart`.
+- Reason: the original stored these in `appdata.settings` keyed by comic/device
+  IDs; the server settings API already persisted maps.
+- Impact: every reader setting now really applies to the reader and the
+  settings page, and both "clear" actions remove the override block.
+
+## D-018 — Gap-closing audit fixes
+- Choice: implement the flagged rows with real code rather than relabeling
+  them (zoom, end-of-chapter comments, per-comic/device settings, cache policy,
+  network-folder sync/import, suggestions, explore mixed/viewMore, reader
+  context menu/rotate/select/hints/downloaded marks, archives in download
+  dialog, storage path, release-check dialog, follow-updates scheduler, image-
+  favorite swipe, logs clear, route aliases).
+- Reason: the Section 16 rule forbids DONE without runnable code + tests; the
+  blockers B-010/B-012/B-015 were stale after implementation and were changed
+  to RESOLVED.
+- Impact: matrix 342 DONE / 30 BLOCKED; CI now gates the image build on the
+  backend and frontend test jobs.

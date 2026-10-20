@@ -99,8 +99,8 @@ class Config {
           : secret,
       cookieSecure: readBool('COOKIE_SECURE', production),
       publicOrigin: read('PUBLIC_ORIGIN', 'http://localhost:8080'),
-      jsHostBin: read(
-          'JS_HOST_BIN', 'rust/js_host/target/release/venera_js_host'),
+      jsHostBin:
+          read('JS_HOST_BIN', 'rust/js_host/target/release/venera_js_host'),
       jsTimeoutMs: readInt('JS_TIMEOUT_MS', 30000),
       jsConcurrency: readInt('JS_CONCURRENCY', 8),
       rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 120),

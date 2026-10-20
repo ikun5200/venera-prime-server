@@ -318,3 +318,56 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Evidence re-verification: backend 38/38 tests, frontend 13/13 tests,
   frontend typecheck+build, container e2e, GHCR pull/run.
 - Time: 2026-10-19T17:05:00Z
+
+## E-16 — Gap-closing audit round (2026-10-20) — PASS
+
+- Verifier follow-up: CI lacked test jobs and several rows were marked DONE
+  without a working implementation. This round added code, tests and docs.
+- CI: `.github/workflows/docker.yml` now runs `backend-test`
+  (`dart pub get`, `dart analyze`, `dart test`) and `frontend-test`
+  (`npm ci`, `npm run typecheck`, `npm test`, `npm run build`); the image job
+  `needs: [backend-test, frontend-test]`.
+- Command (backend): `cd backend && dart analyze && dart test`
+  - Output: `0 errors` (3 informational lints) and `+41: All tests passed!`
+    (38 existing + 3 new: search-history single delete, cache maintenance
+    endpoints, suggestions endpoint).
+- Command (frontend): `cd frontend && npm run typecheck && npm test && npm run build`
+  - Output: typecheck clean; `Test Files 5 passed (5), Tests 13 passed (13)`;
+    vite production build succeeds.
+- New implementations in this round (each verified by the tests above and/or
+  live API checks):
+  - Reader: double-tap and long-press zoom with anchor (press/center),
+    end-of-chapter comments page, per-comic and per-device reader settings with
+    clear actions, rotation control, inline margin slider, right-click context
+    menu, multi-image selection for save/share, swipe chapter hints, downloaded
+    chapter markers, F12 fullscreen, tap-zone settings, wheel speed, page
+    animation keyframe, battery display, duplicate-chapter hiding in the
+    reader drawer.
+  - Settings: `initialPage` now redirects the home route; `comicListDisplayMode`
+    and `showFavoriteStatusOnTile`/`showHistoryStatusOnTile` feeding is
+    partially wired (see remaining flags below); cache retention/size enforced
+    server-side; storage path exposed and copyable; About page performs a real
+    GitHub release check with a release-notes dialog.
+  - Favorites: network-folder import and linked-folder update sync
+    (`/api/favorites/import-network`, `/api/favorites/folders/<id>/sync`),
+    network-settings shortcut, folder-title action follows the setting.
+  - Search: source chips honor `searchSources` order; suggestion overlay on the
+    search page and inline suggestion chips on the results page; per-item
+    history delete (`DELETE /api/settings/search-history/<keyword>`).
+  - Explore/categories: `mixed` explore payloads normalized; section `viewMore`
+    jump buttons; option lists with more than 8 entries render as dropdowns.
+  - Details: information block always shown, pages use `maxPage`, tag
+    right-click copy, cover right-click save and viewer zoom, quick-favorite
+    right-click, thumbnail browser modal, archive type in download dialog,
+    local-copy fallback when the source errors, comments drawer error/retry.
+  - Chapter comments: vote/like/reply controls (new chapter endpoints).
+  - Image favorites: photo view swipe navigation and tap-to-toggle overlay.
+  - Logs: clear-logs action (`DELETE /api/logs`); settings back navigation
+    aliases (`/settings/app/export|import` → webdav, `/local/upload` →
+    import); AppShell task button respects the floating-task-button setting;
+    follow-updates scheduler (`runDueChecks` hourly, honors interval and fixed
+    time, migration 3 adds `follow_update_config.updated_at`).
+- Remaining BLOCKED rows: 30 (from 39). Each either has a web-native
+  substitute or a documented scope constraint in `docs/BLOCKERS.md`; the matrix
+  statuses and evidence column were updated accordingly (E-16).
+- Time: 2026-10-20T05:05:00Z

@@ -22,7 +22,8 @@ void main() {
   tearDown(() => app.dispose());
 
   test('sidecar evaluates init.js, sources and async methods', () async {
-    final imported = await admin.post('/api/sources', {'script': testSourceScript});
+    final imported =
+        await admin.post('/api/sources', {'script': testSourceScript});
     expect(imported.status, 200, reason: '${imported.body}');
 
     final search = await admin.get('/api/search?source=test_source&q=abc');
@@ -39,12 +40,13 @@ void main() {
   }, skip: !binary.existsSync());
 
   test('HTML DOM bridge and Convert work', () async {
-    final imported = await admin.post('/api/sources', {'script': htmlSourceScript});
+    final imported =
+        await admin.post('/api/sources', {'script': htmlSourceScript});
     expect(imported.status, 200, reason: '${imported.body}');
     final search = await admin.get('/api/search?source=html_source&q=x');
     expect(search.status, 200);
-    final title = ((search.body['comics'] as List).first as Map)['title']
-        .toString();
+    final title =
+        ((search.body['comics'] as List).first as Map)['title'].toString();
     // text | href | matching elements | md5("abc") | locale
     expect(title, contains('Hello World'));
     expect(title, contains('/c/1'));

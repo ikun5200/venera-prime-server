@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react';
-import { Bookmark, MoreVertical } from 'lucide-react';
-import { coverUrl } from '../lib/api';
-import type { Comic } from '../lib/types';
-import { cn } from '../lib/utils';
-import { IconButton, Menu } from './ui';
+import { useState, type ReactNode } from "react";
+import { Bookmark, MoreVertical } from "lucide-react";
+import { coverUrl } from "../lib/api";
+import type { Comic } from "../lib/types";
+import { cn } from "../lib/utils";
+import { IconButton, Menu } from "./ui";
 
 export interface ComicAction {
   label: string;
@@ -32,10 +32,10 @@ export function ComicCard({
   compact?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
-  const cover = comic.cover ? coverUrl(comic.cover) : '';
+  const cover = comic.cover ? coverUrl(comic.cover) : "";
 
   return (
-    <div className={cn('group relative', className)}>
+    <div className={cn("group relative", className)}>
       <button
         type="button"
         onClick={onClick}
@@ -54,7 +54,7 @@ export function ComicCard({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-muted">
-              {(comic.title || '?').slice(0, 1).toUpperCase()}
+              {(comic.title || "?").slice(0, 1).toUpperCase()}
             </div>
           )}
           {favorite ? (
@@ -79,7 +79,9 @@ export function ComicCard({
               {comic.title}
             </p>
             {comic.subtitle ? (
-              <p className="mt-0.5 truncate text-[11px] text-muted">{comic.subtitle}</p>
+              <p className="mt-0.5 truncate text-[11px] text-muted">
+                {comic.subtitle}
+              </p>
             ) : null}
             {sourceName ? (
               <p className="mt-0.5 truncate text-[10px] uppercase tracking-wide text-muted/80">
@@ -127,7 +129,9 @@ export function ComicGrid({
   onOpen: (comic: Comic) => void;
   renderAction?: (comic: Comic) => ComicAction[];
   getFavorite?: (comic: Comic) => boolean;
-  getProgress?: (comic: Comic) => { ep: number; page: number; maxPage?: number | null } | null;
+  getProgress?: (
+    comic: Comic,
+  ) => { ep: number; page: number; maxPage?: number | null } | null;
   getSourceName?: (comic: Comic) => string | undefined;
   scale?: number;
   className?: string;
@@ -135,7 +139,7 @@ export function ComicGrid({
   const min = Math.round(132 * scale);
   return (
     <div
-      className={cn('grid gap-x-3 gap-y-5', className)}
+      className={cn("grid gap-x-3 gap-y-5", className)}
       style={{
         gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`,
       }}

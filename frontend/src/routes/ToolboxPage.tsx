@@ -1,17 +1,17 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
-import { ExternalLink, Link2, Search } from 'lucide-react';
-import { api } from '../lib/api';
-import { toast } from '../lib/store';
-import { useT } from '../lib/i18n';
-import { PageBody, PageHeader } from '../components/PageHeader';
-import { Button, Card, Field, Input } from '../components/ui';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { ExternalLink, Link2, Search } from "lucide-react";
+import { api } from "../lib/api";
+import { toast } from "../lib/store";
+import { useT } from "../lib/i18n";
+import { PageBody, PageHeader } from "../components/PageHeader";
+import { Button, Card, Field, Input } from "../components/ui";
 
 export default function ToolboxPage() {
   const t = useT();
   const navigate = useNavigate();
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState("");
 
   const resolve = useMutation({
     mutationFn: () => api.resolveLink(url.trim()),
@@ -19,7 +19,7 @@ export default function ToolboxPage() {
       if (result.result) {
         navigate(`/comic/${result.result.source}/${result.result.comicId}`);
       } else {
-        toast.error('No matching source for this link');
+        toast.error("No matching source for this link");
       }
     },
     onError: (error) => toast.error(error.message),
@@ -27,20 +27,20 @@ export default function ToolboxPage() {
 
   const tools = [
     {
-      name: 'Image search [Search by Image Bot]',
-      url: 'https://t.me/SearchByImageBot',
-      description: 'Find the source of an image in Telegram.',
+      name: "Image search [Search by Image Bot]",
+      url: "https://t.me/SearchByImageBot",
+      description: "Find the source of an image in Telegram.",
     },
     {
-      name: 'Image search [SauceNAO]',
-      url: 'https://saucenao.com/',
-      description: 'Reverse image search for artwork.',
+      name: "Image search [SauceNAO]",
+      url: "https://saucenao.com/",
+      description: "Reverse image search for artwork.",
     },
   ];
 
   return (
     <>
-      <PageHeader title={t('Toolbox')} />
+      <PageHeader title={t("Toolbox")} />
       <PageBody className="max-w-[800px]">
         <Card className="mb-4 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold">
@@ -48,13 +48,16 @@ export default function ToolboxPage() {
           </h2>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <Field label="Comic URL" hint="The link is matched against installed sources.">
+              <Field
+                label="Comic URL"
+                hint="The link is matched against installed sources."
+              >
                 <Input
                   value={url}
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="https://mangadex.org/title/..."
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' && url.trim()) resolve.mutate();
+                    if (event.key === "Enter" && url.trim()) resolve.mutate();
                   }}
                 />
               </Field>
@@ -91,7 +94,8 @@ export default function ToolboxPage() {
         </div>
 
         <p className="mt-6 text-[12px] text-muted">
-          The in-app webview is not available in the server build. Links open in a new browser tab.
+          The in-app webview is not available in the server build. Links open in
+          a new browser tab.
         </p>
       </PageBody>
     </>

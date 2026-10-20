@@ -34,7 +34,8 @@ class Db {
   }
 
   void _migrate() {
-    final current = raw.select('PRAGMA user_version;').first.values.first as int;
+    final current =
+        raw.select('PRAGMA user_version;').first.values.first as int;
     if (current >= migrations.length) return;
     for (var version = current; version < migrations.length; version++) {
       raw.execute('BEGIN;');

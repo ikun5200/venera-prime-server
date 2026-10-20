@@ -69,8 +69,7 @@ class JsHostClient {
         'context': context,
       });
 
-  Future<Map<String, Object?>> run(
-          String code, Map<String, Object?> context) =>
+  Future<Map<String, Object?>> run(String code, Map<String, Object?> context) =>
       request({'op': 'run', 'script': code, 'context': context});
 
   Future<Map<String, Object?>> request(Map<String, Object?> payload) async {
@@ -128,7 +127,8 @@ class JsHostClient {
           Log.warning('js_host: $text');
         }
       });
-      Log.info('JS host started', extra: {'binary': binary, 'pid': process.pid});
+      Log.info('JS host started',
+          extra: {'binary': binary, 'pid': process.pid});
       return process;
     } catch (error) {
       _starting = false;
@@ -177,7 +177,8 @@ class JsHostClient {
       if (value is! Map) return;
       decoded = value.map((k, v) => MapEntry(k.toString(), v));
     } catch (error) {
-      Log.error('Invalid js_host response', error: error, extra: {'line': line});
+      Log.error('Invalid js_host response',
+          error: error, extra: {'line': line});
       return;
     }
     final id = decoded['id']?.toString();

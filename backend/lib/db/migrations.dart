@@ -349,4 +349,8 @@ CREATE INDEX idx_request_logs_ts ON request_logs(ts DESC);
   '''
 ALTER TABLE reading_statistics ADD COLUMN source_key TEXT NOT NULL DEFAULT '';
 ''',
+  // 3 — scheduled follow-up check recorder
+  '''
+ALTER TABLE follow_update_config ADD COLUMN updated_at INTEGER;
+''',
 ];

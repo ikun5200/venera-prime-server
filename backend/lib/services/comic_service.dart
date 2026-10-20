@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import '../config.dart';
 import '../repositories/library_repository.dart';
 import '../repositories/source_repository.dart';
+import '../repositories/user_repository.dart';
 import '../util/comic.dart';
 import '../util/errors.dart';
 import '../util/log.dart';
@@ -23,6 +24,7 @@ class ComicService {
   final SourceRepository sourceRepository;
   final HistoryRepository history;
   final FavoriteRepository favorites;
+  final SettingsRepository settings;
   final PathGuard paths;
   final http.Client httpClient = http.Client();
 
@@ -32,10 +34,83 @@ class ComicService {
     required this.sourceRepository,
     required this.history,
     required this.favorites,
+    required this.settings,
     required this.paths,
   });
 
   // ---- search / discovery ----------------------------------------------
+
+  /// Suggestions mirror the original client: URL / source id matches plus
+  /// source tag translations, capped at 100 items.
+  List<Map<String, Object?>> suggestions(int userId, String text,
+      {String? sourceKey}) {
+    final query = text.split(' ').last.trim();
+    if (query.isEmpty) return const [];
+    final results = <Map<String, Object?>>[];
+    void add(String value, {String? namespace, String? translated}) {
+      if (value.isEmpty || results.length >= 100) return;
+      if (results.any(
+          (item) => item['value'] == value && item['namespace'] == namespace)) {
+        return;
+      }
+      results.add({
+        'value': value,
+        'namespace': namespace,
+        'translated': translated,
+      });
+    }
+
+    final uri = Uri.tryParse(text.trim());
+    if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+      add(text.trim(), namespace: '__url__');
+    } else {
+      for (final source in sources.list(userId)) {
+        final pattern = source.capabilities['idMatch'];
+        if (pattern is String && pattern.isNotEmpty) {
+          try {
+            if (RegExp(pattern).hasMatch(text)) {
+              add(source.key, namespace: '__source__');
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (results.length >= 100) return results;
+    final lower = query.toLowerCase();
+    final targets = sourceKey != null && sourceKey.isNotEmpty
+        ? sources.list(userId).where((source) => source.key == sourceKey)
+        : sources.list(userId);
+    for (final source in targets) {
+      final translation = source.translation;
+      for (final entry in translation.entries) {
+        final values = entry.value;
+        if (values is! Map) continue;
+        for (final item in values.entries) {
+          final key = item.key.toString();
+          final value = item.value.toString();
+          if (key.toLowerCase().startsWith(lower) ||
+              value.toLowerCase().contains(lower)) {
+            add(key, namespace: entry.key.toString(), translated: value);
+          }
+          if (results.length >= 100) return results;
+        }
+      }
+    }
+    return results;
+  }
+
+  Future<String> selectSuggestion(
+      int userId, String sourceKey, String namespace, String tag) async {
+    final source = sources.require(userId, sourceKey);
+    if (source.capabilities['tagSuggestionSelect'] == true) {
+      final result = await sources.callValue(userId, sourceKey,
+          'search.onTagSuggestionSelected', [namespace, tag]);
+      if (result is String && result.isNotEmpty) return result;
+    }
+    final clean = tag.contains(' ') ? "'$tag'" : tag;
+    return namespace.isEmpty ? clean : '$namespace:$clean';
+  }
 
   Future<Map<String, Object?>> search(
     int userId,
@@ -100,21 +175,22 @@ class ComicService {
     final pages = <Map<String, Object?>>[];
     for (var index = 0; index < meta.length; index++) {
       final entry = _map(meta[index]);
+      final type = (entry['type'] ?? 'multiPartPage').toString();
       try {
-        final data = await sources.callValue(
-            userId, sourceKey, 'explore.$index.load', [page]);
+        final data = await sources
+            .callValue(userId, sourceKey, 'explore.$index.load', [page]);
         pages.add({
           'index': index,
           'title': entry['title'] ?? source.name,
-          'type': entry['type'] ?? 'multiPartPage',
-          'data': data,
+          'type': type,
+          'data': type == 'mixed' ? _mixedExplore(data, sourceKey) : data,
           'error': null,
         });
       } catch (error) {
         pages.add({
           'index': index,
           'title': entry['title'] ?? source.name,
-          'type': entry['type'] ?? 'multiPartPage',
+          'type': type,
           'data': null,
           'error': error.toString(),
         });
@@ -123,8 +199,33 @@ class ComicService {
     return {'source': sourceKey, 'page': page, 'pages': pages};
   }
 
-  Future<Map<String, Object?>> categories(
-      int userId, String sourceKey) async {
+  /// `mixed` explore loaders return `{data: [Comic[] | part], maxPage}`.
+  /// Normalize each entry so the client can render lists and parts uniformly.
+  Object? _mixedExplore(Object? raw, String sourceKey) {
+    final map = _map(raw);
+    final data = map['data'];
+    if (data is! List) return raw;
+    final items = <Map<String, Object?>>[];
+    for (final entry in data) {
+      if (entry is List) {
+        items.add({
+          'type': 'comics',
+          'comics': _comics(entry, sourceKey),
+        });
+      } else if (entry is Map) {
+        final part = entry.map((key, value) => MapEntry(key.toString(), value));
+        items.add({
+          'type': 'part',
+          'title': part['title'],
+          'comics': _comics(part['comics'], sourceKey),
+          'viewMore': part['viewMore'],
+        });
+      }
+    }
+    return {'items': items, 'maxPage': map['maxPage']};
+  }
+
+  Future<Map<String, Object?>> categories(int userId, String sourceKey) async {
     final source = sources.require(userId, sourceKey);
     final category = source.capabilities['categoryData'];
     if (category is! Map) {
@@ -225,11 +326,12 @@ class ComicService {
 
   Future<Map<String, Object?>> comicInfo(
       int userId, String sourceKey, String comicId) async {
-    final result = await sources.callValue(
-        userId, sourceKey, 'comic.loadInfo', [comicId]);
+    final result =
+        await sources.callValue(userId, sourceKey, 'comic.loadInfo', [comicId]);
     final map = _map(result);
     final details = _normalizeDetails(map, sourceKey, comicId);
-    final progress = history.progress(userId, comicId, comicTypeForSource(sourceKey));
+    final progress =
+        history.progress(userId, comicId, comicTypeForSource(sourceKey));
     details['progress'] = progress?.toJson();
     details['favoriteFolders'] = favorites.folderIdsForComic(
         userId, comicId, comicTypeForSource(sourceKey));
@@ -254,9 +356,8 @@ class ComicService {
     if (tagsRaw is Map) {
       for (final entry in tagsRaw.entries) {
         if (entry.value is List) {
-          tags[entry.key.toString()] = (entry.value as List)
-              .map((v) => v.toString())
-              .toList();
+          tags[entry.key.toString()] =
+              (entry.value as List).map((v) => v.toString()).toList();
         }
       }
     }
@@ -323,7 +424,8 @@ class ComicService {
     return count;
   }
 
-  String? _findUpdateTime(Map<String, Object?> raw, Map<String, List<String>> tags) {
+  String? _findUpdateTime(
+      Map<String, Object?> raw, Map<String, List<String>> tags) {
     final value = raw['updateTime'];
     if (value is String && value.contains('|')) {
       final prefix = value.split('|').first;
@@ -354,7 +456,12 @@ class ComicService {
     final month = int.tryParse(parts[1]);
     final day = int.tryParse(parts[2]);
     if (year == null || month == null || day == null) return null;
-    if (year < 2000 || year > 3000 || month < 1 || month > 12 || day < 1 || day > 31) {
+    if (year < 2000 ||
+        year > 3000 ||
+        month < 1 ||
+        month > 12 ||
+        day < 1 ||
+        day > 31) {
       return null;
     }
     return '$year-$month-$day';
@@ -377,8 +484,8 @@ class ComicService {
 
   Future<Map<String, Object?>> chapterImages(
       int userId, String sourceKey, String comicId, String epId) async {
-    final result = await sources.callValue(
-        userId, sourceKey, 'comic.loadEp', [comicId, epId]);
+    final result = await sources
+        .callValue(userId, sourceKey, 'comic.loadEp', [comicId, epId]);
     final map = _map(result);
     final images = _list(map['images']).map((e) => e.toString()).toList();
     return {'images': images, 'total': images.length};
@@ -386,8 +493,8 @@ class ComicService {
 
   Future<Map<String, Object?>> thumbnails(
       int userId, String sourceKey, String comicId, Object? next) async {
-    final result = await sources.callValue(
-        userId, sourceKey, 'comic.loadThumbnails', [comicId, next]);
+    final result = await sources
+        .callValue(userId, sourceKey, 'comic.loadThumbnails', [comicId, next]);
     final map = _map(result);
     return {'thumbnails': map['thumbnails'], 'next': map['next']};
   }
@@ -472,14 +579,14 @@ class ComicService {
 
   Future<Object?> like(
       int userId, String sourceKey, String comicId, bool isLiking) {
-    return sources.callValue(
-        userId, sourceKey, 'comic.likeComic', [comicId, isLiking]);
+    return sources
+        .callValue(userId, sourceKey, 'comic.likeComic', [comicId, isLiking]);
   }
 
   Future<Object?> rate(
       int userId, String sourceKey, String comicId, int rating) {
-    return sources.callValue(
-        userId, sourceKey, 'comic.starRating', [comicId, rating]);
+    return sources
+        .callValue(userId, sourceKey, 'comic.starRating', [comicId, rating]);
   }
 
   Future<Object?> likeComment(
@@ -515,17 +622,50 @@ class ComicService {
     );
   }
 
+  Future<Object?> likeChapterComment(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+    String commentId,
+    bool isLiking,
+  ) {
+    return sources.callValue(
+      userId,
+      sourceKey,
+      'comic.likeComment',
+      [comicId, epId, commentId, isLiking],
+    );
+  }
+
+  Future<Object?> voteChapterComment(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+    String commentId,
+    bool isUp,
+    bool isCancel,
+  ) {
+    return sources.callValue(
+      userId,
+      sourceKey,
+      'comic.voteComment',
+      [comicId, epId, commentId, isUp, isCancel],
+    );
+  }
+
   Future<Map<String, Object?>> archives(
       int userId, String sourceKey, String comicId) async {
-    final result = await sources.callValue(
-        userId, sourceKey, 'comic.archive.getArchives', [comicId]);
+    final result = await sources
+        .callValue(userId, sourceKey, 'comic.archive.getArchives', [comicId]);
     return {'items': result is List ? result : const []};
   }
 
   Future<Map<String, Object?>> archiveUrl(
       int userId, String sourceKey, String comicId, String archiveId) async {
-    final result = await sources.callValue(
-        userId, sourceKey, 'comic.archive.getDownloadUrl', [comicId, archiveId]);
+    final result = await sources.callValue(userId, sourceKey,
+        'comic.archive.getDownloadUrl', [comicId, archiveId]);
     return {'url': result};
   }
 
@@ -540,8 +680,8 @@ class ComicService {
     bool thumbnail = false,
   }) async {
     final cacheKey = sha256
-        .convert(utf8.encode(
-            '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail'))
+        .convert(utf8
+            .encode('$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail'))
         .toString();
     final cached = _readCache(userId, cacheKey);
     if (cached != null) return cached;
@@ -550,8 +690,8 @@ class ComicService {
     if (thumbnail) {
       Object? config;
       try {
-        config = await sources.callValue(
-            userId, sourceKey, 'comic.onThumbnailLoad', [imageKey]);
+        config = await sources
+            .callValue(userId, sourceKey, 'comic.onThumbnailLoad', [imageKey]);
       } catch (_) {
         config = null;
       }
@@ -565,8 +705,8 @@ class ComicService {
       final source = sources.require(userId, sourceKey);
       if (source.capabilities['imageLoad'] == true) {
         try {
-          configs = await sources.imageConfigs(
-              userId, sourceKey, [imageKey, comicId, epId]);
+          configs = await sources
+              .imageConfigs(userId, sourceKey, [imageKey, comicId, epId]);
         } catch (error) {
           Log.warning('onImageLoad failed',
               userId: userId, extra: {'source': sourceKey, 'error': '$error'});
@@ -579,9 +719,10 @@ class ComicService {
           {'url': imageKey}
         ];
       }
-      if (configs.isEmpty) configs = [
-        {'url': imageKey}
-      ];
+      if (configs.isEmpty)
+        configs = [
+          {'url': imageKey}
+        ];
     }
 
     Object? lastError;
@@ -627,14 +768,16 @@ class ComicService {
     throw ApiException.sourceError('Image load failed: $lastError');
   }
 
-  Future<({Uint8List bytes, String mime})> cover(
-      int userId, String url, {String? sourceKey}) async {
-    final cacheKey = sha256.convert(utf8.encode('cover|$userId|$url')).toString();
+  Future<({Uint8List bytes, String mime})> cover(int userId, String url,
+      {String? sourceKey}) async {
+    final cacheKey =
+        sha256.convert(utf8.encode('cover|$userId|$url')).toString();
     final cached = _readCache(userId, cacheKey);
     if (cached != null) return cached;
     final headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
     };
     final cookie = _cookieHeader(userId, url);
     if (cookie != null) headers['Cookie'] = cookie;
@@ -642,7 +785,8 @@ class ComicService {
         .get(Uri.parse(url), headers: headers)
         .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError('Cover load failed: ${response.statusCode}');
+      throw ApiException.sourceError(
+          'Cover load failed: ${response.statusCode}');
     }
     final mime =
         response.headers['content-type']?.split(';').first ?? _guessMime(url);
@@ -685,9 +829,22 @@ class ComicService {
   }
 
   Directory _cacheDir(int userId) {
-    final dir = Directory(p.join(paths.ensureUserDir(userId), 'cache', 'images'));
+    final dir =
+        Directory(p.join(paths.ensureUserDir(userId), 'cache', 'images'));
     dir.createSync(recursive: true);
     return dir;
+  }
+
+  ({int retentionDays, int limitBytes}) _cachePolicy(int userId) {
+    final values = settings.all(userId);
+    final rawRetention = values['cacheRetentionDays'];
+    final retention =
+        rawRetention is int && const [0, 1, 3, 7, 30].contains(rawRetention)
+            ? rawRetention
+            : 7;
+    final rawLimit = values['cacheSize'];
+    final limitMb = rawLimit is int && rawLimit >= 0 ? rawLimit : 2048;
+    return (retentionDays: retention, limitBytes: limitMb * 1024 * 1024);
   }
 
   ({Uint8List bytes, String mime})? _readCache(int userId, String key) {
@@ -696,13 +853,20 @@ class ComicService {
       final file = File(p.join(dir.path, '$key.bin'));
       final meta = File(p.join(dir.path, '$key.type'));
       if (!file.existsSync() || !meta.existsSync()) return null;
-      final age = DateTime.now().difference(file.statSync().modified);
-      if (age > const Duration(days: 7)) {
+      final policy = _cachePolicy(userId);
+      final now = DateTime.now();
+      final age = now.difference(file.statSync().modified);
+      if (policy.retentionDays > 0 &&
+          age > Duration(days: policy.retentionDays)) {
         file.deleteSync();
         meta.deleteSync();
         return null;
       }
-      return (bytes: file.readAsBytesSync(), mime: meta.readAsStringSync());
+      final result =
+          (bytes: file.readAsBytesSync(), mime: meta.readAsStringSync());
+      // mtime is the LRU clock used by _enforceCacheLimit.
+      file.setLastModifiedSync(now);
+      return result;
     } catch (_) {
       return null;
     }
@@ -713,11 +877,58 @@ class ComicService {
       final dir = _cacheDir(userId);
       File(p.join(dir.path, '$key.bin')).writeAsBytesSync(bytes);
       File(p.join(dir.path, '$key.type')).writeAsStringSync(mime);
+      _enforceCacheLimit(userId);
     } catch (_) {}
   }
 
+  void _enforceCacheLimit(int userId) {
+    try {
+      final policy = _cachePolicy(userId);
+      final dir = _cacheDir(userId);
+      final entries = dir
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.bin'))
+          .toList();
+      var total = 0;
+      final stats = <({File file, int size, DateTime modified})>[];
+      for (final file in entries) {
+        final stat = file.statSync();
+        total += stat.size;
+        stats.add((file: file, size: stat.size, modified: stat.modified));
+      }
+      if (total <= policy.limitBytes) return;
+      stats.sort((a, b) => a.modified.compareTo(b.modified));
+      for (final entry in stats) {
+        if (total <= policy.limitBytes) break;
+        entry.file.deleteSync();
+        final meta = File(entry.file.path
+                .substring(0, entry.file.path.length - '.bin'.length) +
+            '.type');
+        if (meta.existsSync()) meta.deleteSync();
+        total -= entry.size;
+      }
+    } catch (_) {}
+  }
+
+  int cacheBytes(int userId) {
+    try {
+      final dir =
+          Directory(p.join(paths.ensureUserDir(userId), 'cache', 'images'));
+      if (!dir.existsSync()) return 0;
+      return dir
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.bin'))
+          .fold<int>(0, (sum, file) => sum + file.statSync().size);
+    } catch (_) {
+      return 0;
+    }
+  }
+
   Future<void> clearCache(int userId) async {
-    final dir = Directory(p.join(paths.ensureUserDir(userId), 'cache', 'images'));
+    final dir =
+        Directory(p.join(paths.ensureUserDir(userId), 'cache', 'images'));
     if (dir.existsSync()) {
       await dir.delete(recursive: true);
     }
@@ -733,8 +944,8 @@ class ComicService {
       if (domains is! List) continue;
       if (!domains.any((d) => uri.host.endsWith(d.toString()))) continue;
       try {
-        final id = await sources.callValue(
-            userId, source.key, 'comic.link.linkToId', [url]);
+        final id = await sources
+            .callValue(userId, source.key, 'comic.link.linkToId', [url]);
         if (id != null && id.toString().isNotEmpty) {
           return {'source': source.key, 'comicId': id.toString()};
         }
@@ -798,9 +1009,9 @@ class ComicService {
   }
 
   Future<Object?> _setting(int userId, String key) async {
-    final rows = sourceRepository.db
-        .select('SELECT value_json FROM settings WHERE user_id=? AND key=?',
-            [userId, key]);
+    final rows = sourceRepository.db.select(
+        'SELECT value_json FROM settings WHERE user_id=? AND key=?',
+        [userId, key]);
     if (rows.isEmpty) return null;
     try {
       return jsonDecode(rows.first['value_json'] as String);

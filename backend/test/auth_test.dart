@@ -17,8 +17,8 @@ void main() {
     final after = await client.get('/api/init/status');
     expect(after.body['initialized'], true);
 
-    final duplicate = await client.post(
-        '/api/init', {'username': 'other', 'password': 'other123'});
+    final duplicate = await client
+        .post('/api/init', {'username': 'other', 'password': 'other123'});
     expect(duplicate.status, 409);
   });
 
@@ -26,8 +26,8 @@ void main() {
     final client = app.client();
     await client.init('admin', 'admin123');
 
-    final wrong = await client.post(
-        '/api/auth/login', {'username': 'admin', 'password': 'nope'});
+    final wrong = await client
+        .post('/api/auth/login', {'username': 'admin', 'password': 'nope'});
     expect(wrong.status, 401);
 
     await client.login('admin', 'admin123');
@@ -64,36 +64,37 @@ void main() {
     await admin.init('admin', 'admin123');
     await admin.login('admin', 'admin123');
 
-    final created = await admin.post('/api/admin/users',
-        {'username': 'bob', 'password': 'bob12345'});
+    final created = await admin
+        .post('/api/admin/users', {'username': 'bob', 'password': 'bob12345'});
     expect(created.status, 200);
     final bobId = (created.body['user'] as Map)['id'] as int;
 
     final list = await admin.get('/api/admin/users');
     expect((list.body['items'] as List).length, 2);
 
-    final duplicate = await admin.post('/api/admin/users',
-        {'username': 'bob', 'password': 'bob12345'});
+    final duplicate = await admin
+        .post('/api/admin/users', {'username': 'bob', 'password': 'bob12345'});
     expect(duplicate.status, 409);
 
-    final disabled = await admin.patch('/api/admin/users/$bobId',
-        {'disabled': true});
+    final disabled =
+        await admin.patch('/api/admin/users/$bobId', {'disabled': true});
     expect(disabled.status, 200);
 
     final bob = app.client();
-    final disabledLogin = await bob.post(
-        '/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
+    final disabledLogin = await bob
+        .post('/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
     expect(disabledLogin.status, 401);
 
     await admin.patch('/api/admin/users/$bobId', {'disabled': false});
-    final enabledLogin = await bob.post(
-        '/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
+    final enabledLogin = await bob
+        .post('/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
     expect(enabledLogin.status, 200);
 
     final deleted = await admin.delete('/api/admin/users/$bobId');
     expect(deleted.status, 200);
-    final deletedLogin = await app.client().post(
-        '/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
+    final deletedLogin = await app
+        .client()
+        .post('/api/auth/login', {'username': 'bob', 'password': 'bob12345'});
     expect(deletedLogin.status, 401);
   });
 
@@ -113,8 +114,8 @@ void main() {
     final admin = app.client();
     await admin.init('admin', 'admin123');
     await admin.login('admin', 'admin123');
-    final created = await admin.post('/api/admin/users',
-        {'username': 'carol', 'password': 'carol123'});
+    final created = await admin.post(
+        '/api/admin/users', {'username': 'carol', 'password': 'carol123'});
     final id = (created.body['user'] as Map)['id'] as int;
 
     final carol = app.client();
@@ -129,8 +130,8 @@ void main() {
     final admin = app.client();
     await admin.init('admin', 'admin123');
     await admin.login('admin', 'admin123');
-    await admin.post('/api/admin/users',
-        {'username': 'dave', 'password': 'dave1234'});
+    await admin
+        .post('/api/admin/users', {'username': 'dave', 'password': 'dave1234'});
     final dave = app.client();
     await dave.login('dave', 'dave1234');
     expect((await dave.get('/api/admin/users')).status, 403);

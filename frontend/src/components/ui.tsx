@@ -1,5 +1,6 @@
 import {
   createContext,
+  forwardRef,
   useEffect,
   useId,
   useRef,
@@ -9,38 +10,47 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
-} from 'react';
-import { createPortal } from 'react-dom';
-import { AlertCircle, Check, ChevronDown, Info, Loader2, X } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { useAppStore } from '../lib/store';
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  Info,
+  Loader2,
+  X,
+} from "lucide-react";
+import { cn } from "../lib/utils";
+import { useAppStore } from "../lib/store";
 
 // ---------------------------------------------------------------------------
 // Button
 // ---------------------------------------------------------------------------
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-white hover:brightness-110 active:brightness-95 disabled:opacity-50',
+    "bg-accent text-white hover:brightness-110 active:brightness-95 disabled:opacity-50",
   secondary:
-    'bg-surface text-fg border border-border hover:bg-surface2 active:bg-surface2 disabled:opacity-50',
-  ghost: 'bg-transparent text-fg hover:bg-surface2 active:bg-surface2 disabled:opacity-50',
-  danger: 'bg-danger text-white hover:brightness-110 active:brightness-95 disabled:opacity-50',
+    "bg-surface text-fg border border-border hover:bg-surface2 active:bg-surface2 disabled:opacity-50",
+  ghost:
+    "bg-transparent text-fg hover:bg-surface2 active:bg-surface2 disabled:opacity-50",
+  danger:
+    "bg-danger text-white hover:brightness-110 active:brightness-95 disabled:opacity-50",
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-[13px] gap-1.5',
-  md: 'h-10 px-4 text-sm gap-2',
-  lg: 'h-12 px-5 text-[15px] gap-2',
-  icon: 'h-10 w-10 justify-center',
+  sm: "h-8 px-3 text-[13px] gap-1.5",
+  md: "h-10 px-4 text-sm gap-2",
+  lg: "h-12 px-5 text-[15px] gap-2",
+  icon: "h-10 w-10 justify-center",
 };
 
 export function Button({
-  variant = 'secondary',
-  size = 'md',
+  variant = "secondary",
+  size = "md",
   loading = false,
   className,
   children,
@@ -54,7 +64,7 @@ export function Button({
   return (
     <button
       className={cn(
-        'inline-flex items-center rounded font-medium transition-[transform,background-color,opacity] duration-100 ease-out active:scale-[0.97] disabled:pointer-events-none',
+        "inline-flex items-center rounded font-medium transition-[transform,background-color,opacity] duration-100 ease-out active:scale-[0.97] disabled:pointer-events-none",
         buttonVariants[variant],
         buttonSizes[size],
         className,
@@ -62,7 +72,9 @@ export function Button({
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      ) : null}
       {children}
     </button>
   );
@@ -79,7 +91,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        'inline-flex h-10 w-10 items-center justify-center rounded text-muted transition-colors duration-100 hover:bg-surface2 hover:text-fg active:scale-[0.97] disabled:opacity-50',
+        "inline-flex h-10 w-10 items-center justify-center rounded text-muted transition-colors duration-100 hover:bg-surface2 hover:text-fg active:scale-[0.97] disabled:opacity-50",
         className,
       )}
       {...props}
@@ -94,14 +106,27 @@ export function IconButton({
 // ---------------------------------------------------------------------------
 
 const fieldClass =
-  'w-full rounded border border-border bg-surface px-3 text-sm text-fg placeholder:text-muted/70 transition-shadow duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50';
+  "w-full rounded border border-border bg-surface px-3 text-sm text-fg placeholder:text-muted/70 transition-shadow duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50";
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(fieldClass, 'h-10', className)} {...props} />;
-}
+export const Input = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement>
+>(function Input({ className, ...props }, ref) {
+  return (
+    <input ref={ref} className={cn(fieldClass, "h-10", className)} {...props} />
+  );
+});
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(fieldClass, 'min-h-[96px] py-2', className)} {...props} />;
+export function Textarea({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={cn(fieldClass, "min-h-[96px] py-2", className)}
+      {...props}
+    />
+  );
 }
 
 export function Select({
@@ -112,7 +137,7 @@ export function Select({
   return (
     <div className="relative">
       <select
-        className={cn(fieldClass, 'h-10 appearance-none pr-9', className)}
+        className={cn(fieldClass, "h-10 appearance-none pr-9", className)}
         {...props}
       >
         {children}
@@ -169,15 +194,15 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150',
-        checked ? 'bg-accent' : 'bg-border',
-        disabled && 'opacity-50',
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150",
+        checked ? "bg-accent" : "bg-border",
+        disabled && "opacity-50",
       )}
     >
       <span
         className={cn(
-          'inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out',
-          checked ? 'translate-x-5' : 'translate-x-0.5',
+          "inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
+          checked ? "translate-x-5" : "translate-x-0.5",
         )}
       />
     </button>
@@ -231,10 +256,7 @@ export function Card({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        'rounded-card border border-border bg-surface',
-        className,
-      )}
+      className={cn("rounded-card border border-border bg-surface", className)}
       {...props}
     >
       {children}
@@ -244,24 +266,24 @@ export function Card({
 
 export function Badge({
   children,
-  tone = 'neutral',
+  tone = "neutral",
   className,
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
+  tone?: "neutral" | "accent" | "success" | "warning" | "danger";
   className?: string;
 }) {
   const tones = {
-    neutral: 'bg-surface2 text-muted',
-    accent: 'bg-accent/10 text-accent',
-    success: 'bg-success/10 text-success',
-    warning: 'bg-warning/10 text-warning',
-    danger: 'bg-danger/10 text-danger',
+    neutral: "bg-surface2 text-muted",
+    accent: "bg-accent/10 text-accent",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+    danger: "bg-danger/10 text-danger",
   };
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
         tones[tone],
         className,
       )}
@@ -275,7 +297,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'animate-pulse rounded bg-surface2 motion-reduce:animate-none',
+        "animate-pulse rounded bg-surface2 motion-reduce:animate-none",
         className,
       )}
     />
@@ -283,7 +305,12 @@ export function Skeleton({ className }: { className?: string }) {
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={cn('h-5 w-5 animate-spin text-muted', className)} aria-hidden />;
+  return (
+    <Loader2
+      className={cn("h-5 w-5 animate-spin text-muted", className)}
+      aria-hidden
+    />
+  );
 }
 
 export function EmptyState({
@@ -301,7 +328,9 @@ export function EmptyState({
     <div className="flex flex-col items-center justify-center gap-3 rounded-card border border-dashed border-border px-6 py-16 text-center">
       {icon ? <div className="text-muted">{icon}</div> : null}
       <p className="text-sm font-medium text-fg">{title}</p>
-      {description ? <p className="max-w-sm text-[13px] text-muted">{description}</p> : null}
+      {description ? (
+        <p className="max-w-sm text-[13px] text-muted">{description}</p>
+      ) : null}
       {action}
     </div>
   );
@@ -363,15 +392,17 @@ export function AsyncState({
   if (error) {
     const message = error instanceof Error ? error.message : String(error);
     const requestId =
-      error && typeof error === 'object' && 'requestId' in error
-        ? String((error as { requestId?: string }).requestId ?? '')
+      error && typeof error === "object" && "requestId" in error
+        ? String((error as { requestId?: string }).requestId ?? "")
         : undefined;
-    return <ErrorState message={message} requestId={requestId} onRetry={onRetry} />;
+    return (
+      <ErrorState message={message} requestId={requestId} onRetry={onRetry} />
+    );
   }
   if (empty) {
     return (
       <EmptyState
-        title={emptyTitle ?? 'No data'}
+        title={emptyTitle ?? "No data"}
         description={emptyDescription}
         action={emptyAction}
       />
@@ -392,7 +423,7 @@ export function Modal({
   title,
   children,
   footer,
-  width = 'max-w-lg',
+  width = "max-w-lg",
 }: {
   open: boolean;
   onClose: () => void;
@@ -407,17 +438,17 @@ export function Modal({
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     const focusable = ref.current?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
     );
     focusable?.[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         event.stopPropagation();
         onClose();
       }
-      if (event.key !== 'Tab' || !focusable || focusable.length === 0) return;
+      if (event.key !== "Tab" || !focusable || focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -428,9 +459,9 @@ export function Modal({
         first.focus();
       }
     };
-    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = original;
       previous?.focus();
     };
@@ -451,7 +482,7 @@ export function Modal({
           aria-modal="true"
           aria-label={title}
           className={cn(
-            'relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet border border-border bg-surface shadow-pop sm:rounded-sheet',
+            "relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet border border-border bg-surface shadow-pop sm:rounded-sheet",
             width,
           )}
         >
@@ -482,15 +513,15 @@ export function Drawer({
   title,
   children,
   footer,
-  side = 'right',
-  width = 'sm:max-w-md',
+  side = "right",
+  width = "sm:max-w-md",
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
   footer?: ReactNode;
-  side?: 'right' | 'left';
+  side?: "right" | "left";
   width?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -498,13 +529,13 @@ export function Drawer({
   useEffect(() => {
     if (!open) return;
     const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === "Escape") onClose();
     };
-    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = original;
     };
   }, [open, onClose]);
@@ -512,17 +543,21 @@ export function Drawer({
   if (!open) return null;
   return createPortal(
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+        aria-hidden
+      />
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'absolute top-0 flex h-[100dvh] w-full flex-col border-border bg-surface shadow-pop',
+          "absolute top-0 flex h-[100dvh] w-full flex-col border-border bg-surface shadow-pop",
           width,
-          side === 'right' ? 'right-0 border-l' : 'left-0 border-r',
-          'transition-transform duration-200 ease-enter',
+          side === "right" ? "right-0 border-l" : "left-0 border-r",
+          "transition-transform duration-200 ease-enter",
         )}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -531,7 +566,9 @@ export function Drawer({
             <X className="h-4 w-4" />
           </IconButton>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">{children}</div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
+          {children}
+        </div>
         {footer ? (
           <div className="border-t border-border px-4 py-3">{footer}</div>
         ) : null}
@@ -545,7 +582,7 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
+  confirmLabel = "Confirm",
   danger = false,
   onConfirm,
   onClose,
@@ -569,7 +606,7 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
-            variant={danger ? 'danger' : 'primary'}
+            variant={danger ? "danger" : "primary"}
             onClick={() => {
               onConfirm();
               onClose();
@@ -589,7 +626,7 @@ export function PromptDialog({
   open,
   title,
   label,
-  initialValue = '',
+  initialValue = "",
   placeholder,
   onConfirm,
   onClose,
@@ -659,7 +696,7 @@ export function Tabs<T extends string>({
   return (
     <div
       role="tablist"
-      className={cn('flex gap-1 overflow-x-auto scrollbar-thin', className)}
+      className={cn("flex gap-1 overflow-x-auto scrollbar-thin", className)}
     >
       {items.map((item) => (
         <button
@@ -668,10 +705,10 @@ export function Tabs<T extends string>({
           aria-selected={value === item.value}
           onClick={() => onChange(item.value)}
           className={cn(
-            'relative shrink-0 rounded px-3 py-2 text-[13px] font-medium transition-colors duration-100',
+            "relative shrink-0 rounded px-3 py-2 text-[13px] font-medium transition-colors duration-100",
             value === item.value
-              ? 'text-fg'
-              : 'text-muted hover:bg-surface2 hover:text-fg',
+              ? "text-fg"
+              : "text-muted hover:bg-surface2 hover:text-fg",
           )}
         >
           {item.label}
@@ -690,11 +727,20 @@ export function Tabs<T extends string>({
 export function Menu({
   trigger,
   items,
-  align = 'right',
+  align = "right",
 }: {
-  trigger: (props: { onClick: () => void; 'aria-expanded': boolean }) => ReactNode;
-  items: { label: string; icon?: ReactNode; onSelect: () => void; danger?: boolean; disabled?: boolean }[];
-  align?: 'left' | 'right';
+  trigger: (props: {
+    onClick: () => void;
+    "aria-expanded": boolean;
+  }) => ReactNode;
+  items: {
+    label: string;
+    icon?: ReactNode;
+    onSelect: () => void;
+    danger?: boolean;
+    disabled?: boolean;
+  }[];
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -706,25 +752,28 @@ export function Menu({
       if (!ref.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
   return (
     <div ref={ref} className="relative" id={id}>
-      {trigger({ onClick: () => setOpen((value) => !value), 'aria-expanded': open })}
+      {trigger({
+        onClick: () => setOpen((value) => !value),
+        "aria-expanded": open,
+      })}
       {open ? (
         <div
           role="menu"
           className={cn(
-            'absolute z-40 mt-1 min-w-[180px] rounded border border-border bg-surface p-1 shadow-pop',
-            align === 'right' ? 'right-0' : 'left-0',
+            "absolute z-40 mt-1 min-w-[180px] rounded border border-border bg-surface p-1 shadow-pop",
+            align === "right" ? "right-0" : "left-0",
           )}
         >
           {items.map((item) => (
@@ -737,8 +786,8 @@ export function Menu({
                 item.onSelect();
               }}
               className={cn(
-                'flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-surface2 disabled:opacity-40',
-                item.danger ? 'text-danger' : 'text-fg',
+                "flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-[13px] transition-colors duration-100 hover:bg-surface2 disabled:opacity-40",
+                item.danger ? "text-danger" : "text-fg",
               )}
             >
               {item.icon}
@@ -765,18 +814,24 @@ export function ToastHost() {
           key={item.id}
           role="status"
           className={cn(
-            'pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-card border px-3.5 py-3 text-[13px] shadow-pop transition-[opacity,transform] duration-150 ease-enter',
-            item.kind === 'error'
-              ? 'border-danger/30 bg-surface text-fg'
-              : item.kind === 'success'
-                ? 'border-success/30 bg-surface text-fg'
-                : 'border-border bg-surface text-fg',
+            "pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-card border px-3.5 py-3 text-[13px] shadow-pop transition-[opacity,transform] duration-150 ease-enter",
+            item.kind === "error"
+              ? "border-danger/30 bg-surface text-fg"
+              : item.kind === "success"
+                ? "border-success/30 bg-surface text-fg"
+                : "border-border bg-surface text-fg",
           )}
         >
-          {item.kind === 'success' ? (
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
-          ) : item.kind === 'error' ? (
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger" aria-hidden />
+          {item.kind === "success" ? (
+            <Check
+              className="mt-0.5 h-4 w-4 shrink-0 text-success"
+              aria-hidden
+            />
+          ) : item.kind === "error" ? (
+            <AlertCircle
+              className="mt-0.5 h-4 w-4 shrink-0 text-danger"
+              aria-hidden
+            />
           ) : (
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
           )}

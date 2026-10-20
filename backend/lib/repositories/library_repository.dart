@@ -131,30 +131,43 @@ class FavoriteRepository {
   }
 
   int createFolder(int userId, String name) {
-    if (name.trim().isEmpty) throw ApiException.badRequest('Folder name cannot be empty');
-    if (name.length > 64) throw ApiException.badRequest('Folder name is too long');
+    if (name.trim().isEmpty)
+      throw ApiException.badRequest('Folder name cannot be empty');
+    if (name.length > 64)
+      throw ApiException.badRequest('Folder name is too long');
     final exists = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ?',
         [userId, name]);
     if (exists.isNotEmpty) throw ApiException.conflict('Folder already exists');
-    final order = db
-        .select(
-            'SELECT COALESCE(MAX(sort_order),-1)+1 AS n FROM favorite_folders WHERE user_id = ?',
-            [userId])
-        .first['n'] as int;
+    final order = db.select(
+        'SELECT COALESCE(MAX(sort_order),-1)+1 AS n FROM favorite_folders WHERE user_id = ?',
+        [userId]).first['n'] as int;
     return db.insert(
       'INSERT INTO favorite_folders (user_id,name,sort_order,created_at) VALUES (?,?,?,?)',
       [userId, name, order, nowMs()],
     );
   }
 
+  void linkFolder(int userId, int id,
+      {String? sourceKey, String? sourceFolder}) {
+    if (folder(userId, id) == null)
+      throw ApiException.notFound('Folder not found');
+    db.execute(
+      'UPDATE favorite_folders SET source_key = ?, source_folder = ? '
+      'WHERE user_id = ? AND id = ?',
+      [sourceKey, sourceFolder, userId, id],
+    );
+  }
+
   void renameFolder(int userId, int id, String name) {
-    if (name.trim().isEmpty) throw ApiException.badRequest('Folder name cannot be empty');
+    if (name.trim().isEmpty)
+      throw ApiException.badRequest('Folder name cannot be empty');
     final clash = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ? AND id <> ?',
         [userId, name, id]);
     if (clash.isNotEmpty) throw ApiException.conflict('Folder already exists');
-    db.execute('UPDATE favorite_folders SET name = ? WHERE user_id = ? AND id = ?',
+    db.execute(
+        'UPDATE favorite_folders SET name = ? WHERE user_id = ? AND id = ?',
         [name, userId, id]);
   }
 
@@ -197,7 +210,8 @@ class FavoriteRepository {
           'AND h.comic_id = f.comic_id AND h.comic_type = f.comic_type '
           'AND h.max_page IS NOT NULL AND h.page >= h.max_page)');
     } else if (status == 'uncompleted') {
-      where.add('NOT EXISTS (SELECT 1 FROM history h WHERE h.user_id = f.user_id '
+      where.add(
+          'NOT EXISTS (SELECT 1 FROM history h WHERE h.user_id = f.user_id '
           'AND h.comic_id = f.comic_id AND h.comic_type = f.comic_type '
           'AND h.max_page IS NOT NULL AND h.page >= h.max_page)');
     }
@@ -233,10 +247,9 @@ class FavoriteRepository {
       .map((r) => r['folder_id'] as int)
       .toList();
 
-  bool isFavorite(int userId, String comicId, int comicType) =>
-      db.select(
-          'SELECT 1 FROM favorites WHERE user_id=? AND comic_id=? AND comic_type=? LIMIT 1',
-          [userId, comicId, comicType]).isNotEmpty;
+  bool isFavorite(int userId, String comicId, int comicType) => db.select(
+      'SELECT 1 FROM favorites WHERE user_id=? AND comic_id=? AND comic_type=? LIMIT 1',
+      [userId, comicId, comicType]).isNotEmpty;
 
   void addFavorite(
     int userId,
@@ -253,13 +266,11 @@ class FavoriteRepository {
         'SELECT 1 FROM favorites WHERE folder_id=? AND comic_id=? AND comic_type=?',
         [folderId, comicId, comicType]);
     if (existing.isNotEmpty) return;
-    final order = db
-        .select(
-          'SELECT ${atStart ? 'COALESCE(MIN(display_order),1)-1' : 'COALESCE(MAX(display_order),-1)+1'} AS n '
-          'FROM favorites WHERE folder_id = ?',
-          [folderId],
-        )
-        .first['n'] as int;
+    final order = db.select(
+      'SELECT ${atStart ? 'COALESCE(MIN(display_order),1)-1' : 'COALESCE(MAX(display_order),-1)+1'} AS n '
+      'FROM favorites WHERE folder_id = ?',
+      [folderId],
+    ).first['n'] as int;
     final tags = comic['tags'];
     final translated = comic['translatedTags'];
     db.execute(
@@ -276,7 +287,10 @@ class FavoriteRepository {
         jsonEncode(tags is List ? tags : const []),
         jsonEncode(translated is List ? translated : const []),
         (comic['cover'] ?? comic['coverPath'] ?? '').toString(),
-        DateTime.now().toIso8601String().replaceFirst('T', ' ').substring(0, 19),
+        DateTime.now()
+            .toIso8601String()
+            .replaceFirst('T', ' ')
+            .substring(0, 19),
         order,
       ],
     );
@@ -303,13 +317,12 @@ class FavoriteRepository {
     required List<Map<String, Object?>> comics,
     required bool move,
   }) {
-    if (folder(userId, toFolder) == null) throw ApiException.notFound('Folder not found');
+    if (folder(userId, toFolder) == null)
+      throw ApiException.notFound('Folder not found');
     db.transaction(() {
-      var order = db
-              .select(
-                  'SELECT COALESCE(MAX(display_order),-1)+1 AS n FROM favorites WHERE folder_id=?',
-                  [toFolder])
-              .first['n'] as int;
+      var order = db.select(
+          'SELECT COALESCE(MAX(display_order),-1)+1 AS n FROM favorites WHERE folder_id=?',
+          [toFolder]).first['n'] as int;
       for (final comic in comics) {
         final id = (comic['comicId'] ?? comic['id'] ?? '').toString();
         final type = (comic['comicType'] as int?) ?? 0;
@@ -464,16 +477,15 @@ class FavoriteRepository {
           'UPDATE favorites SET has_new_update=0 WHERE user_id=? AND folder_id=?',
           [userId, folderId]);
     } else {
-      db.execute('UPDATE favorites SET has_new_update=0 WHERE user_id=?', [userId]);
+      db.execute(
+          'UPDATE favorites SET has_new_update=0 WHERE user_id=?', [userId]);
     }
   }
 
-  int updateCount(int userId, {int? folderId}) => db
-      .select(
-          'SELECT COUNT(*) AS c FROM favorites WHERE user_id=? AND has_new_update=1'
-          '${folderId != null ? ' AND folder_id=?' : ''}',
-          [userId, if (folderId != null) folderId])
-      .first['c'] as int;
+  int updateCount(int userId, {int? folderId}) => db.select(
+      'SELECT COUNT(*) AS c FROM favorites WHERE user_id=? AND has_new_update=1'
+      '${folderId != null ? ' AND folder_id=?' : ''}',
+      [userId, if (folderId != null) folderId]).first['c'] as int;
 }
 
 class HistoryRecord {
@@ -646,9 +658,9 @@ class HistoryRepository {
     }
   }
 
-  int count(int userId) =>
-      db.select('SELECT COUNT(*) AS c FROM history WHERE user_id=?', [userId])
-          .first['c'] as int;
+  int count(int userId) => db.select(
+      'SELECT COUNT(*) AS c FROM history WHERE user_id=?',
+      [userId]).first['c'] as int;
 
   void updateMeta(int userId, String comicId, int comicType,
       {String? title, String? subtitle, String? cover}) {
@@ -742,7 +754,12 @@ class ReadLaterRepository {
             [userId])
         : db.select(
             'SELECT * FROM read_later WHERE user_id=? AND (title LIKE ? OR subtitle LIKE ? OR tags_json LIKE ?) ORDER BY added_at DESC',
-            [userId, '%${query.trim()}%', '%${query.trim()}%', '%${query.trim()}%'],
+            [
+              userId,
+              '%${query.trim()}%',
+              '%${query.trim()}%',
+              '%${query.trim()}%'
+            ],
           );
     return rows.map((r) => ReadLaterRecord.fromRow(r)).toList();
   }
@@ -796,9 +813,9 @@ class ReadLaterRepository {
   void clear(int userId) =>
       db.execute('DELETE FROM read_later WHERE user_id=?', [userId]);
 
-  int count(int userId) => db
-      .select('SELECT COUNT(*) AS c FROM read_later WHERE user_id=?', [userId])
-      .first['c'] as int;
+  int count(int userId) => db.select(
+      'SELECT COUNT(*) AS c FROM read_later WHERE user_id=?',
+      [userId]).first['c'] as int;
 }
 
 class StatisticsRepository {
@@ -826,7 +843,18 @@ class StatisticsRepository {
       'duration_seconds=duration_seconds+excluded.duration_seconds,'
       'last_read_at=MAX(last_read_at,excluded.last_read_at),'
       'title=excluded.title,author=excluded.author,cover=excluded.cover',
-      [userId, day, comicId, comicType, title, author, cover, sourceKey, seconds, nowMs()],
+      [
+        userId,
+        day,
+        comicId,
+        comicType,
+        title,
+        author,
+        cover,
+        sourceKey,
+        seconds,
+        nowMs()
+      ],
     );
   }
 
@@ -836,32 +864,25 @@ class StatisticsRepository {
         '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     final today = dayOf(now);
     final weekStart = dayOf(now.subtract(const Duration(days: 6)));
-    final todaySeconds = db
-        .select(
-            'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
-            'WHERE user_id=? AND day=?',
-            [userId, today])
-        .first['s'] as int;
-    final weekSeconds = db
-        .select(
-            'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
-            'WHERE user_id=? AND day>=?',
-            [userId, weekStart])
-        .first['s'] as int;
-    final totalSeconds = db
-        .select(
-            'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics WHERE user_id=?',
-            [userId])
-        .first['s'] as int;
+    final todaySeconds = db.select(
+        'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
+        'WHERE user_id=? AND day=?',
+        [userId, today]).first['s'] as int;
+    final weekSeconds = db.select(
+        'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
+        'WHERE user_id=? AND day>=?',
+        [userId, weekStart]).first['s'] as int;
+    final totalSeconds = db.select(
+        'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics WHERE user_id=?',
+        [userId]).first['s'] as int;
     final daily = <Map<String, Object?>>[];
-    for (var i = 6; i >= 0; i--) {
+    final window = days.clamp(1, 365);
+    for (var i = window - 1; i >= 0; i--) {
       final day = dayOf(now.subtract(Duration(days: i)));
-      final seconds = db
-          .select(
-              'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
-              'WHERE user_id=? AND day=?',
-              [userId, day])
-          .first['s'] as int;
+      final seconds = db.select(
+          'SELECT COALESCE(SUM(duration_seconds),0) AS s FROM reading_statistics '
+          'WHERE user_id=? AND day=?',
+          [userId, day]).first['s'] as int;
       daily.add({'day': day, 'seconds': seconds});
     }
     final recent = db.select(
@@ -924,8 +945,8 @@ class FollowUpdateRepository {
   FollowUpdateRepository(this.db);
 
   FollowUpdateConfig config(int userId) {
-    final rows = db.select(
-        'SELECT * FROM follow_update_config WHERE user_id=?', [userId]);
+    final rows = db
+        .select('SELECT * FROM follow_update_config WHERE user_id=?', [userId]);
     if (rows.isEmpty) {
       return FollowUpdateConfig(
           folderId: null, checkOnStart: true, intervalHours: 24, fixedTime: '');
@@ -956,7 +977,37 @@ class FollowUpdateRepository {
     );
   }
 
-  Map<String, Object?> comicPreferences(int userId, String comicId, String sourceKey) {
+  List<({int userId, FollowUpdateConfig config})> allConfigs() {
+    final rows = db.select(
+        'SELECT user_id,folder_id,check_on_start,interval_hours,fixed_time '
+        'FROM follow_update_config WHERE folder_id IS NOT NULL');
+    return rows.map((r) {
+      return (
+        userId: r['user_id'] as int,
+        config: FollowUpdateConfig(
+          folderId: r['folder_id'] as int?,
+          checkOnStart: asBool(r['check_on_start']),
+          intervalHours: r['interval_hours'] as int,
+          fixedTime: r['fixed_time'] as String? ?? '',
+        ),
+      );
+    }).toList();
+  }
+
+  int? lastRunAt(int userId) {
+    final rows = db.select(
+        'SELECT updated_at FROM follow_update_config WHERE user_id=?',
+        [userId]);
+    return rows.isEmpty ? null : rows.first['updated_at'] as int;
+  }
+
+  void recordRun(int userId) {
+    db.execute('UPDATE follow_update_config SET updated_at=? WHERE user_id=?',
+        [nowMs(), userId]);
+  }
+
+  Map<String, Object?> comicPreferences(
+      int userId, String comicId, String sourceKey) {
     final rows = db.select(
         'SELECT * FROM comic_preferences WHERE user_id=? AND comic_id=? AND source_key=?',
         [userId, comicId, sourceKey]);

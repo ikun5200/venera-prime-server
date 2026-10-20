@@ -30,8 +30,7 @@ class PathGuard {
     }
     final normalizedRoot = p.normalize(p.absolute(root));
     final candidate = p.normalize(p.absolute(p.join(normalizedRoot, relative)));
-    if (candidate != normalizedRoot &&
-        !p.isWithin(normalizedRoot, candidate)) {
+    if (candidate != normalizedRoot && !p.isWithin(normalizedRoot, candidate)) {
       throw ApiException.badRequest('Path escapes user directory');
     }
     // Reject symlinked ancestors.
@@ -72,8 +71,8 @@ class PathGuard {
     final base = p.basenameWithoutExtension(fileName);
     var candidate = p.join(directory, fileName);
     var index = 1;
-    while (FileSystemEntity.typeSync(candidate) !=
-        FileSystemEntityType.notFound) {
+    while (
+        FileSystemEntity.typeSync(candidate) != FileSystemEntityType.notFound) {
       candidate = p.join(directory, '$base($index)$ext');
       index++;
     }

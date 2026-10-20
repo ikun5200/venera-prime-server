@@ -21,16 +21,21 @@ import type {
   TaskItem,
   User,
   WebDavConfig,
-} from './types';
+} from "./types";
 
 export class ApiError extends Error {
   code: string;
   status: number;
   requestId: string;
 
-  constructor(message: string, code: string, status: number, requestId: string) {
+  constructor(
+    message: string,
+    code: string,
+    status: number,
+    requestId: string,
+  ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.requestId = requestId;
@@ -39,14 +44,18 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !(init.body instanceof FormData) && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("content-type")
+  ) {
+    headers.set("content-type", "application/json");
   }
-  headers.set('x-requested-with', 'venera-web');
+  headers.set("x-requested-with", "venera-web");
   const response = await fetch(`/api${path}`, {
     ...init,
     headers,
-    credentials: 'include',
+    credentials: "include",
   });
   const text = await response.text();
   let data: unknown = null;
@@ -59,17 +68,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const error =
-      data && typeof data === 'object' && 'error' in data
-        ? (data as { error: { code?: string; message?: string; requestId?: string } }).error
+      data && typeof data === "object" && "error" in data
+        ? (
+            data as {
+              error: { code?: string; message?: string; requestId?: string };
+            }
+          ).error
         : {};
     if (response.status === 401) {
-      window.dispatchEvent(new CustomEvent('venera:unauthorized'));
+      window.dispatchEvent(new CustomEvent("venera:unauthorized"));
     }
     throw new ApiError(
       error.message ?? `Request failed (${response.status})`,
-      error.code ?? 'UNKNOWN',
+      error.code ?? "UNKNOWN",
       response.status,
-      error.requestId ?? '',
+      error.requestId ?? "",
     );
   }
   return data as T;
@@ -77,58 +90,117 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const get = <T>(path: string) => request<T>(path);
 const post = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
+  request<T>(path, {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 const put = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) });
+  request<T>(path, {
+    method: "PUT",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 const patch = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) });
+  request<T>(path, {
+    method: "PATCH",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 const del = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'DELETE', body: body === undefined ? undefined : JSON.stringify(body) });
+  request<T>(path, {
+    method: "DELETE",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 
 const enc = encodeURIComponent;
 
 export const api = {
-  health: () => get<{ status: string; version: string; uptime: number; initialized: boolean }>('/health'),
-  initStatus: () => get<{ initialized: boolean }>('/init/status'),
+  health: () =>
+    get<{
+      status: string;
+      version: string;
+      uptime: number;
+      initialized: boolean;
+    }>("/health"),
+  initStatus: () => get<{ initialized: boolean }>("/init/status"),
   init: (username: string, password: string) =>
-    post<{ user: User }>('/init', { username, password }),
+    post<{ user: User }>("/init", { username, password }),
   login: (username: string, password: string) =>
-    post<{ user: User }>('/auth/login', { username, password }),
-  logout: () => post<{ ok: boolean }>('/auth/logout'),
-  me: () => get<{ user: User }>('/auth/me'),
+    post<{ user: User }>("/auth/login", { username, password }),
+  logout: () => post<{ ok: boolean }>("/auth/logout"),
+  me: () => get<{ user: User }>("/auth/me"),
 
-  adminUsers: () => get<{ items: User[] }>('/admin/users'),
-  adminCreateUser: (username: string, password: string, role: 'admin' | 'user') =>
-    post<{ user: User }>('/admin/users', { username, password, role }),
-  adminUpdateUser: (id: number, body: { password?: string; role?: string; disabled?: boolean }) =>
-    patch<{ user: User }>(`/admin/users/${id}`, body),
+  adminUsers: () => get<{ items: User[] }>("/admin/users"),
+  adminCreateUser: (
+    username: string,
+    password: string,
+    role: "admin" | "user",
+  ) => post<{ user: User }>("/admin/users", { username, password, role }),
+  adminUpdateUser: (
+    id: number,
+    body: { password?: string; role?: string; disabled?: boolean },
+  ) => patch<{ user: User }>(`/admin/users/${id}`, body),
   adminDeleteUser: (id: number) => del<{ ok: boolean }>(`/admin/users/${id}`),
-  adminAudit: (page = 1) => get<Paged<Record<string, unknown>>>(
-    `/admin/audit?page=${page}&pageSize=50`),
+  adminAudit: (page = 1) =>
+    get<Paged<Record<string, unknown>>>(
+      `/admin/audit?page=${page}&pageSize=50`,
+    ),
 
-  settings: () => get<Settings>('/settings'),
-  updateSettings: (patchValue: Settings) => patch<Settings>('/settings', patchValue),
-  searchHistory: () => get<{ items: { keyword: string; createdAt: number }[] }>('/settings/search-history'),
+  settings: () => get<Settings>("/settings"),
+  updateSettings: (patchValue: Settings) =>
+    patch<Settings>("/settings", patchValue),
+  searchHistory: () =>
+    get<{ items: { keyword: string; createdAt: number }[] }>(
+      "/settings/search-history",
+    ),
   addSearchHistory: (keyword: string) =>
-    post<{ items: { keyword: string; createdAt: number }[] }>('/settings/search-history', { keyword }),
-  clearSearchHistory: () => del<{ ok: boolean }>('/settings/search-history'),
+    post<{ items: { keyword: string; createdAt: number }[] }>(
+      "/settings/search-history",
+      { keyword },
+    ),
+  clearSearchHistory: () => del<{ ok: boolean }>("/settings/search-history"),
+  searchSuggestions: (q: string, source?: string) => {
+    const params = new URLSearchParams({ q });
+    if (source) params.set("source", source);
+    return get<{
+      items: {
+        value: string;
+        namespace?: string | null;
+        translated?: string | null;
+      }[];
+    }>(`/search/suggestions?${params}`);
+  },
+  selectSuggestion: (source: string, namespace: string, tag: string) =>
+    post<{ result: string }>("/search/suggestion", { source, namespace, tag }),
+  deleteSearchHistory: (keyword: string) =>
+    del<{ items: { keyword: string; createdAt: number }[] }>(
+      `/settings/search-history/${enc(keyword)}`,
+    ),
 
-  tasks: () => get<{ items: TaskItem[] }>('/tasks'),
-  clearTasks: () => del<{ items: TaskItem[] }>('/tasks'),
-  cancelTask: (id: string) => post<{ items: TaskItem[] }>(`/tasks/${enc(id)}/cancel`),
-  logs: () => get<{ items: Record<string, unknown>[]; requests: Record<string, unknown>[] }>('/logs'),
+  tasks: () => get<{ items: TaskItem[] }>("/tasks"),
+  clearTasks: () => del<{ items: TaskItem[] }>("/tasks"),
+  cancelTask: (id: string) =>
+    post<{ items: TaskItem[] }>(`/tasks/${enc(id)}/cancel`),
+  logs: () =>
+    get<{
+      items: Record<string, unknown>[];
+      requests: Record<string, unknown>[];
+    }>("/logs"),
+  clearLogs: () => del<{ ok: boolean }>("/logs"),
 
-  sources: () => get<{ items: Source[] }>('/sources'),
-  source: (key: string) => get<{ source: Source; provenance: Record<string, unknown> | null }>(
-    `/sources/${enc(key)}`),
-  importSource: (script: string) => post<{ source: Source }>('/sources', { script }),
+  sources: () => get<{ items: Source[] }>("/sources"),
+  source: (key: string) =>
+    get<{ source: Source; provenance: Record<string, unknown> | null }>(
+      `/sources/${enc(key)}`,
+    ),
+  importSource: (script: string) =>
+    post<{ source: Source }>("/sources", { script }),
   importSourceFile: (script: string) =>
-    request<{ source: Source }>('/sources/import', {
-      method: 'POST',
-      headers: { 'content-type': 'application/javascript' },
+    request<{ source: Source }>("/sources/import", {
+      method: "POST",
+      headers: { "content-type": "application/javascript" },
       body: script,
     }),
-  addSourceUrl: (url: string) => post<{ source: Source }>('/sources/url', { url }),
+  addSourceUrl: (url: string) =>
+    post<{ source: Source }>("/sources/url", { url }),
   updateSource: (key: string, script: string) =>
     put<{ source: Source }>(`/sources/${enc(key)}`, { script }),
   updateSourceFromUrl: (key: string) =>
@@ -137,14 +209,20 @@ export const api = {
     patch<{ source: Source }>(`/sources/${enc(key)}`, body),
   deleteSource: (key: string) => del<{ ok: boolean }>(`/sources/${enc(key)}`),
   reorderSources: (keys: string[]) =>
-    post<{ items: Source[] }>('/sources/reorder', { keys }),
-  sourceSettings: (key: string) => get<SourceSettings>(`/sources/${enc(key)}/settings`),
+    post<{ items: Source[] }>("/sources/reorder", { keys }),
+  sourceSettings: (key: string) =>
+    get<SourceSettings>(`/sources/${enc(key)}/settings`),
   updateSourceSettings: (key: string, values: Record<string, unknown>) =>
     put<SourceSettings>(`/sources/${enc(key)}/settings`, { values }),
   sourceSettingCallback: (key: string, setting: string) =>
-    post<{ result: unknown }>(`/sources/${enc(key)}/settings/${enc(setting)}/callback`),
+    post<{ result: unknown }>(
+      `/sources/${enc(key)}/settings/${enc(setting)}/callback`,
+    ),
   loginSource: (key: string, username: string, password: string) =>
-    post<{ source: Source }>(`/sources/${enc(key)}/login`, { username, password }),
+    post<{ source: Source }>(`/sources/${enc(key)}/login`, {
+      username,
+      password,
+    }),
   loginSourceCookies: (key: string, values: Record<string, string>) =>
     post<{ source: Source }>(`/sources/${enc(key)}/login-cookies`, { values }),
   importSourceCookies: (key: string, cookies: Record<string, unknown>[]) =>
@@ -153,33 +231,59 @@ export const api = {
     post<{ source: Source }>(`/sources/${enc(key)}/logout`),
   checkSource: (key: string, comicId?: string) =>
     get<Record<string, unknown>>(
-      `/sources/${enc(key)}/check${comicId ? `?comicId=${enc(comicId)}` : ''}`),
+      `/sources/${enc(key)}/check${comicId ? `?comicId=${enc(comicId)}` : ""}`,
+    ),
   bindSource: (key: string, libraryId: string, fileName?: string) =>
-    post<{ source: Source }>(`/sources/${enc(key)}/bind`, { libraryId, fileName }),
+    post<{ source: Source }>(`/sources/${enc(key)}/bind`, {
+      libraryId,
+      fileName,
+    }),
 
-  libraries: () => get<{ items: SourceLibrary[] }>('/source-libraries'),
+  libraries: () => get<{ items: SourceLibrary[] }>("/source-libraries"),
   addLibrary: (name: string, url: string) =>
-    post<{ items: SourceLibrary[] }>('/source-libraries', { name, url }),
+    post<{ items: SourceLibrary[] }>("/source-libraries", { name, url }),
   patchLibrary: (id: string, body: { name?: string; enabled?: boolean }) =>
     patch<{ items: SourceLibrary[] }>(`/source-libraries/${enc(id)}`, body),
   deleteLibrary: (id: string) =>
     del<{ items: SourceLibrary[] }>(`/source-libraries/${enc(id)}`),
   libraryCatalog: (id: string) =>
-    get<{ items: CatalogEntry[]; library: SourceLibrary }>(`/source-libraries/${enc(id)}/catalog`),
-  installLibraryEntry: (id: string, entry: { url?: string; entryId?: string }) =>
-    post<{ source: Source }>(`/source-libraries/${enc(id)}/install`, entry),
+    get<{ items: CatalogEntry[]; library: SourceLibrary }>(
+      `/source-libraries/${enc(id)}/catalog`,
+    ),
+  installLibraryEntry: (
+    id: string,
+    entry: { url?: string; entryId?: string },
+  ) => post<{ source: Source }>(`/source-libraries/${enc(id)}/install`, entry),
 
   search: (source: string, q: string, options: string[], page: number) => {
     const params = new URLSearchParams({ source, q, page: String(page) });
-    if (options.length) params.set('options', options.join(','));
-    return get<{ comics: Comic[]; maxPage: number; page: number }>(`/search?${params}`);
+    if (options.length) params.set("options", options.join(","));
+    return get<{ comics: Comic[]; maxPage: number; page: number }>(
+      `/search?${params}`,
+    );
   },
   aggregatedSearch: (q: string) =>
-    get<{ sections: { source: string; name: string; comics: Comic[]; maxPage: number; error: string | null }[] }>(
-      `/search/aggregated?q=${enc(q)}`),
+    get<{
+      sections: {
+        source: string;
+        name: string;
+        comics: Comic[];
+        maxPage: number;
+        error: string | null;
+      }[];
+    }>(`/search/aggregated?q=${enc(q)}`),
   explore: (source: string, page: number) =>
-    get<{ source: string; page: number; pages: { index: number; title: string; type: string; data: unknown; error: string | null }[] }>(
-      `/explore?source=${enc(source)}&page=${page}`),
+    get<{
+      source: string;
+      page: number;
+      pages: {
+        index: number;
+        title: string;
+        type: string;
+        data: unknown;
+        error: string | null;
+      }[];
+    }>(`/explore?source=${enc(source)}&page=${page}`),
   categories: (source: string) =>
     get<{
       source: string;
@@ -195,49 +299,131 @@ export const api = {
         categories: { label: string; target: unknown }[];
       }[];
     }>(`/categories?source=${enc(source)}`),
-  categoryComics: (source: string, category: string, param: unknown, options: string[], page: number) => {
-    const params = new URLSearchParams({ source, category, page: String(page) });
-    if (param !== null && param !== undefined) params.set('param', JSON.stringify(param));
-    if (options.length) params.set('options', options.join(','));
-    return get<{ comics: Comic[]; maxPage: number; page: number }>(`/category-comics?${params}`);
+  categoryComics: (
+    source: string,
+    category: string,
+    param: unknown,
+    options: string[],
+    page: number,
+  ) => {
+    const params = new URLSearchParams({
+      source,
+      category,
+      page: String(page),
+    });
+    if (param !== null && param !== undefined)
+      params.set("param", JSON.stringify(param));
+    if (options.length) params.set("options", options.join(","));
+    return get<{ comics: Comic[]; maxPage: number; page: number }>(
+      `/category-comics?${params}`,
+    );
   },
   ranking: (source: string, option: string, page: number) =>
     get<{ comics: Comic[]; maxPage: number; page: number }>(
-      `/ranking?source=${enc(source)}&option=${enc(option)}&page=${page}`),
+      `/ranking?source=${enc(source)}&option=${enc(option)}&page=${page}`,
+    ),
 
   comic: (source: string, id: string) =>
     get<ComicDetails>(`/comic/${enc(source)}/${enc(id)}`),
   chapterImages: (source: string, id: string, ep: string) =>
     get<{ images: string[]; total: number }>(
-      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/images`),
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/images`,
+    ),
   thumbnails: (source: string, id: string, next?: string) =>
     get<{ thumbnails: unknown; next: unknown }>(
-      `/comic/${enc(source)}/${enc(id)}/thumbnails${next ? `?next=${enc(next)}` : ''}`),
-  comments: (source: string, id: string, page = 1, subId?: string, replyTo?: unknown) => {
+      `/comic/${enc(source)}/${enc(id)}/thumbnails${next ? `?next=${enc(next)}` : ""}`,
+    ),
+  comments: (
+    source: string,
+    id: string,
+    page = 1,
+    subId?: string,
+    replyTo?: unknown,
+  ) => {
     const params = new URLSearchParams({ page: String(page) });
-    if (subId) params.set('subId', subId);
-    if (replyTo) params.set('replyTo', JSON.stringify(replyTo));
+    if (subId) params.set("subId", subId);
+    if (replyTo) params.set("replyTo", JSON.stringify(replyTo));
     return get<{ comments: Comment[]; maxPage: number; page: number }>(
-      `/comic/${enc(source)}/${enc(id)}/comments?${params}`);
+      `/comic/${enc(source)}/${enc(id)}/comments?${params}`,
+    );
   },
-  sendComment: (source: string, id: string, content: string, subId?: string, replyTo?: unknown) =>
-    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/comments`, { content, subId, replyTo }),
-  chapterComments: (source: string, id: string, ep: string, page = 1, replyTo?: unknown) => {
-    const params = new URLSearchParams({ page: String(page) });
-    if (replyTo) params.set('replyTo', JSON.stringify(replyTo));
-    return get<{ comments: Comment[]; maxPage: number; page: number }>(
-      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comments?${params}`);
-  },
-  sendChapterComment: (source: string, id: string, ep: string, content: string, replyTo?: unknown) =>
-    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comments`, {
+  sendComment: (
+    source: string,
+    id: string,
+    content: string,
+    subId?: string,
+    replyTo?: unknown,
+  ) =>
+    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/comments`, {
       content,
+      subId,
       replyTo,
     }),
+  chapterComments: (
+    source: string,
+    id: string,
+    ep: string,
+    page = 1,
+    replyTo?: unknown,
+  ) => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (replyTo) params.set("replyTo", JSON.stringify(replyTo));
+    return get<{ comments: Comment[]; maxPage: number; page: number }>(
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comments?${params}`,
+    );
+  },
+  sendChapterComment: (
+    source: string,
+    id: string,
+    ep: string,
+    content: string,
+    replyTo?: unknown,
+  ) =>
+    post<{ result: unknown }>(
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comments`,
+      {
+        content,
+        replyTo,
+      },
+    ),
+  likeChapterComment: (
+    source: string,
+    id: string,
+    ep: string,
+    commentId: string,
+    like: boolean,
+  ) =>
+    post<{ result: unknown }>(
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comment-like`,
+      { commentId, like },
+    ),
+  voteChapterComment: (
+    source: string,
+    id: string,
+    ep: string,
+    commentId: string,
+    up: boolean,
+    cancel: boolean,
+  ) =>
+    post<{ result: unknown }>(
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/comment-vote`,
+      { commentId, up, cancel },
+    ),
   likeComic: (source: string, id: string, like: boolean) =>
-    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/like`, { like }),
+    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/like`, {
+      like,
+    }),
   rateComic: (source: string, id: string, rating: number) =>
-    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/rating`, { rating }),
-  likeComment: (source: string, id: string, commentId: string, like: boolean, subId?: string) =>
+    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/rating`, {
+      rating,
+    }),
+  likeComment: (
+    source: string,
+    id: string,
+    commentId: string,
+    like: boolean,
+    subId?: string,
+  ) =>
     post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/comment-like`, {
       commentId,
       subId,
@@ -250,57 +436,105 @@ export const api = {
     up: boolean,
     cancel: boolean,
     subId?: string,
-  ) => post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/comment-vote`, {
-    commentId,
-    subId,
-    up,
-    cancel,
-  }),
+  ) =>
+    post<{ result: unknown }>(`/comic/${enc(source)}/${enc(id)}/comment-vote`, {
+      commentId,
+      subId,
+      up,
+      cancel,
+    }),
   archives: (source: string, id: string) =>
-    get<{ items: Record<string, unknown>[] }>(`/comic/${enc(source)}/${enc(id)}/archives`),
+    get<{ items: Record<string, unknown>[] }>(
+      `/comic/${enc(source)}/${enc(id)}/archives`,
+    ),
   archiveUrl: (source: string, id: string, archiveId: string) =>
-    post<{ url: unknown }>(`/comic/${enc(source)}/${enc(id)}/archive-url`, { archiveId }),
+    post<{ url: unknown }>(`/comic/${enc(source)}/${enc(id)}/archive-url`, {
+      archiveId,
+    }),
 
-  favoriteFolders: () => get<{ items: FavoriteFolder[] }>('/favorites/folders'),
+  favoriteFolders: () => get<{ items: FavoriteFolder[] }>("/favorites/folders"),
   createFavoriteFolder: (name: string) =>
-    post<{ id: number; items: FavoriteFolder[] }>('/favorites/folders', { name }),
+    post<{ id: number; items: FavoriteFolder[] }>("/favorites/folders", {
+      name,
+    }),
   renameFavoriteFolder: (id: number, name: string) =>
     patch<{ items: FavoriteFolder[] }>(`/favorites/folders/${id}`, { name }),
   deleteFavoriteFolder: (id: number) =>
     del<{ items: FavoriteFolder[] }>(`/favorites/folders/${id}`),
   sortFavoriteFolders: (ids: number[]) =>
-    post<{ items: FavoriteFolder[] }>('/favorites/folders/sort', { ids }),
-  favorites: (params: { folderId?: number; q?: string; status?: string; page?: number }) => {
+    post<{ items: FavoriteFolder[] }>("/favorites/folders/sort", { ids }),
+  favorites: (params: {
+    folderId?: number;
+    q?: string;
+    status?: string;
+    page?: number;
+  }) => {
     const search = new URLSearchParams();
-    if (params.folderId !== undefined) search.set('folderId', String(params.folderId));
-    if (params.q) search.set('q', params.q);
-    if (params.status) search.set('status', params.status);
-    search.set('page', String(params.page ?? 1));
+    if (params.folderId !== undefined)
+      search.set("folderId", String(params.folderId));
+    if (params.q) search.set("q", params.q);
+    if (params.status) search.set("status", params.status);
+    search.set("page", String(params.page ?? 1));
     return get<Paged<FavoriteItem>>(`/favorites?${search}`);
   },
-  addFavorite: <T extends { id: string }>(folderId: number, comic: T, atStart = false) =>
-    post<{ items: FavoriteFolder[] }>('/favorites', { folderId, comic, atStart }),
+  addFavorite: <T extends { id: string }>(
+    folderId: number,
+    comic: T,
+    atStart = false,
+  ) =>
+    post<{ items: FavoriteFolder[] }>("/favorites", {
+      folderId,
+      comic,
+      atStart,
+    }),
   removeFavorite: (folderId: number, comicType: number, comicId: string) =>
     del<{ ok: boolean }>(`/favorites/${folderId}/${comicType}/${enc(comicId)}`),
-  moveFavorites: (from: number, to: number, items: { comicId: string; comicType: number }[]) =>
-    post<{ ok: boolean }>('/favorites/move', { from, to, items }),
-  copyFavorites: (from: number, to: number, items: { comicId: string; comicType: number }[]) =>
-    post<{ ok: boolean }>('/favorites/copy', { from, to, items }),
-  batchDeleteFavorites: (items: { comicId: string; comicType: number; folderId?: number }[]) =>
-    post<{ ok: boolean }>('/favorites/batch-delete', { items }),
+  moveFavorites: (
+    from: number,
+    to: number,
+    items: { comicId: string; comicType: number }[],
+  ) => post<{ ok: boolean }>("/favorites/move", { from, to, items }),
+  copyFavorites: (
+    from: number,
+    to: number,
+    items: { comicId: string; comicType: number }[],
+  ) => post<{ ok: boolean }>("/favorites/copy", { from, to, items }),
+  batchDeleteFavorites: (
+    items: { comicId: string; comicType: number; folderId?: number }[],
+  ) => post<{ ok: boolean }>("/favorites/batch-delete", { items }),
   deleteUnavailableFavorites: () =>
-    post<{ removed: number }>('/favorites/delete-unavailable'),
+    post<{ removed: number }>("/favorites/delete-unavailable"),
   updateFavoriteInfo: (folderId?: number) =>
-    post<{ ok: boolean }>('/favorites/update-info', { folderId }),
+    post<{ ok: boolean }>("/favorites/update-info", { folderId }),
   exportFavorites: (folderId: number) =>
     get<Record<string, unknown>>(`/favorites/export?folderId=${folderId}`),
-  importFavorites: (data: unknown) => post<{ folder: FavoriteFolder }>('/favorites/import', { data }),
+  importFavorites: (data: unknown) =>
+    post<{ folder: FavoriteFolder }>("/favorites/import", { data }),
+  importNetworkFolder: (
+    source: string,
+    folder: string | null,
+    name: string | undefined,
+    pages = 20,
+  ) =>
+    post<{
+      folder: FavoriteFolder;
+      imported: number;
+      received: number;
+      pages: number;
+    }>("/favorites/import-network", { source, folder, name, pages }),
+  syncFavoriteFolder: (folderId: number, pages = 20) =>
+    post<{ imported: number; received: number; pages: number }>(
+      `/favorites/folders/${folderId}/sync`,
+      { pages },
+    ),
   networkFolders: (source: string, comicId?: string) =>
     get<{ folders: Record<string, string>; favorited: string[] }>(
-      `/favorites/network/${enc(source)}${comicId ? `?comicId=${enc(comicId)}` : ''}`),
+      `/favorites/network/${enc(source)}${comicId ? `?comicId=${enc(comicId)}` : ""}`,
+    ),
   networkComics: (source: string, folder: string | null, page = 1) =>
     get<{ comics: Comic[]; maxPage: number; page: number }>(
-      `/favorites/network/${enc(source)}/${folder === null ? 'all' : enc(JSON.stringify(folder))}?page=${page}`),
+      `/favorites/network/${enc(source)}/${folder === null ? "all" : enc(JSON.stringify(folder))}?page=${page}`,
+    ),
   toggleNetworkFavorite: (
     source: string,
     comicId: string,
@@ -315,108 +549,147 @@ export const api = {
       favoriteId,
     }),
   addNetworkFolder: (source: string, name: string) =>
-    post<{ result: unknown }>(`/favorites/network/${enc(source)}/folder`, { name }),
+    post<{ result: unknown }>(`/favorites/network/${enc(source)}/folder`, {
+      name,
+    }),
   deleteNetworkFolder: (source: string, folderId: unknown) =>
     del<{ result: unknown }>(
-      `/favorites/network/${enc(source)}/folder/${enc(JSON.stringify(folderId))}`),
+      `/favorites/network/${enc(source)}/folder/${enc(JSON.stringify(folderId))}`,
+    ),
 
   history: (params: { q?: string; page?: number } = {}) => {
     const search = new URLSearchParams();
-    if (params.q) search.set('q', params.q);
-    search.set('page', String(params.page ?? 1));
+    if (params.q) search.set("q", params.q);
+    search.set("page", String(params.page ?? 1));
     return get<Paged<HistoryItem>>(`/history?${search}`);
   },
-  saveProgress: (body: Record<string, unknown>) => put<{ ok: boolean }>('/history', body),
+  saveProgress: (body: Record<string, unknown>) =>
+    put<{ ok: boolean }>("/history", body),
   deleteHistory: (comicType: number, comicId: string) =>
     del<{ ok: boolean }>(`/history/${comicType}/${enc(comicId)}`),
   clearHistory: (unfavoritedOnly = false) =>
-    post<{ ok: boolean }>('/history/clear', { unfavoritedOnly }),
+    post<{ ok: boolean }>("/history/clear", { unfavoritedOnly }),
   refreshHistory: (ids?: unknown[]) =>
-    post<{ ok: boolean }>('/history/refresh', { ids }),
+    post<{ ok: boolean }>("/history/refresh", { ids }),
   progress: (source: string, id: string) =>
     get<Record<string, unknown>>(`/progress/${enc(source)}/${enc(id)}`),
 
   readLater: (q?: string) =>
-    get<{ items: ReadLaterItem[]; count: number }>(`/read-later${q ? `?q=${enc(q)}` : ''}`),
+    get<{ items: ReadLaterItem[]; count: number }>(
+      `/read-later${q ? `?q=${enc(q)}` : ""}`,
+    ),
   addReadLater: <T extends { id: string }>(comic: T) =>
-    post<{ added: boolean }>('/read-later', { comic }),
+    post<{ added: boolean }>("/read-later", { comic }),
   removeReadLater: (comicType: number, comicId: string) =>
     del<{ ok: boolean }>(`/read-later/${comicType}/${enc(comicId)}`),
   batchDeleteReadLater: (items: { comicId: string; comicType: number }[]) =>
-    post<{ ok: boolean }>('/read-later/batch-delete', { items }),
+    post<{ ok: boolean }>("/read-later/batch-delete", { items }),
   restoreReadLater: (items: ReadLaterItem[]) =>
-    post<{ ok: boolean }>('/read-later/restore', { items }),
-  clearReadLater: () => del<{ ok: boolean }>('/read-later'),
+    post<{ ok: boolean }>("/read-later/restore", { items }),
+  clearReadLater: () => del<{ ok: boolean }>("/read-later"),
 
-  followUpdatesConfig: () => get<FollowUpdateConfig>('/follow-updates/config'),
+  followUpdatesConfig: () => get<FollowUpdateConfig>("/follow-updates/config"),
   saveFollowUpdatesConfig: (body: Partial<FollowUpdateConfig>) =>
-    put<FollowUpdateConfig>('/follow-updates/config', body),
-  followUpdates: () => get<FollowUpdateOverview>('/follow-updates'),
-  checkFollowUpdates: () => post<{ ok: boolean }>('/follow-updates/check'),
+    put<FollowUpdateConfig>("/follow-updates/config", body),
+  followUpdates: () => get<FollowUpdateOverview>("/follow-updates"),
+  checkFollowUpdates: () => post<{ ok: boolean }>("/follow-updates/check"),
   markFollowUpdatesRead: (ids?: unknown[]) =>
-    post<{ ok: boolean }>('/follow-updates/mark-read', { ids }),
+    post<{ ok: boolean }>("/follow-updates/mark-read", { ids }),
 
-  downloads: () => get<{ items: DownloadJob[] }>('/downloads'),
-  createDownload: (body: { source: string; comicId: string; chapters?: string[] }) =>
-    post<{ job: DownloadJob }>('/downloads', body),
-  downloadAction: (id: string, action: 'pause' | 'resume' | 'retry' | 'cancel' | 'first') =>
-    post<{ job: DownloadJob }>(`/downloads/${enc(id)}/${action}`),
+  downloads: () => get<{ items: DownloadJob[] }>("/downloads"),
+  createDownload: (body: {
+    source: string;
+    comicId: string;
+    chapters?: string[];
+    archiveId?: string;
+  }) => post<{ job: DownloadJob }>("/downloads", body),
+  downloadAction: (
+    id: string,
+    action: "pause" | "resume" | "retry" | "cancel" | "first",
+  ) => post<{ job: DownloadJob }>(`/downloads/${enc(id)}/${action}`),
 
   localComics: (params: { q?: string; sort?: string } = {}) => {
     const search = new URLSearchParams();
-    if (params.q) search.set('q', params.q);
-    if (params.sort) search.set('sort', params.sort);
+    if (params.q) search.set("q", params.q);
+    if (params.sort) search.set("sort", params.sort);
     return get<{ items: LocalComic[] }>(`/local-comics?${search}`);
   },
   localComic: (id: number) => get<LocalComic>(`/local-comics/${id}`),
-  refreshLocalLibrary: () => post<{ ok: boolean }>('/local-comics/refresh'),
-  deleteLocalComic: (id: number, body: { removeFiles?: boolean; removeFavorites?: boolean } = {}) =>
-    del<{ ok: boolean }>(`/local-comics/${id}`, body),
+  refreshLocalLibrary: () => post<{ ok: boolean }>("/local-comics/refresh"),
+  deleteLocalComic: (
+    id: number,
+    body: { removeFiles?: boolean; removeFavorites?: boolean } = {},
+  ) => del<{ ok: boolean }>(`/local-comics/${id}`, body),
   deleteLocalChapters: (id: number, chapters: string[]) =>
     del<{ ok: boolean }>(`/local-comics/${id}/chapters`, { chapters }),
   localChapterImages: (id: number, chapter: string) =>
     get<{ images: string[]; total: number }>(
-      `/local-comics/${id}/chapter/${enc(chapter)}/images`),
-  uploads: () => get<{ items: Record<string, unknown>[] }>('/uploads'),
+      `/local-comics/${id}/chapter/${enc(chapter)}/images`,
+    ),
+  uploads: () => get<{ items: Record<string, unknown>[] }>("/uploads"),
 
-  webdav: () => get<WebDavConfig>('/webdav'),
-  saveWebdav: (body: { url: string; username: string; password?: string; path?: string; autoSync?: boolean }) =>
-    put<WebDavConfig>('/webdav', body),
-  testWebdav: () => post<{ ok: boolean; status: number }>('/webdav/test'),
-  uploadWebdav: () => post<{ ok: boolean; file: string }>('/webdav/upload'),
-  downloadWebdav: () => post<{ ok: boolean; file: string; imported: unknown }>('/webdav/download'),
+  webdav: () => get<WebDavConfig>("/webdav"),
+  saveWebdav: (body: {
+    url: string;
+    username: string;
+    password?: string;
+    path?: string;
+    autoSync?: boolean;
+  }) => put<WebDavConfig>("/webdav", body),
+  testWebdav: () => post<{ ok: boolean; status: number }>("/webdav/test"),
+  uploadWebdav: () => post<{ ok: boolean; file: string }>("/webdav/upload"),
+  downloadWebdav: () =>
+    post<{ ok: boolean; file: string; imported: unknown }>("/webdav/download"),
 
   statistics: (days = 30) => get<StatisticsSummary>(`/statistics?days=${days}`),
   recordStatistics: (body: Record<string, unknown>) =>
-    post<{ ok: boolean }>('/statistics', body),
-  clearStatistics: () => del<{ ok: boolean }>('/statistics'),
+    post<{ ok: boolean }>("/statistics", body),
+  clearStatistics: () => del<{ ok: boolean }>("/statistics"),
   deleteStatistics: (comicType: number, comicId: string) =>
     del<{ ok: boolean }>(`/statistics/${comicType}/${enc(comicId)}`),
 
-  imageFavorites: (params: { q?: string; sort?: string; filter?: string; minCount?: number } = {}) => {
+  imageFavorites: (
+    params: {
+      q?: string;
+      sort?: string;
+      filter?: string;
+      minCount?: number;
+    } = {},
+  ) => {
     const search = new URLSearchParams();
-    if (params.q) search.set('q', params.q);
-    if (params.sort) search.set('sort', params.sort);
-    if (params.filter) search.set('filter', params.filter);
-    if (params.minCount) search.set('minCount', String(params.minCount));
-    return get<{ items: ImageFavorite[]; total: number }>(`/image-favorites?${search}`);
+    if (params.q) search.set("q", params.q);
+    if (params.sort) search.set("sort", params.sort);
+    if (params.filter) search.set("filter", params.filter);
+    if (params.minCount) search.set("minCount", String(params.minCount));
+    return get<{ items: ImageFavorite[]; total: number }>(
+      `/image-favorites?${search}`,
+    );
   },
   addImageFavorite: (body: Record<string, unknown>) =>
-    post<{ ok: boolean }>('/image-favorites', body),
+    post<{ ok: boolean }>("/image-favorites", body),
   removeImageFavorite: (comicId: string, sourceKey: string) =>
     del<{ ok: boolean }>(`/image-favorites/${enc(comicId)}/${enc(sourceKey)}`),
   removeImageFavoritePage: (body: Record<string, unknown>) =>
-    del<{ ok: boolean }>('/image-favorites/pages', body),
+    del<{ ok: boolean }>("/image-favorites/pages", body),
   imageFavoriteStats: () =>
-    get<{ tags: { label: string; count: number }[]; authors: { label: string; count: number }[]; comics: { title: string; count: number }[]; total: number }>(
-      '/image-favorites/stats'),
+    get<{
+      tags: { label: string; count: number }[];
+      authors: { label: string; count: number }[];
+      comics: { title: string; count: number }[];
+      total: number;
+    }>("/image-favorites/stats"),
 
-  cacheSize: () => get<{ bytes: number }>('/maintenance/cache-size'),
-  clearCache: () => post<{ ok: boolean }>('/maintenance/clear-cache'),
+  cacheSize: () => get<{ bytes: number }>("/maintenance/cache-size"),
+  clearCache: () => post<{ ok: boolean }>("/maintenance/clear-cache"),
+  storagePath: () => get<{ path: string }>("/settings/storage"),
   resolveLink: (url: string) =>
-    post<{ result: { source: string; comicId: string } | null }>('/toolbox/link', { url }),
-  debugEval: (code: string) => post<{ result: unknown }>('/debug/eval', { code }),
-  debugReload: () => post<{ ok: boolean }>('/debug/reload'),
+    post<{ result: { source: string; comicId: string } | null }>(
+      "/toolbox/link",
+      { url },
+    ),
+  debugEval: (code: string) =>
+    post<{ result: unknown }>("/debug/eval", { code }),
+  debugReload: () => post<{ ok: boolean }>("/debug/reload"),
 };
 
 export function imageUrl(
@@ -427,16 +700,20 @@ export function imageUrl(
   thumbnail = false,
 ): string {
   const params = new URLSearchParams({ source, comic: comicId, ep: epId, key });
-  if (thumbnail) params.set('thumb', 'true');
+  if (thumbnail) params.set("thumb", "true");
   return `/api/image?${params}`;
 }
 
 export function coverUrl(url: string): string {
-  if (!url) return '';
+  if (!url) return "";
   return `/api/image/cover?url=${enc(url)}`;
 }
 
-export function localImageUrl(id: number, chapter: string, page: number): string {
+export function localImageUrl(
+  id: number,
+  chapter: string,
+  page: number,
+): string {
   return `/api/local-comics/${id}/image/${enc(chapter)}/${page}`;
 }
 
@@ -448,21 +725,27 @@ export async function uploadFile(
   file: File,
   onProgress?: (progress: number) => void,
 ): Promise<{ uploadId: string; size: number }> {
-  const init = await post<{ uploadId: string; offset: number }>('/uploads/init', {
-    name: file.name,
-    size: file.size,
-    mime: file.type || 'application/octet-stream',
-  });
+  const init = await post<{ uploadId: string; offset: number }>(
+    "/uploads/init",
+    {
+      name: file.name,
+      size: file.size,
+      mime: file.type || "application/octet-stream",
+    },
+  );
   const chunkSize = 4 * 1024 * 1024;
   let offset = 0;
   while (offset < file.size) {
     const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size));
-    const response = await fetch(`/api/uploads/${init.uploadId}/chunk?offset=${offset}`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'x-requested-with': 'venera-web' },
-      body: chunk,
-    });
+    const response = await fetch(
+      `/api/uploads/${init.uploadId}/chunk?offset=${offset}`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: { "x-requested-with": "venera-web" },
+        body: chunk,
+      },
+    );
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || `Upload failed (${response.status})`);
@@ -481,12 +764,15 @@ export async function completeUpload(uploadId: string, importComic = true) {
   );
 }
 
-export async function downloadUrl(path: string, filename: string): Promise<void> {
-  const response = await fetch(path, { credentials: 'include' });
+export async function downloadUrl(
+  path: string,
+  filename: string,
+): Promise<void> {
+  const response = await fetch(path, { credentials: "include" });
   if (!response.ok) throw new Error(`Download failed (${response.status})`);
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
+  const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   document.body.appendChild(anchor);
@@ -496,14 +782,16 @@ export async function downloadUrl(path: string, filename: string): Promise<void>
 }
 
 export function backupExportUrl(): string {
-  return '/api/backup/export';
+  return "/api/backup/export";
 }
 
-export async function importBackup(file: File): Promise<Record<string, unknown>> {
-  const response = await fetch('/api/backup/import', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'x-requested-with': 'venera-web' },
+export async function importBackup(
+  file: File,
+): Promise<Record<string, unknown>> {
+  const response = await fetch("/api/backup/import", {
+    method: "POST",
+    credentials: "include",
+    headers: { "x-requested-with": "venera-web" },
     body: file,
   });
   const text = await response.text();
@@ -515,7 +803,7 @@ export async function importBackup(file: File): Promise<Record<string, unknown>>
   }
   if (!response.ok) {
     const error =
-      data && typeof data === 'object' && 'error' in data
+      data && typeof data === "object" && "error" in data
         ? (data as { error: { message?: string } }).error
         : {};
     throw new Error(error.message ?? `Import failed (${response.status})`);

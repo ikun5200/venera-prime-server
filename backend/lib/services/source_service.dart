@@ -81,7 +81,8 @@ class SourceService {
     };
   }
 
-  Future<Map<String, Object?>> _decryptAccount(Map<String, Object?> data) async {
+  Future<Map<String, Object?>> _decryptAccount(
+      Map<String, Object?> data) async {
     final copy = jsonDecode(jsonEncode(data)) as Map<String, Object?>;
     final account = copy['account'];
     if (account is List &&
@@ -148,7 +149,8 @@ class SourceService {
 
   Never _throwResponse(Map<String, Object?> response) {
     final error = response['error'];
-    final code = error is Map ? (error['code'] ?? 'JS_ERROR').toString() : 'JS_ERROR';
+    final code =
+        error is Map ? (error['code'] ?? 'JS_ERROR').toString() : 'JS_ERROR';
     final message = error is Map
         ? (error['message'] ?? 'Source error').toString()
         : 'Source error';
@@ -183,12 +185,8 @@ class SourceService {
   }
 
   bool _versionGreater(String a, String b) {
-    List<int> parse(String v) => v
-        .split('-')
-        .first
-        .split('.')
-        .map((p) => int.tryParse(p) ?? 0)
-        .toList();
+    List<int> parse(String v) =>
+        v.split('-').first.split('.').map((p) => int.tryParse(p) ?? 0).toList();
     final left = parse(a);
     final right = parse(b);
     for (var i = 0; i < 3; i++) {
@@ -228,7 +226,8 @@ class SourceService {
           ? (meta['settings'] as Map).map((k, v) => MapEntry(k.toString(), v))
           : {},
       translation: (meta['translation'] is Map)
-          ? (meta['translation'] as Map).map((k, v) => MapEntry(k.toString(), v))
+          ? (meta['translation'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v))
           : {},
       capabilities: _capabilities(meta),
       preserveData: true,
@@ -292,7 +291,8 @@ class SourceService {
           ? (meta['settings'] as Map).map((k, v) => MapEntry(k.toString(), v))
           : {},
       translation: (meta['translation'] is Map)
-          ? (meta['translation'] as Map).map((k, v) => MapEntry(k.toString(), v))
+          ? (meta['translation'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v))
           : {},
       capabilities: _capabilities(meta),
       preserveData: true,
@@ -430,21 +430,24 @@ class SourceService {
     final source = require(userId, key);
     final capabilities = source.capabilities;
     if (capabilities['passwordLogin'] != true) {
-      throw ApiException.badRequest('This source does not support password login');
+      throw ApiException.badRequest(
+          'This source does not support password login');
     }
     await callValue(userId, key, 'account.login', [username, password]);
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = [username, password];
     final encrypted = await _encryptAccount(data);
     repository.saveData(userId, key, encrypted);
-    audit.log('source_login', userId: userId, detail: {'key': key, 'kind': 'password'});
+    audit.log('source_login',
+        userId: userId, detail: {'key': key, 'kind': 'password'});
   }
 
   Future<void> loginCookies(
       int userId, String key, Map<String, Object?> values) async {
     final source = require(userId, key);
     if (source.capabilities['cookieLogin'] != true) {
-      throw ApiException.badRequest('This source does not support cookie login');
+      throw ApiException.badRequest(
+          'This source does not support cookie login');
     }
     final result = await callValue(
         userId, key, 'account.loginWithCookies.validate', [values]);
@@ -454,7 +457,8 @@ class SourceService {
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = 'ok';
     repository.saveData(userId, key, data);
-    audit.log('source_login', userId: userId, detail: {'key': key, 'kind': 'cookies'});
+    audit.log('source_login',
+        userId: userId, detail: {'key': key, 'kind': 'cookies'});
   }
 
   Future<void> importCookies(
@@ -550,8 +554,9 @@ class SourceService {
       final image = images is List && images.isNotEmpty ? images.first : null;
       if (image != null) {
         stages['image'] = 'running';
-        final configs = await imageConfigs(userId, key, [image.toString(), id, epId])
-            .timeout(const Duration(seconds: 15));
+        final configs =
+            await imageConfigs(userId, key, [image.toString(), id, epId])
+                .timeout(const Duration(seconds: 15));
         stages['image'] = configs.isEmpty ? 'skipped' : 'ok';
       }
       return {'status': 'readable', 'comicId': id, 'stages': stages};
@@ -629,7 +634,8 @@ class SourceService {
         resolved = base.resolve(rawUrl.toString()).toString();
       }
       return {
-        'id': (map['id'] ?? map['key'] ?? map['name'] ?? resolved ?? '').toString(),
+        'id': (map['id'] ?? map['key'] ?? map['name'] ?? resolved ?? '')
+            .toString(),
         'name': (map['name'] ?? '').toString(),
         'version': (map['version'] ?? '').toString(),
         'description': (map['description'] ?? '').toString(),

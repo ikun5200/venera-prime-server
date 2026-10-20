@@ -11,7 +11,8 @@ class ApiException implements Exception {
 
   factory ApiException.badRequest(String message) =>
       ApiException('BAD_REQUEST', 400, message);
-  factory ApiException.unauthorized([String message = 'Authentication required']) =>
+  factory ApiException.unauthorized(
+          [String message = 'Authentication required']) =>
       ApiException('UNAUTHORIZED', 401, message);
   factory ApiException.forbidden([String message = 'Forbidden']) =>
       ApiException('FORBIDDEN', 403, message);
@@ -21,7 +22,8 @@ class ApiException implements Exception {
       ApiException('CONFLICT', 409, message);
   factory ApiException.rateLimited() =>
       ApiException('RATE_LIMITED', 429, 'Too many requests');
-  factory ApiException.payloadTooLarge([String message = 'Payload too large']) =>
+  factory ApiException.payloadTooLarge(
+          [String message = 'Payload too large']) =>
       ApiException('PAYLOAD_TOO_LARGE', 413, message);
   factory ApiException.timeout([String message = 'Operation timed out']) =>
       ApiException('TIMEOUT', 504, message);

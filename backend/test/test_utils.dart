@@ -85,7 +85,8 @@ class TestApp {
 
   TestApp._(this.dir, this.config, this.db, this.ctx, this.handler);
 
-  static TestApp create({String jsBin = '../rust/js_host/target/debug/venera_js_host'}) {
+  static TestApp create(
+      {String jsBin = '../rust/js_host/target/debug/venera_js_host'}) {
     final dir = Directory.systemTemp.createTempSync('venera_test_');
     final dataDir = Directory('${dir.path}/data')..createSync(recursive: true);
     final config = Config.fromEnv({
@@ -170,7 +171,11 @@ class Client {
     final response = await handler(request);
     final bytes = Uint8List.fromList(
         await response.read().expand((chunk) => chunk).toList());
-    return (status: response.statusCode, bytes: bytes, headers: response.headers);
+    return (
+      status: response.statusCode,
+      bytes: bytes,
+      headers: response.headers
+    );
   }
 
   Future<({int status, Map<String, Object?> body})> get(String path) =>
@@ -193,8 +198,8 @@ class Client {
       request('DELETE', path, body: body);
 
   Future<void> login(String username, String password) async {
-    final result = await post('/api/auth/login',
-        {'username': username, 'password': password});
+    final result = await post(
+        '/api/auth/login', {'username': username, 'password': password});
     if (result.status != 200) {
       throw StateError('Login failed: ${result.body}');
     }

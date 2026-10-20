@@ -50,20 +50,23 @@ class BackupService {
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
       'user': {'username': user?.username, 'role': user?.role},
       'settings': settings.all(userId),
-      'sources': sources.list(userId).map((s) => {
-            'key': s.key,
-            'name': s.name,
-            'version': s.version,
-            'url': s.url,
-            'minAppVersion': s.minAppVersion,
-            'script': s.script,
-            'data': s.data,
-            'settings': s.settings,
-            'translation': s.translation,
-            'capabilities': s.capabilities,
-            'enabled': s.enabled,
-            'sortOrder': s.sortOrder,
-          }).toList(),
+      'sources': sources
+          .list(userId)
+          .map((s) => {
+                'key': s.key,
+                'name': s.name,
+                'version': s.version,
+                'url': s.url,
+                'minAppVersion': s.minAppVersion,
+                'script': s.script,
+                'data': s.data,
+                'settings': s.settings,
+                'translation': s.translation,
+                'capabilities': s.capabilities,
+                'enabled': s.enabled,
+                'sortOrder': s.sortOrder,
+              })
+          .toList(),
       'cookies': sources.cookies(userId),
       'favoriteFolders': favorites.folders(userId),
       'favorites': {
@@ -94,7 +97,8 @@ class BackupService {
           .toList(),
       'followUpdates': {
         'config': db
-            .select('SELECT * FROM follow_update_config WHERE user_id=?', [userId])
+            .select(
+                'SELECT * FROM follow_update_config WHERE user_id=?', [userId])
             .map((r) => {
                   'folderId': r['folder_id'],
                   'checkOnStart': r['check_on_start'] == 1,
@@ -112,6 +116,12 @@ class BackupService {
     if (format != 1 && format != 2) {
       throw ApiException.badRequest('Unsupported backup format');
     }
+    return _importUnsafe(userId, data, ip: ip);
+  }
+
+  Future<Map<String, Object?>> _importUnsafe(
+      int userId, Map<String, Object?> data,
+      {String? ip}) async {
     var importedSources = 0;
     var importedFavorites = 0;
     var importedHistory = 0;
@@ -137,9 +147,7 @@ class BackupService {
         if (script is! String || script.trim().isEmpty) continue;
         try {
           await sourceService.importScript(userId, script,
-              replace: true,
-              url: map['url']?.toString(),
-              ip: ip);
+              replace: true, url: map['url']?.toString(), ip: ip);
           final source = sourceService.get(userId, map['key'].toString());
           if (source != null && map['data'] is Map) {
             sources.saveData(
@@ -212,7 +220,9 @@ class BackupService {
           ep: (map['ep'] as int?) ?? 1,
           page: (map['page'] as int?) ?? 1,
           chapterGroup: map['chapterGroup'] as int?,
-          readEpisode: map['readEpisode'] is List ? map['readEpisode'] as List : const [],
+          readEpisode: map['readEpisode'] is List
+              ? map['readEpisode'] as List
+              : const [],
           maxPage: map['maxPage'] as int?,
         );
         importedHistory++;
@@ -364,16 +374,19 @@ class WebDavService {
     };
   }
 
-  Future<Map<String, Object?>> save(int userId, Map<String, Object?> body) async {
+  Future<Map<String, Object?>> save(
+      int userId, Map<String, Object?> body) async {
     final url = (body['url'] ?? '').toString().trim();
-    if (url.isNotEmpty && !(url.startsWith('http://') || url.startsWith('https://'))) {
+    if (url.isNotEmpty &&
+        !(url.startsWith('http://') || url.startsWith('https://'))) {
       throw ApiException.badRequest('Invalid WebDAV URL');
     }
     final password = body['password'];
     final existing = repository.webdav(userId);
     String? encrypted = existing?['passwordEnc'] as String?;
     if (password is String && password.isNotEmpty) {
-      encrypted = await CryptoUtil.encryptSecret(password, config.sessionSecret);
+      encrypted =
+          await CryptoUtil.encryptSecret(password, config.sessionSecret);
     }
     repository.saveWebdav(
       userId,
@@ -394,7 +407,8 @@ class WebDavService {
   }
 
   Map<String, String> _headers(String username, String? password) => {
-        'Authorization': 'Basic ${base64Encode(utf8.encode('$username:${password ?? ''}'))}',
+        'Authorization':
+            'Basic ${base64Encode(utf8.encode('$username:${password ?? ''}'))}',
       };
 
   Uri _base(int userId) {
@@ -413,7 +427,8 @@ class WebDavService {
     final password = await _password(userId);
     try {
       final response = await client
-          .head(_base(userId), headers: _headers(row['username'] as String, password))
+          .head(_base(userId),
+              headers: _headers(row['username'] as String, password))
           .timeout(const Duration(seconds: 20));
       if (response.statusCode >= 200 && response.statusCode < 400) {
         return {'ok': true, 'status': response.statusCode};
@@ -479,10 +494,12 @@ class WebDavService {
         'Content-Type': 'application/xml',
       })
       ..body = body;
-    final streamed = await client.send(request).timeout(const Duration(seconds: 30));
+    final streamed =
+        await client.send(request).timeout(const Duration(seconds: 30));
     final text = await streamed.stream.bytesToString();
     if (streamed.statusCode >= 300) {
-      throw ApiException.sourceError('WebDAV listing failed: ${streamed.statusCode}');
+      throw ApiException.sourceError(
+          'WebDAV listing failed: ${streamed.statusCode}');
     }
     final names = <String>[];
     try {

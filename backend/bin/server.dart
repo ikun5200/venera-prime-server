@@ -26,6 +26,7 @@ Future<void> main(List<String> args) async {
     try {
       db.housekeeping();
       ctx.sessions.deleteExpired();
+      ctx.followUpdates.runDueChecks();
     } catch (error) {
       Log.warning('Housekeeping failed', extra: {'error': '$error'});
     }

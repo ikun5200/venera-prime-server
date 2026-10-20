@@ -57,27 +57,28 @@ String randomSuffix() {
   return random.substring(random.length > 6 ? random.length - 6 : 0);
 }
 
-Middleware errorHandlerMiddleware(AppContext ctx) => (inner) => (request) async {
-      final requestId = requestIdOf(request);
-      try {
-        return await inner(request);
-      } on ApiException catch (error) {
-        Log.warning('API error',
-            requestId: requestId,
-            route: request.url.path,
-            extra: {'code': error.code, 'message': error.message});
-        return errorResponse(
-            requestId, error.code, error.message, error.status);
-      } catch (error, stack) {
-        Log.error('Unhandled error',
-            requestId: requestId,
-            route: request.url.path,
-            error: error,
-            stack: stack);
-        return errorResponse(
-            requestId, 'INTERNAL', 'Internal server error', 500);
-      }
-    };
+Middleware errorHandlerMiddleware(AppContext ctx) =>
+    (inner) => (request) async {
+          final requestId = requestIdOf(request);
+          try {
+            return await inner(request);
+          } on ApiException catch (error) {
+            Log.warning('API error',
+                requestId: requestId,
+                route: request.url.path,
+                extra: {'code': error.code, 'message': error.message});
+            return errorResponse(
+                requestId, error.code, error.message, error.status);
+          } catch (error, stack) {
+            Log.error('Unhandled error',
+                requestId: requestId,
+                route: request.url.path,
+                error: error,
+                stack: stack);
+            return errorResponse(
+                requestId, 'INTERNAL', 'Internal server error', 500);
+          }
+        };
 
 Response errorResponse(
     String requestId, String code, String message, int status) {
@@ -164,7 +165,8 @@ bool originAllowed(AppContext ctx, Request request, String origin) {
   }
   // Development frontend.
   if (!ctx.config.production &&
-      (origin == 'http://localhost:5173' || origin == 'http://127.0.0.1:5173')) {
+      (origin == 'http://localhost:5173' ||
+          origin == 'http://127.0.0.1:5173')) {
     return true;
   }
   return false;
@@ -223,8 +225,7 @@ class RateLimiter {
     if (window.length >= limit) return false;
     window.add(now);
     if (_hits.length > 5000) {
-      _hits.removeWhere((_, list) =>
-          list.isEmpty || now - list.last > 120000);
+      _hits.removeWhere((_, list) => list.isEmpty || now - list.last > 120000);
     }
     return true;
   }

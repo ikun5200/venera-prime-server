@@ -25,7 +25,8 @@ void main() {
     admin = app.client();
     await admin.init('admin', 'admin123');
     await admin.login('admin', 'admin123');
-    final imported = await admin.post('/api/sources', {'script': testSourceScript});
+    final imported =
+        await admin.post('/api/sources', {'script': testSourceScript});
     expect(imported.status, 200, reason: '${imported.body}');
   });
 
@@ -37,7 +38,8 @@ void main() {
 
     final detail = await admin.get('/api/sources/test_source');
     expect(detail.status, 200);
-    expect((detail.body['source'] as Map)['script'], contains('class TestSource'));
+    expect(
+        (detail.body['source'] as Map)['script'], contains('class TestSource'));
 
     final settings = await admin.get('/api/sources/test_source/settings');
     expect(settings.status, 200);
@@ -48,15 +50,15 @@ void main() {
     });
     expect(((updated.body['values'] as Map)['quality']), 'low');
 
-    final disabled = await admin.patch('/api/sources/test_source', {'enabled': false});
+    final disabled =
+        await admin.patch('/api/sources/test_source', {'enabled': false});
     expect(disabled.status, 200);
     final searchDisabled =
         await admin.get('/api/search?source=test_source&q=x');
     expect(searchDisabled.status, 400);
 
     await admin.patch('/api/sources/test_source', {'enabled': true});
-    final searchEnabled =
-        await admin.get('/api/search?source=test_source&q=x');
+    final searchEnabled = await admin.get('/api/search?source=test_source&q=x');
     expect(searchEnabled.status, 200);
 
     final bad = await admin.post('/api/sources', {'script': 'not javascript'});
@@ -68,8 +70,8 @@ void main() {
   });
 
   test('search, details, chapters and image config', () async {
-    final search = await admin.get(
-        '/api/search?source=test_source&q=hello&options=&page=1');
+    final search = await admin
+        .get('/api/search?source=test_source&q=hello&options=&page=1');
     expect(search.status, 200);
     final comics = search.body['comics'] as List;
     expect(comics, hasLength(1));
@@ -93,7 +95,8 @@ void main() {
         1, 'test_source', ['https://example.com/a.jpg', 'comic-1', '1']);
     expect(configs, isNotEmpty);
     expect(configs.first['url'], 'https://example.com/a.jpg');
-    expect((configs.first['headers'] as Map)['Referer'], 'https://example.com/');
+    expect(
+        (configs.first['headers'] as Map)['Referer'], 'https://example.com/');
   });
 
   test('aggregated search returns per-source sections', () async {
@@ -115,7 +118,8 @@ void main() {
       'folderId': oneId,
       'comic': {'id': 'c1', 'title': 'Comic', 'sourceKey': 'test_source'}
     });
-    expect((await admin.get('/api/favorites?folderId=$oneId')).body['total'], 1);
+    expect(
+        (await admin.get('/api/favorites?folderId=$oneId')).body['total'], 1);
 
     await admin.post('/api/favorites/copy', {
       'from': oneId,
@@ -126,7 +130,7 @@ void main() {
     });
     // comicType is derived from sourceKey when adding, so look up the real one.
     final favorite = ((await admin.get('/api/favorites?folderId=$oneId'))
-        .body['items'] as List)
+            .body['items'] as List)
         .first as Map;
     final comicType = favorite['comicType'] as int;
     await admin.post('/api/favorites/copy', {
@@ -136,7 +140,8 @@ void main() {
         {'comicId': 'c1', 'comicType': comicType}
       ]
     });
-    expect((await admin.get('/api/favorites?folderId=$twoId')).body['total'], 1);
+    expect(
+        (await admin.get('/api/favorites?folderId=$twoId')).body['total'], 1);
 
     await admin.post('/api/favorites/move', {
       'from': twoId,
@@ -145,10 +150,12 @@ void main() {
         {'comicId': 'c1', 'comicType': comicType}
       ]
     });
-    expect((await admin.get('/api/favorites?folderId=$twoId')).body['total'], 0);
+    expect(
+        (await admin.get('/api/favorites?folderId=$twoId')).body['total'], 0);
 
     await admin.delete('/api/favorites/$oneId/$comicType/c1');
-    expect((await admin.get('/api/favorites?folderId=$oneId')).body['total'], 0);
+    expect(
+        (await admin.get('/api/favorites?folderId=$oneId')).body['total'], 0);
 
     await admin.delete('/api/favorites/folders/$oneId');
     final folders = await admin.get('/api/favorites/folders');
@@ -156,7 +163,8 @@ void main() {
   });
 
   test('history, progress and read later', () async {
-    final folder = await admin.post('/api/favorites/folders', {'name': 'History'});
+    final folder =
+        await admin.post('/api/favorites/folders', {'name': 'History'});
     await admin.post('/api/favorites', {
       'folderId': folder.body['id'],
       'comic': {'id': 'c1', 'title': 'Comic', 'sourceKey': 'test_source'}
@@ -184,9 +192,9 @@ void main() {
     });
     expect((await admin.get('/api/read-later')).body['count'], 1);
     final readLaterItem =
-        ((await admin.get('/api/read-later')).body['items'] as List).first as Map;
-    await admin.delete(
-        '/api/read-later/${readLaterItem['comicType']}/c1');
+        ((await admin.get('/api/read-later')).body['items'] as List).first
+            as Map;
+    await admin.delete('/api/read-later/${readLaterItem['comicType']}/c1');
     expect((await admin.get('/api/read-later')).body['count'], 0);
 
     await admin.post('/api/read-later', {
@@ -204,7 +212,11 @@ void main() {
   test('image favorites and statistics', () async {
     await admin.post('/api/image-favorites', {
       'sourceKey': 'test_source',
-      'comic': {'id': 'c1', 'title': 'Comic', 'tags': ['tag1']},
+      'comic': {
+        'id': 'c1',
+        'title': 'Comic',
+        'tags': ['tag1']
+      },
       'ep': 1,
       'eid': 'e1',
       'epName': 'Chapter 1',
@@ -216,12 +228,8 @@ void main() {
     final stats = await admin.get('/api/image-favorites/stats');
     expect((stats.body['tags'] as List), isNotEmpty);
 
-    await admin.post('/api/statistics', {
-      'comicId': 'c1',
-      'comicType': 0,
-      'title': 'Comic',
-      'seconds': 90
-    });
+    await admin.post('/api/statistics',
+        {'comicId': 'c1', 'comicType': 0, 'title': 'Comic', 'seconds': 90});
     final summary = await admin.get('/api/statistics');
     expect(summary.body['todaySeconds'], 90);
     expect(summary.body['totalSeconds'], 90);
@@ -268,8 +276,8 @@ void main() {
     expect(chunk.status, 200);
     expect(chunk.body['received'], zip.length);
 
-    final complete = await admin.post(
-        '/api/uploads/$uploadId/complete', {'import': true});
+    final complete =
+        await admin.post('/api/uploads/$uploadId/complete', {'import': true});
     expect(complete.status, 200);
     final comic = complete.body['comic'] as Map;
     final id = comic['id'] as int;
@@ -278,18 +286,16 @@ void main() {
     final list = await admin.get('/api/local-comics');
     expect((list.body['items'] as List), hasLength(1));
 
-    final images =
-        await admin.get('/api/local-comics/$id/chapter/1/images');
+    final images = await admin.get('/api/local-comics/$id/chapter/1/images');
     expect(images.status, 200);
     expect((images.body['images'] as List), hasLength(1));
 
-    final image = await admin.rawRequest(
-        'GET', '/api/local-comics/$id/image/1/0');
+    final image =
+        await admin.rawRequest('GET', '/api/local-comics/$id/image/1/0');
     expect(image.status, 200);
     expect(image.bytes, isNotEmpty);
 
-    final cover =
-        await admin.rawRequest('GET', '/api/local-comics/$id/cover');
+    final cover = await admin.rawRequest('GET', '/api/local-comics/$id/cover');
     expect(cover.status, 200);
     expect(cover.bytes, isNotEmpty);
 
@@ -300,13 +306,15 @@ void main() {
       expect(export.bytes, isNotEmpty, reason: format);
     }
 
-    final deleted = await admin.delete('/api/local-comics/$id', {'removeFiles': true});
+    final deleted =
+        await admin.delete('/api/local-comics/$id', {'removeFiles': true});
     expect(deleted.status, 200);
     expect((await admin.get('/api/local-comics')).body['items'], isEmpty);
   });
 
   test('backup export and import restores user data', () async {
-    final folder = await admin.post('/api/favorites/folders', {'name': 'Backup'});
+    final folder =
+        await admin.post('/api/favorites/folders', {'name': 'Backup'});
     final folderId = folder.body['id'] as int;
     await admin.post('/api/favorites', {
       'folderId': folderId,
@@ -325,8 +333,8 @@ void main() {
     expect(export.status, 200);
     final backupBytes = export.bytes;
 
-    await admin.post('/api/admin/users',
-        {'username': 'eve', 'password': 'eve12345'});
+    await admin
+        .post('/api/admin/users', {'username': 'eve', 'password': 'eve12345'});
     final eve = app.client();
     await eve.login('eve', 'eve12345');
     final imported = await eve.request('POST', '/api/backup/import',
@@ -356,8 +364,7 @@ void main() {
 
   test('image endpoint requires authentication', () async {
     final anonymous = app.client();
-    final result =
-        await anonymous.get('/api/image?source=test_source&key=x');
+    final result = await anonymous.get('/api/image?source=test_source&key=x');
     expect(result.status, 401);
   });
 
@@ -371,8 +378,9 @@ void main() {
     final config = await admin.get('/api/webdav');
     expect(config.body['configured'], true);
     expect(jsonEncode(config.body), isNot(contains('super-secret')));
-    final row = app.db.select(
-        'SELECT password_enc FROM webdav_config WHERE user_id = 1').first;
+    final row = app.db
+        .select('SELECT password_enc FROM webdav_config WHERE user_id = 1')
+        .first;
     expect(row['password_enc'], isNot(contains('super-secret')));
   });
 }

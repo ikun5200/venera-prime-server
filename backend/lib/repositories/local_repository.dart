@@ -106,7 +106,8 @@ class LocalRepository {
       _ => 'title COLLATE NOCASE ASC',
     };
     return db
-        .select('SELECT * FROM local_comics WHERE ${where.join(' AND ')} ORDER BY $order',
+        .select(
+            'SELECT * FROM local_comics WHERE ${where.join(' AND ')} ORDER BY $order',
             params)
         .map((r) => LocalComicRecord.fromRow(r))
         .toList();
@@ -205,7 +206,8 @@ class LocalRepository {
     if (sets.isEmpty) return;
     params.addAll([userId, id]);
     db.execute(
-        'UPDATE local_comics SET ${sets.join(',')} WHERE user_id=? AND id=?', params);
+        'UPDATE local_comics SET ${sets.join(',')} WHERE user_id=? AND id=?',
+        params);
   }
 
   void updateChapters(int userId, int id,
@@ -234,15 +236,16 @@ class LocalRepository {
     if (sets.isEmpty) return;
     params.addAll([userId, id]);
     db.execute(
-        'UPDATE local_comics SET ${sets.join(',')} WHERE user_id=? AND id=?', params);
+        'UPDATE local_comics SET ${sets.join(',')} WHERE user_id=? AND id=?',
+        params);
   }
 
   void delete(int userId, int id) => db.execute(
       'DELETE FROM local_comics WHERE user_id=? AND id=?', [userId, id]);
 
-  int count(int userId) => db
-      .select('SELECT COUNT(*) AS c FROM local_comics WHERE user_id=?', [userId])
-      .first['c'] as int;
+  int count(int userId) => db.select(
+      'SELECT COUNT(*) AS c FROM local_comics WHERE user_id=?',
+      [userId]).first['c'] as int;
 
   // ---- download jobs ---------------------------------------------------
 
@@ -313,7 +316,8 @@ class LocalRepository {
     required List<Map<String, Object?>> chapters,
     required int total,
   }) {
-    final id = 'job_${nowMs()}_${(payload.hashCode & 0xffffff).toRadixString(16)}';
+    final id =
+        'job_${nowMs()}_${(payload.hashCode & 0xffffff).toRadixString(16)}';
     final now = nowMs();
     db.transaction(() {
       db.execute(
@@ -377,7 +381,8 @@ class LocalRepository {
       params.add(error);
     }
     params.add(id);
-    db.execute('UPDATE download_jobs SET ${sets.join(',')} WHERE id = ?', params);
+    db.execute(
+        'UPDATE download_jobs SET ${sets.join(',')} WHERE id = ?', params);
   }
 
   void updateChapter(String jobId, String chapterId,
@@ -429,8 +434,8 @@ class LocalRepository {
   // ---- uploads ---------------------------------------------------------
 
   Map<String, Object?>? upload(int userId, String id) {
-    final rows = db.select(
-        'SELECT * FROM uploads WHERE user_id=? AND id=?', [userId, id]);
+    final rows = db
+        .select('SELECT * FROM uploads WHERE user_id=? AND id=?', [userId, id]);
     if (rows.isEmpty) return null;
     final r = rows.first;
     return {
