@@ -83,6 +83,55 @@ class StorageSource extends ComicSource {
         'count=2;setting=custom');
   }, skip: !binary.existsSync());
 
+  test('concurrent source calls do not collide on the stdin sink', () async {
+    const count = 8;
+    for (var i = 0; i < count; i++) {
+      final script = testSourceScript.replaceAll('test_source', 'conc_$i');
+      final imported = await admin.post('/api/sources', {'script': script});
+      expect(imported.status, 200, reason: '${imported.body}');
+    }
+    final results = await Future.wait([
+      for (var i = 0; i < count; i++)
+        admin.get('/api/search?source=conc_$i&q=abc'),
+    ]);
+    for (final result in results) {
+      expect(result.status, 200, reason: '${result.body}');
+    }
+  }, skip: !binary.existsSync());
+
+  test('comic ids containing slashes survive URL encoding', () async {
+    const script = r'''
+class UrlSource extends ComicSource {
+  name = "URL Source"; key = "url_source"; version = "1.0.0";
+  search = { load: async () => ({
+    comics: [{ id: "https://example.com/manga/1/", title: "u", cover: "" }],
+    maxPage: 1
+  })};
+  comic = {
+    loadInfo: async (id) => new ComicDetails({
+      title: APP.version + "|" + id,
+      chapters: { "ch/1": "Chapter 1" }
+    }),
+    loadEp: async (id, ep) => ({ images: ["https://example.com/" + ep + ".jpg"] })
+  };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final comicId = Uri.encodeComponent('https://example.com/manga/1/');
+    final details = await admin.get('/api/comic/url_source/$comicId');
+    expect(details.status, 200, reason: '${details.body}');
+    expect(details.body['title'], '2.6.3|https://example.com/manga/1/');
+
+    final epId = Uri.encodeComponent('ch/1');
+    final images =
+        await admin.get('/api/comic/url_source/$comicId/chapter/$epId/images');
+    expect(images.status, 200, reason: '${images.body}');
+    expect((images.body['images'] as List).first,
+        'https://example.com/ch/1.jpg');
+  }, skip: !binary.existsSync());
+
   test('real MangaDex source parses with full capabilities', () async {
     final script = realSource.readAsStringSync();
     final imported = await admin.post('/api/sources', {'script': script});

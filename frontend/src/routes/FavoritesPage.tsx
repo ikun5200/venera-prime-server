@@ -34,6 +34,7 @@ import {
   Select,
   Skeleton,
 } from "../components/ui";
+import { comicPath, readerPath } from "../lib/links";
 
 function toComic(item: FavoriteItem): Comic {
   return {
@@ -640,10 +641,10 @@ export default function FavoritesPage() {
                                 ? toggleSelected(item)
                                 : settings.onClickFavorite === "read"
                                   ? navigate(
-                                      `/reader/${item.sourceKey}/${item.id}`,
+                                      readerPath(item.sourceKey ?? "", item.id),
                                     )
                                   : navigate(
-                                      `/comic/${item.sourceKey}/${item.id}`,
+                                      comicPath(item.sourceKey ?? "", item.id),
                                     )
                             }
                             actions={
@@ -654,14 +655,14 @@ export default function FavoritesPage() {
                                       label: t("Details"),
                                       onSelect: () =>
                                         navigate(
-                                          `/comic/${item.sourceKey}/${item.id}`,
+                                          comicPath(item.sourceKey ?? "", item.id),
                                         ),
                                     },
                                     {
                                       label: t("Read"),
                                       onSelect: () =>
                                         navigate(
-                                          `/reader/${item.sourceKey}/${item.id}`,
+                                          readerPath(item.sourceKey ?? "", item.id),
                                         ),
                                     },
                                     {
@@ -1018,11 +1019,11 @@ function NetworkView({
       ) : (
         <ComicGrid
           comics={comics}
-          onOpen={(comic) => navigate(`/comic/${source}/${comic.id}`)}
+          onOpen={(comic) => navigate(comicPath(source, comic.id))}
           renderAction={(comic) => [
             {
               label: t("Details"),
-              onSelect: () => navigate(`/comic/${source}/${comic.id}`),
+              onSelect: () => navigate(comicPath(source, comic.id)),
             },
             {
               label: t("Remove"),

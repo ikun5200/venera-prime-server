@@ -8,6 +8,7 @@ import { parseOption } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, EmptyState, Skeleton } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function RankingPage() {
   const t = useT();
@@ -85,7 +86,7 @@ export default function RankingPage() {
             comics={query.data?.comics ?? []}
             scale={Number(settings.comicTileScale ?? 1)}
             onOpen={(comic) =>
-              navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+              navigate(comicPath(comic.sourceKey, comic.id))
             }
           />
         )}

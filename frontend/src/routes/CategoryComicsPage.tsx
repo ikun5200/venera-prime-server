@@ -8,6 +8,7 @@ import { parseOption } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, EmptyState, Field, Select, Skeleton } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 interface OptionDef {
   label?: string;
@@ -197,7 +198,7 @@ export default function CategoryComicsPage() {
             comics={query.data?.comics ?? []}
             scale={Number(settings.comicTileScale ?? 1)}
             onOpen={(comic) =>
-              navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+              navigate(comicPath(comic.sourceKey, comic.id))
             }
           />
         )}

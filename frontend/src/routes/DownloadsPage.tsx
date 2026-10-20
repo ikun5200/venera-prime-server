@@ -14,6 +14,7 @@ import {
   IconButton,
   Skeleton,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function DownloadsPage() {
   const t = useT();
@@ -91,7 +92,7 @@ export default function DownloadsPage() {
                 job={job}
                 onAction={(name) => action.mutate({ id: job.id, name })}
                 onOpen={() =>
-                  navigate(`/comic/${job.sourceKey}/${job.comicId}`)
+                  navigate(comicPath(job.sourceKey, job.comicId))
                 }
               />
             ))}

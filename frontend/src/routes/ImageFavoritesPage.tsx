@@ -25,6 +25,7 @@ import {
   Select,
   Skeleton,
 } from "../components/ui";
+import { readerPath } from "../lib/links";
 
 interface PhotoEntry extends ImageFavoritePage {
   comic: ImageFavorite;
@@ -468,7 +469,7 @@ export default function ImageFavoritesPage() {
                 size="sm"
                 onClick={() =>
                   navigate(
-                    `/reader/${photo.comic.sourceKey}/${photo.comic.id}?chapter=${encodeURIComponent(photo.eid)}&page=${photo.page}`,
+                    readerPath(photo.comic.sourceKey, photo.comic.id, { chapter: photo.eid, page: photo.page }),
                   )
                 }
               >

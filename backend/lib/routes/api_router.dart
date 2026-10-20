@@ -71,8 +71,52 @@ Response _file(Uint8List bytes, String mime, String filename) {
   });
 }
 
-Router buildApiRouter(AppContext ctx) {
-  final router = Router();
+/// shelf_router captures path parameters as they appear in the raw path, so
+/// `%2F` inside an opaque comic/chapter id stays encoded. The web client
+/// sends those ids through `encodeURIComponent`; decode each captured
+/// parameter exactly once before handing it to a route handler.
+class _DecodingRouter {
+  final Router _router = Router();
+
+  static String _decode(String value) {
+    try {
+      return Uri.decodeComponent(value);
+    } on FormatException {
+      return value;
+    }
+  }
+
+  static Function _wrap(Function handler) {
+    if (handler is Handler) return handler;
+    return (Request request, [String? a, String? b, String? c, String? d]) {
+      final params = <String>[
+        if (a != null) _decode(a),
+        if (b != null) _decode(b),
+        if (c != null) _decode(c),
+        if (d != null) _decode(d),
+      ];
+      return Function.apply(handler, [request, ...params]);
+    };
+  }
+
+  void get(String route, Function handler) => _router.get(route, _wrap(handler));
+
+  void post(String route, Function handler) =>
+      _router.post(route, _wrap(handler));
+
+  void put(String route, Function handler) => _router.put(route, _wrap(handler));
+
+  void patch(String route, Function handler) =>
+      _router.patch(route, _wrap(handler));
+
+  void delete(String route, Function handler) =>
+      _router.delete(route, _wrap(handler));
+
+  Future<Response> call(Request request) => _router.call(request);
+}
+
+Handler buildApiRouter(AppContext ctx) {
+  final router = _DecodingRouter();
 
   // ---- public ----------------------------------------------------------
   router.get('/api/health', (Request request) => _json(ctx.health()));
@@ -1660,7 +1704,7 @@ Router buildApiRouter(AppContext ctx) {
     return _json({'ok': true});
   });
 
-  return router;
+  return router.call;
 }
 
 List<Map<String, Object?>> _mapList(Object? value) {

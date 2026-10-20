@@ -48,6 +48,7 @@ import {
   Spinner,
   Textarea,
 } from "../components/ui";
+import { comicPath, readerPath } from "../lib/links";
 
 const chapterOrderOptions: { value: ChapterOrder; label: string }[] = [
   { value: "source", label: "Source order" },
@@ -168,10 +169,7 @@ export default function ComicDetailPage() {
   }, [group, groups, isGrouped]);
 
   const openChapter = (chapter: Chapter, page = 1) => {
-    navigate(
-      `/reader/${encodeURIComponent(source)}/${encodeURIComponent(id)}` +
-        `?chapter=${encodeURIComponent(chapter.id)}&page=${page}`,
-    );
+    navigate(readerPath(source, id, { chapter: chapter.id, page }));
   };
 
   const continueReading = () => {
@@ -809,7 +807,7 @@ export default function ComicDetailPage() {
                 <ComicGrid
                   comics={data.recommend}
                   onOpen={(item) =>
-                    navigate(`/comic/${item.sourceKey}/${item.id}`)
+                    navigate(comicPath(item.sourceKey, item.id))
                   }
                 />
               </section>
@@ -1065,7 +1063,10 @@ export default function ComicDetailPage() {
                 key={`${thumb}-${index}`}
                 onClick={() =>
                   navigate(
-                    `/reader/${source}/${id}?chapter=${encodeURIComponent(String(data.chapters[0] ?? "1"))}&page=${index + 1}`,
+                    readerPath(source, id, {
+                      chapter: String(data.chapters[0] ?? "1"),
+                      page: index + 1,
+                    }),
                   )
                 }
                 className="group relative aspect-[3/4] overflow-hidden rounded-card border border-border bg-surface2"

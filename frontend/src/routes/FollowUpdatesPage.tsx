@@ -18,6 +18,7 @@ import {
   Spinner,
   Switch,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 const intervals = [1, 6, 12, 24, 48, 72, 168];
 
@@ -251,7 +252,7 @@ export default function FollowUpdatesPage() {
                 <button
                   className="min-w-0 flex-1 text-left"
                   onClick={() =>
-                    navigate(`/comic/${item.sourceKey}/${item.id}`)
+                    navigate(comicPath(item.sourceKey ?? "", item.id))
                   }
                 >
                   <p className="truncate text-[13px] font-medium">
@@ -291,7 +292,7 @@ export default function FollowUpdatesPage() {
               comicType: item.comicType,
             }))}
             onOpen={(comic) =>
-              navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+              navigate(comicPath(comic.sourceKey, comic.id))
             }
           />
         )}

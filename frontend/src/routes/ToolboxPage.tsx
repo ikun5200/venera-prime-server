@@ -7,6 +7,7 @@ import { toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, Card, Field, Input } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function ToolboxPage() {
   const t = useT();
@@ -17,7 +18,7 @@ export default function ToolboxPage() {
     mutationFn: () => api.resolveLink(url.trim()),
     onSuccess: (result) => {
       if (result.result) {
-        navigate(`/comic/${result.result.source}/${result.result.comicId}`);
+        navigate(comicPath(result.result.source, result.result.comicId));
       } else {
         toast.error(t("No matching source for this link"));
       }

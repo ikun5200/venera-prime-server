@@ -17,6 +17,7 @@ import {
   Select,
   Skeleton,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function SearchResultPage() {
   const t = useT();
@@ -208,13 +209,13 @@ export default function SearchResultPage() {
             comics={result.data?.comics ?? []}
             scale={Number(settings.comicTileScale ?? 1)}
             onOpen={(comic) =>
-              navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+              navigate(comicPath(comic.sourceKey, comic.id))
             }
             renderAction={(comic) => [
               {
                 label: t("Details"),
                 onSelect: () =>
-                  navigate(`/comic/${comic.sourceKey}/${comic.id}`),
+                  navigate(comicPath(comic.sourceKey, comic.id)),
               },
               {
                 label: t("Copy Title"),

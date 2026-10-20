@@ -49,6 +49,11 @@ class JsHostClient {
   bool _starting = false;
   int _generation = 0;
 
+  /// `Process.stdin.flush()` binds the sink internally, so concurrent calls
+  /// throw `Bad state: StreamSink is bound to a stream`. Requests are written
+  /// one at a time; the sidecar still executes them in parallel.
+  Future<void> _writeChain = Future.value();
+
   JsHostClient(this.config);
 
   Future<Map<String, Object?>> parse(
@@ -84,8 +89,7 @@ class JsHostClient {
         'timeoutMs': config.jsTimeoutMs,
         ...payload,
       });
-      process.stdin.writeln(line);
-      await process.stdin.flush();
+      await _writeLine(process, line);
       final response = await completer.future.timeout(
         Duration(milliseconds: config.jsTimeoutMs + 5000),
         onTimeout: () {
@@ -97,6 +101,20 @@ class JsHostClient {
     } finally {
       _semaphore.release();
     }
+  }
+
+  Future<void> _writeLine(Process process, String line) {
+    final next = _writeChain.then((_) async {
+      if (!identical(process, _process)) {
+        throw ApiException.sourceError('JS 运行时已重启');
+      }
+      process.stdin.writeln(line);
+      await process.stdin.flush();
+    });
+    // Keep the chain usable after a failed write; the caller still sees the
+    // original error.
+    _writeChain = next.then<void>((_) {}, onError: (_) {});
+    return next;
   }
 
   Future<Process> _ensureProcess() async {
@@ -115,6 +133,7 @@ class JsHostClient {
       _process = process;
       _generation++;
       final generation = _generation;
+      _buffer.clear();
       _stdoutSub = process.stdout.listen(
         (bytes) => _onStdout(bytes, generation),
         onError: (Object error) => _onProcessError(error),

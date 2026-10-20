@@ -29,6 +29,7 @@ import { cn } from "../lib/utils";
 import { Badge, Button, Card, Skeleton, Tabs } from "../components/ui";
 import { ComicCard } from "../components/ComicCard";
 import { SectionHeader } from "../components/PageHeader";
+import { comicPath } from "../lib/links";
 
 const defaultOrder = [
   "search",
@@ -294,7 +295,7 @@ function HistoryModule() {
       ) : (
         <ComicRow
           comics={comics}
-          onOpen={(comic) => navigate(`/comic/${comic.sourceKey}/${comic.id}`)}
+          onOpen={(comic) => navigate(comicPath(comic.sourceKey, comic.id))}
         />
       )}
     </ModuleCard>
@@ -330,7 +331,7 @@ function ReadLaterModule() {
     >
       <ComicRow
         comics={comics}
-        onOpen={(comic) => navigate(`/comic/${comic.sourceKey}/${comic.id}`)}
+        onOpen={(comic) => navigate(comicPath(comic.sourceKey, comic.id))}
       />
     </ModuleCard>
   );
@@ -517,7 +518,7 @@ function UpdatesModule() {
             <button
               key={`${item.id}:${item.comicType}`}
               onClick={() =>
-                navigate(`/comic/${item.sourceKey ?? ""}/${item.id}`)
+                navigate(comicPath(item.sourceKey ?? "", item.id))
               }
               className="max-w-[220px] truncate rounded-full border border-border bg-surface2 px-3 py-1.5 text-[12px] hover:border-accent/40"
             >

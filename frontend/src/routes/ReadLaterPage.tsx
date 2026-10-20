@@ -20,6 +20,7 @@ import {
   Select,
   Skeleton,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function ReadLaterPage() {
   const t = useT();
@@ -216,7 +217,7 @@ export default function ReadLaterPage() {
                     onClick={() =>
                       selectMode
                         ? toggle(item)
-                        : navigate(`/comic/${item.sourceKey}/${item.id}`)
+                        : navigate(comicPath(item.sourceKey, item.id))
                     }
                     actions={
                       selectMode
@@ -225,7 +226,7 @@ export default function ReadLaterPage() {
                             {
                               label: t("Details"),
                               onSelect: () =>
-                                navigate(`/comic/${item.sourceKey}/${item.id}`),
+                                navigate(comicPath(item.sourceKey, item.id)),
                             },
                             {
                               label: t("Remove"),

@@ -18,7 +18,7 @@ Handler buildServerHandler(AppContext ctx) {
   final staticHandler = StaticSpaHandler(ctx.config);
   final router = (Request request) async {
     if (request.url.path.startsWith('api')) {
-      final response = await api.call(request);
+      final response = await api(request);
       if (response.statusCode == 404) {
         throw ApiException.notFound('接口不存在');
       }

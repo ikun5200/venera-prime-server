@@ -584,6 +584,12 @@ class SourceService {
       return null;
     }
     if (page is Map) {
+      // `singlePageWithMultiPart` explore payloads are maps of group name to
+      // comic lists, so a comic summary itself has no `comics` wrapper.
+      final id = page['id'];
+      if (id != null && (page['title'] != null || page['cover'] != null)) {
+        return id.toString();
+      }
       if (page['comics'] is List) {
         final comics = page['comics'] as List;
         if (comics.isNotEmpty && comics.first is Map) {

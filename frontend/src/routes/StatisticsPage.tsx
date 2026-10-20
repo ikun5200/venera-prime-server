@@ -17,6 +17,7 @@ import {
   Spinner,
   Switch,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function StatisticsPage() {
   const t = useT();
@@ -184,7 +185,7 @@ export default function StatisticsPage() {
                         item.comicType === 0
                           ? navigate(`/reader/local/${item.id}`)
                           : navigate(
-                              `/comic/${item.sourceKey ?? ""}/${item.id}`,
+                              comicPath(item.sourceKey ?? "", item.id),
                             )
                       }
                     >

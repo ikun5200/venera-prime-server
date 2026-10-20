@@ -8,6 +8,7 @@ import type { Comic } from "../lib/types";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, EmptyState, Input, Skeleton } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function AggregatedSearchPage() {
   const t = useT();
@@ -104,7 +105,7 @@ export default function AggregatedSearchPage() {
                   <ComicGrid
                     comics={section.comics.slice(0, 12)}
                     onOpen={(comic: Comic) =>
-                      navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+                      navigate(comicPath(comic.sourceKey, comic.id))
                     }
                   />
                 )}

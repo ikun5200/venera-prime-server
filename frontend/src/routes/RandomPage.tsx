@@ -8,6 +8,7 @@ import { useT } from "../lib/i18n";
 import type { HistoryItem } from "../lib/types";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, Card, Field, Select } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 export default function RandomPage() {
   const t = useT();
@@ -71,7 +72,7 @@ export default function RandomPage() {
       if (chosen.sourceKey === "local" && chosen.localId) {
         navigate(`/reader/local/${chosen.localId}`);
       } else {
-        navigate(`/comic/${chosen.sourceKey}/${chosen.id}`);
+        navigate(comicPath(chosen.sourceKey, chosen.id));
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));

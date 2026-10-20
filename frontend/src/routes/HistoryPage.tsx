@@ -25,6 +25,7 @@ import {
   Menu,
   Skeleton,
 } from "../components/ui";
+import { comicPath, readerPath } from "../lib/links";
 
 export default function HistoryPage() {
   const t = useT();
@@ -251,7 +252,7 @@ export default function HistoryPage() {
                     onClick={() =>
                       selectMode
                         ? toggle(item)
-                        : navigate(`/comic/${item.sourceKey}/${item.id}`)
+                        : navigate(comicPath(item.sourceKey, item.id))
                     }
                     actions={
                       selectMode
@@ -260,13 +261,13 @@ export default function HistoryPage() {
                             {
                               label: t("Details"),
                               onSelect: () =>
-                                navigate(`/comic/${item.sourceKey}/${item.id}`),
+                                navigate(comicPath(item.sourceKey, item.id)),
                             },
                             {
                               label: t("Read"),
                               onSelect: () =>
                                 navigate(
-                                  `/reader/${item.sourceKey}/${item.id}`,
+                                  readerPath(item.sourceKey ?? "", item.id),
                                 ),
                             },
                             {

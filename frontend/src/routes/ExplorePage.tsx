@@ -16,6 +16,7 @@ import {
   Skeleton,
   Tabs,
 } from "../components/ui";
+import { comicPath } from "../lib/links";
 
 interface Section {
   title?: string;
@@ -309,7 +310,7 @@ export default function ExplorePage() {
                             comics={section.comics}
                             scale={Number(settings.comicTileScale ?? 1)}
                             onOpen={(comic) =>
-                              navigate(`/comic/${comic.sourceKey}/${comic.id}`)
+                              navigate(comicPath(comic.sourceKey, comic.id))
                             }
                           />
                         </div>

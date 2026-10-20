@@ -313,6 +313,17 @@ fn run_in_context(
 
     ctx.eval::<(), _>(PRELUDE)
         .map_err(|e| ("INTERNAL".to_string(), format!("prelude: {e}")))?;
+    // init.js exposes APP.version from this engine-provided global; sources use
+    // it (e.g. isAppVersionAfter) during loadInfo/loadEp.
+    let app_version = request
+        .get("context")
+        .and_then(|c| c.get("appVersion"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("2.6.3")
+        .to_string();
+    ctx.globals()
+        .set("appVersion", app_version)
+        .map_err(|e| ("INTERNAL".to_string(), format!("appVersion: {e}")))?;
     ctx.eval::<(), _>(INIT_JS)
         .map_err(|e| ("INTERNAL".to_string(), format!("init.js: {e}")))?;
     ctx.eval::<(), _>(PATCH)
