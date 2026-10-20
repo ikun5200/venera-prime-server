@@ -101,8 +101,9 @@ export default function HomeLayoutPage() {
       />
       <PageBody className="max-w-[700px]">
         <p className="mb-3 text-[12px] text-muted">
-          Long press and drag to reorder. The sync module stays mounted even
-          when hidden.
+          {t(
+            "Long press and drag to reorder. The sync module stays mounted even when hidden.",
+          )}
         </p>
         <Card className="divide-y divide-border">
           {order.map((id, index) => (
@@ -121,14 +122,14 @@ export default function HomeLayoutPage() {
             >
               <ArrowDownUp className="h-4 w-4 shrink-0 cursor-grab text-muted" />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium">{labels[id] ?? id}</p>
+                <p className="text-[13px] font-medium">{t(labels[id] ?? id)}</p>
                 <p className="text-[11px] text-muted">{id}</p>
               </div>
               <Switch
                 checked={!hidden.has(id)}
                 onChange={(value) => toggle(id, value)}
                 disabled={id === "sync"}
-                label={labels[id]}
+                label={t(labels[id] ?? id)}
               />
             </div>
           ))}

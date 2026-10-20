@@ -344,8 +344,7 @@ class LocalService {
       for (final entry in archive) {
         if (!entry.isFile) continue;
         count++;
-        if (count > 20000)
-          throw ApiException.badRequest('压缩包文件数量过多');
+        if (count > 20000) throw ApiException.badRequest('压缩包文件数量过多');
         final name = _safeArchiveName(entry.name);
         if (name == null) continue;
         final content = entry.content;

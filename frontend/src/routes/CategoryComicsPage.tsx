@@ -90,7 +90,7 @@ export default function CategoryComicsPage() {
         {optionDefs.length > 0 ? (
           <div className="mb-5 flex flex-wrap items-end gap-3 rounded-card border border-border bg-surface p-4">
             {optionDefs.map((option) => {
-              const label = option.label ?? "Option";
+              const label = option.label ?? t("Option");
               const values = optionValues[label] ?? [];
               if (
                 option.type === "dropdown" ||

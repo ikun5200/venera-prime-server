@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "../lib/utils";
+import { useT } from "../lib/i18n";
 import { IconButton } from "./ui";
 
 export function PageHeader({
@@ -19,6 +20,7 @@ export function PageHeader({
   className?: string;
   sticky?: boolean;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <header
@@ -30,7 +32,7 @@ export function PageHeader({
     >
       {back ? (
         <IconButton
-          label="Back"
+          label={t("Back")}
           onClick={() =>
             window.history.length > 1 ? navigate(-1) : navigate("/")
           }

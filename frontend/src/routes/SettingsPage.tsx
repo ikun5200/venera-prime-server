@@ -103,7 +103,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={t("Settings")} back={false} />
+      <PageHeader title={t("Settings")} />
       <PageBody className="max-w-[900px]">
         <div className="flex flex-col gap-2">
           {categories.map((category) => {
@@ -117,7 +117,7 @@ export default function SettingsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-[14px] font-medium">{category.title}</p>
                     <p className="truncate text-[12px] text-muted">
-                      {category.description}
+                      {t(category.description)}
                     </p>
                   </div>
                   <span className="text-muted">›</span>

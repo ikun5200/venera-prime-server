@@ -93,8 +93,8 @@ export default function StatisticsPage() {
             </p>
             <p className="text-[11px] text-muted">
               {settings.recordReadingStatistics === false
-                ? "Paused; new reading activity will not be recorded."
-                : "Reading sessions are recorded per day."}
+                ? t("Paused; new reading activity will not be recorded.")
+                : t("Reading sessions are recorded per day.")}
             </p>
           </div>
           <Switch

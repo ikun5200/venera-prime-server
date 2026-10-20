@@ -126,8 +126,7 @@ class FavoriteService {
             (data['info'] is Map ? (data['info'] as Map)['name'] : null) ??
             '')
         .toString();
-    if (name.trim().isEmpty)
-      throw ApiException.badRequest('缺少文件夹名称');
+    if (name.trim().isEmpty) throw ApiException.badRequest('缺少文件夹名称');
     var folderName = name;
     var index = 1;
     while (favorites.folders(userId).any((f) => f['name'] == folderName)) {
@@ -271,8 +270,7 @@ class FavoriteService {
     };
     final total =
         allItems.values.fold<int>(0, (sum, list) => sum + list.length);
-    tasks.run(userId, 'favorites_update_info', 'Update Comics Info',
-        (task) async {
+    tasks.run(userId, 'favorites_update_info', '更新漫画信息', (task) async {
       var done = 0;
       final errors = <String>[];
       for (final entry in allItems.entries) {
@@ -477,7 +475,7 @@ class HistoryService {
   void refresh(int userId, {List<Map<String, Object?>>? ids}) {
     final items =
         ids ?? repository.recent(userId, 500).map((h) => h.toJson()).toList();
-    tasks.run(userId, 'history_refresh', 'Refresh All Histories', (task) async {
+    tasks.run(userId, 'history_refresh', '刷新所有历史', (task) async {
       var success = 0;
       var failed = 0;
       var skipped = 0;
@@ -564,8 +562,7 @@ class ImageFavoriteService {
         : <String, Object?>{};
     final sourceKey =
         (body['sourceKey'] ?? comicMap['sourceKey'] ?? '').toString();
-    if (sourceKey.isEmpty)
-      throw ApiException.badRequest('缺少源 key');
+    if (sourceKey.isEmpty) throw ApiException.badRequest('缺少源 key');
     repository.add(
       userId: userId,
       comic: comicMap,
@@ -705,7 +702,7 @@ class FollowUpdateService {
     final folderId = config.folderId!;
     final items = favorites.allInFolder(userId, folderId);
     final intervalMs = config.intervalHours * 3600 * 1000;
-    tasks.run(userId, 'follow_updates', 'Check follow updates', (task) async {
+    tasks.run(userId, 'follow_updates', '检查订阅更新', (task) async {
       var checked = 0;
       var updated = 0;
       var failed = 0;

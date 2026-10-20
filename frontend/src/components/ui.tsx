@@ -434,6 +434,7 @@ export function Modal({
   footer?: ReactNode;
   width?: string;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -491,7 +492,11 @@ export function Modal({
           {title ? (
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <h2 className="text-[15px] font-semibold">{title}</h2>
-              <IconButton label="Close" onClick={onClose} className="-mr-2">
+              <IconButton
+                label={t("Close")}
+                onClick={onClose}
+                className="-mr-2"
+              >
                 <X className="h-4 w-4" />
               </IconButton>
             </div>
@@ -615,7 +620,7 @@ export function ConfirmDialog({
               onClose();
             }}
           >
-            {confirmLabel}
+            {t(confirmLabel)}
           </Button>
         </>
       }

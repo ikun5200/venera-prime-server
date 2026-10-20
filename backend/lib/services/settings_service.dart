@@ -48,8 +48,7 @@ class SettingsService {
       repository.searchHistory(userId);
 
   void addSearchHistory(int userId, String keyword) {
-    if (keyword.trim().isEmpty)
-      throw ApiException.badRequest('缺少关键词');
+    if (keyword.trim().isEmpty) throw ApiException.badRequest('缺少关键词');
     repository.addSearchHistory(userId, keyword);
   }
 

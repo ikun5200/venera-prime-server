@@ -44,7 +44,7 @@ export default function AboutPage() {
         throw new Error(`GitHub API returned ${response.status}`);
       }
       const data = (await response.json()) as Release;
-      if (!data?.tag_name) throw new Error("No release found");
+      if (!data?.tag_name) throw new Error(t("No release found"));
       if (compareVersions(data.tag_name, currentVersion) <= 0) {
         toast.success(t("You are on the latest version"));
       } else {
@@ -76,7 +76,9 @@ export default function AboutPage() {
               <Badge tone="success">{t("Online")}</Badge>
               <Badge>Uptime {health.data?.uptime ?? 0}s</Badge>
               <Badge>
-                {health.data?.initialized ? "Initialized" : "Not initialized"}
+                {health.data?.initialized
+                  ? t("Initialized")
+                  : t("Not initialized")}
               </Badge>
             </div>
           </div>

@@ -313,8 +313,7 @@ Router buildApiRouter(AppContext ctx) {
     } else {
       script = utf8.decode(await _rawBody(request, maxBytes: 8 * 1024 * 1024));
     }
-    if (script.trim().isEmpty)
-      throw ApiException.badRequest('缺少脚本');
+    if (script.trim().isEmpty) throw ApiException.badRequest('缺少脚本');
     final source = await ctx.sources.importScript(auth.user.id, script,
         replace: true, ip: clientIp(request));
     return _json({'source': source.toJson(includeScript: true)});
@@ -325,9 +324,16 @@ Router buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final url = (body['url'] ?? '').toString();
     if (url.isEmpty) throw ApiException.badRequest('缺少地址');
-    final source = await ctx.sources
-        .installFromUrl(auth.user.id, url, ip: clientIp(request));
-    return _json({'source': source.toJson(includeScript: true)});
+    final result = await ctx.sources
+        .installFromUrlOrCatalog(auth.user.id, url, ip: clientIp(request));
+    if (result.source == null) {
+      return _json({
+        'source': null,
+        'library': result.library,
+        'items': ctx.sourceRepository.libraries(auth.user.id),
+      });
+    }
+    return _json({'source': result.source!.toJson(includeScript: true)});
   });
 
   router.post('/api/sources/reorder', (Request request) async {
@@ -381,8 +387,7 @@ Router buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/update', (Request request, String key) async {
     final auth = requireAuth(request);
     final source = ctx.sources.require(auth.user.id, key);
-    if (source.url.isEmpty)
-      throw ApiException.badRequest('源没有更新地址');
+    if (source.url.isEmpty) throw ApiException.badRequest('源没有更新地址');
     final updated = await ctx.sources
         .installFromUrl(auth.user.id, source.url, ip: clientIp(request));
     return _json({'source': updated.toJson()});
@@ -398,8 +403,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final values = body['values'];
-    if (values is! Map)
-      throw ApiException.badRequest('values 必须是对象');
+    if (values is! Map) throw ApiException.badRequest('values 必须是对象');
     await ctx.sources.updateSettings(
       auth.user.id,
       key,
@@ -433,8 +437,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final values = body['values'];
-    if (values is! Map)
-      throw ApiException.badRequest('values 必须是对象');
+    if (values is! Map) throw ApiException.badRequest('values 必须是对象');
     await ctx.sources.loginCookies(
       auth.user.id,
       key,
@@ -448,8 +451,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final cookies = body['cookies'];
-    if (cookies is! List)
-      throw ApiException.badRequest('cookies 必须是数组');
+    if (cookies is! List) throw ApiException.badRequest('cookies 必须是数组');
     await ctx.sources.importCookies(
       auth.user.id,
       key,
@@ -1401,8 +1403,7 @@ Router buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final chapters = body['chapters'];
-    if (chapters is! List)
-      throw ApiException.badRequest('chapters 必须是数组');
+    if (chapters is! List) throw ApiException.badRequest('chapters 必须是数组');
     await ctx.local.deleteChapters(
       auth.user.id,
       int.tryParse(id) ?? 0,

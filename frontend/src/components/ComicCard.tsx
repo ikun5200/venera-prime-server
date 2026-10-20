@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Bookmark, MoreVertical } from "lucide-react";
 import { coverUrl } from "../lib/api";
+import { useT } from "../lib/i18n";
 import type { Comic } from "../lib/types";
 import { cn } from "../lib/utils";
 import { IconButton, Menu } from "./ui";
@@ -31,6 +32,7 @@ export function ComicCard({
   className?: string;
   compact?: boolean;
 }) {
+  const t = useT();
   const [broken, setBroken] = useState(false);
   const cover = comic.cover ? coverUrl(comic.cover) : "";
 
@@ -96,7 +98,7 @@ export function ComicCard({
           <Menu
             trigger={({ onClick: open, ...rest }) => (
               <IconButton
-                label="More"
+                label={t("More")}
                 onClick={(event) => {
                   event.stopPropagation();
                   open();

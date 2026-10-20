@@ -131,10 +131,8 @@ class FavoriteRepository {
   }
 
   int createFolder(int userId, String name) {
-    if (name.trim().isEmpty)
-      throw ApiException.badRequest('文件夹名称不能为空');
-    if (name.length > 64)
-      throw ApiException.badRequest('文件夹名称过长');
+    if (name.trim().isEmpty) throw ApiException.badRequest('文件夹名称不能为空');
+    if (name.length > 64) throw ApiException.badRequest('文件夹名称过长');
     final exists = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ?',
         [userId, name]);
@@ -150,8 +148,7 @@ class FavoriteRepository {
 
   void linkFolder(int userId, int id,
       {String? sourceKey, String? sourceFolder}) {
-    if (folder(userId, id) == null)
-      throw ApiException.notFound('未找到文件夹');
+    if (folder(userId, id) == null) throw ApiException.notFound('未找到文件夹');
     db.execute(
       'UPDATE favorite_folders SET source_key = ?, source_folder = ? '
       'WHERE user_id = ? AND id = ?',
@@ -160,8 +157,7 @@ class FavoriteRepository {
   }
 
   void renameFolder(int userId, int id, String name) {
-    if (name.trim().isEmpty)
-      throw ApiException.badRequest('文件夹名称不能为空');
+    if (name.trim().isEmpty) throw ApiException.badRequest('文件夹名称不能为空');
     final clash = db.select(
         'SELECT 1 FROM favorite_folders WHERE user_id = ? AND name = ? AND id <> ?',
         [userId, name, id]);
@@ -317,8 +313,7 @@ class FavoriteRepository {
     required List<Map<String, Object?>> comics,
     required bool move,
   }) {
-    if (folder(userId, toFolder) == null)
-      throw ApiException.notFound('未找到文件夹');
+    if (folder(userId, toFolder) == null) throw ApiException.notFound('未找到文件夹');
     db.transaction(() {
       var order = db.select(
           'SELECT COALESCE(MAX(display_order),-1)+1 AS n FROM favorites WHERE folder_id=?',

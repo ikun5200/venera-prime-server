@@ -113,12 +113,12 @@ export default function LogsPage() {
             items={[
               {
                 value: "app",
-                label: "Application",
+                label: t("Application"),
                 count: query.data?.items.length,
               },
               {
                 value: "requests",
-                label: "Requests",
+                label: t("Requests"),
                 count: query.data?.requests.length,
               },
             ]}

@@ -296,7 +296,7 @@ export default function SearchPage() {
               const values = optionValues[label] ?? [];
               if (option.type === "dropdown") {
                 return (
-                  <Field key={label} label={label || "Option"}>
+                  <Field key={label} label={label || t("Option")}>
                     <Select
                       value={values[0] ?? ""}
                       onChange={(event) =>

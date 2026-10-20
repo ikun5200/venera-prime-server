@@ -71,7 +71,7 @@ export default function SourceLibrariesPage() {
     <>
       <PageHeader
         title={t("Source libraries")}
-        subtitle={`${libraries.length} libraries`}
+        subtitle={t("@count libraries", { count: libraries.length })}
         actions={
           <IconButton label={t("Add library")} onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -109,14 +109,14 @@ export default function SourceLibrariesPage() {
                     {library.url}
                   </p>
                   <p className="text-[10px] text-muted">
-                    Last checked:{" "}
+                    {t("Last checked")}:{" "}
                     {library.lastChecked
                       ? formatDate(library.lastChecked)
-                      : "Never"}
+                      : t("Never")}
                   </p>
                 </button>
                 <Badge tone={library.enabled ? "success" : "warning"}>
-                  {library.enabled ? "Enabled" : "Disabled"}
+                  {library.enabled ? t("Enabled") : t("Disabled")}
                 </Badge>
                 <Switch
                   checked={library.enabled}
@@ -192,7 +192,7 @@ export default function SourceLibrariesPage() {
         open={deleteId !== null}
         onClose={() => setDeleteId(null)}
         title={t("Delete library")}
-        message="Installed sources are kept."
+        message={t("Installed sources are kept.")}
         confirmLabel={t("Delete")}
         danger
         onConfirm={() => deleteId && remove.mutate(deleteId)}

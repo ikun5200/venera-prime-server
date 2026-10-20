@@ -112,6 +112,12 @@ const del = <T>(path: string, body?: unknown) =>
 
 const enc = encodeURIComponent;
 
+export interface SourceUrlResult {
+  source: Source | null;
+  library?: SourceLibrary | null;
+  items?: SourceLibrary[];
+}
+
 export const api = {
   health: () =>
     get<{
@@ -199,8 +205,7 @@ export const api = {
       headers: { "content-type": "application/javascript" },
       body: script,
     }),
-  addSourceUrl: (url: string) =>
-    post<{ source: Source }>("/sources/url", { url }),
+  addSourceUrl: (url: string) => post<SourceUrlResult>("/sources/url", { url }),
   updateSource: (key: string, script: string) =>
     put<{ source: Source }>(`/sources/${enc(key)}`, { script }),
   updateSourceFromUrl: (key: string) =>

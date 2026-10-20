@@ -29,12 +29,12 @@ export default function ToolboxPage() {
     {
       name: "Image search [Search by Image Bot]",
       url: "https://t.me/SearchByImageBot",
-      description: "Find the source of an image in Telegram.",
+      description: t("Find the source of an image in Telegram."),
     },
     {
       name: "Image search [SauceNAO]",
       url: "https://saucenao.com/",
-      description: "Reverse image search for artwork.",
+      description: t("Reverse image search for artwork."),
     },
   ];
 

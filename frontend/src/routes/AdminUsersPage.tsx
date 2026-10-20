@@ -127,12 +127,12 @@ export default function AdminUsersPage() {
                   )}
                   items={[
                     {
-                      label: "Reset password",
+                      label: t("Reset password"),
                       icon: <KeyRound className="h-3.5 w-3.5" />,
                       onSelect: () => setResetUser(user),
                     },
                     {
-                      label: user.disabled ? "Enable" : "Disable",
+                      label: user.disabled ? t("Enable") : t("Disable"),
                       icon: <UserX className="h-3.5 w-3.5" />,
                       disabled: current?.id === user.id,
                       onSelect: () =>
@@ -142,7 +142,10 @@ export default function AdminUsersPage() {
                         }),
                     },
                     {
-                      label: user.role === "admin" ? "Make user" : "Make admin",
+                      label:
+                        user.role === "admin"
+                          ? t("Make user")
+                          : t("Make admin"),
                       disabled: current?.id === user.id,
                       onSelect: () =>
                         update.mutate({

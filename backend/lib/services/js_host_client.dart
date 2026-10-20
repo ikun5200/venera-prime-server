@@ -132,8 +132,7 @@ class JsHostClient {
       return process;
     } catch (error) {
       _starting = false;
-      throw ApiException.sourceError(
-          'JS 运行时不可用: $error. Build rust/js_host.');
+      throw ApiException.sourceError('JS 运行时不可用: $error. Build rust/js_host.');
     } finally {
       _starting = false;
     }
@@ -205,8 +204,7 @@ class JsHostClient {
     _pending.clear();
     for (final completer in pending.values) {
       if (!completer.isCompleted) {
-        completer.completeError(
-            ApiException.sourceError('JS 运行时错误: $error'));
+        completer.completeError(ApiException.sourceError('JS 运行时错误: $error'));
       }
     }
   }

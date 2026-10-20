@@ -644,21 +644,114 @@ class SourceService {
     }).toList();
   }
 
-  Future<SourceRecord> installFromUrl(int userId, String url,
-      {String? libraryId, String? originId, String? ip}) async {
+  /// Downloads and validates a script URL. The original client treats a
+  /// catalog (`index.json` with a JSON array of sources) as a source library
+  /// rather than a script; detect that here so pasting a catalog URL into
+  /// "Add comic source" behaves like the original app.
+  Future<({SourceRecord? source, Map<String, Object?>? library})>
+      installFromUrlOrCatalog(int userId, String url,
+          {String? libraryId, String? originId, String? ip}) async {
     final response =
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException.sourceError('下载失败: ${response.statusCode}');
     }
-    final script = utf8.decode(response.bodyBytes);
-    return importScript(userId, script,
+    final body = utf8.decode(response.bodyBytes);
+    final trimmed = body.trimLeft();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      final parsed = _tryParseCatalog(trimmed);
+      if (parsed != null) {
+        final id = CryptoUtil.md5Hex(_canonicalUrl(url)).substring(0, 12);
+        final existing = repository
+            .libraries(userId)
+            .where((item) => item['url'] == url)
+            .firstOrNull;
+        final name = (existing?['name'] ?? _defaultLibraryName(url)).toString();
+        repository.upsertLibrary(
+          userId,
+          id: (existing?['id'] ?? id).toString(),
+          name: name,
+          url: url,
+          enabled: existing?['enabled'] as bool? ?? true,
+          priority: existing?['priority'] as int? ?? 0,
+          lastChecked: DateTime.now().millisecondsSinceEpoch,
+        );
+        audit.log('source_library_add',
+            userId: userId, ip: ip, detail: {'url': url, 'entries': parsed});
+        return (
+          source: null,
+          library: repository
+              .libraries(userId)
+              .where((item) => item['url'] == url)
+              .firstOrNull,
+        );
+      }
+    }
+    final source = await importScript(userId, body,
         replace: true,
         url: url,
         fileName: url.split('/').last,
         libraryId: libraryId,
         originId: originId,
         ip: ip);
+    return (source: source, library: null);
+  }
+
+  int? _tryParseCatalog(String text) {
+    try {
+      final decoded = jsonDecode(text);
+      final list = decoded is List
+          ? decoded
+          : decoded is Map
+              ? decoded['sources'] ?? decoded['data'] ?? decoded['items']
+              : null;
+      if (list is! List || list.isEmpty) return null;
+      final viable = list.whereType<Map>().where((entry) {
+        return (entry['key'] ?? entry['id']) != null &&
+            (entry['fileName'] != null ||
+                entry['filename'] != null ||
+                entry['url'] != null);
+      });
+      return viable.isEmpty ? null : viable.length;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _canonicalUrl(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || uri.host.isEmpty) {
+      return url.trim().replaceFirst(RegExp(r'/+$'), '');
+    }
+    final segments =
+        uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    return uri
+        .replace(
+          scheme: uri.scheme.toLowerCase(),
+          host: uri.host.toLowerCase(),
+          pathSegments: segments,
+        )
+        .toString();
+  }
+
+  String _defaultLibraryName(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || uri.host.isEmpty) return url.trim();
+    final segments = uri.pathSegments
+        .where((s) => s.isNotEmpty && !s.toLowerCase().endsWith('.json'))
+        .toList();
+    return segments.isEmpty ? uri.host : '${uri.host}/${segments.last}';
+  }
+
+  Future<SourceRecord> installFromUrl(int userId, String url,
+      {String? libraryId, String? originId, String? ip}) async {
+    final result = await installFromUrlOrCatalog(userId, url,
+        libraryId: libraryId, originId: originId, ip: ip);
+    final source = result.source;
+    if (source == null) {
+      throw ApiException.badRequest('该地址是漫画源目录，请到“源仓库”中安装');
+    }
+    return source;
   }
 
   void bindSource(int userId, String key, String libraryId, String? fileName) {

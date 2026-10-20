@@ -134,7 +134,7 @@ export default function SourceDetailPage() {
         })
         .filter((cookie) => cookie.name && cookie.domain);
       if (cookies.length === 0)
-        throw new Error("Enter a domain and cookie values");
+        throw new Error(t("Enter a domain and cookie values"));
       return api.importSourceCookies(key, cookies);
     },
     onSuccess: () => {
@@ -278,14 +278,14 @@ export default function SourceDetailPage() {
                   label={t("Account")}
                   value={
                     source.account.loggedIn
-                      ? (source.account.kind ?? "logged in")
-                      : "not logged in"
+                      ? (source.account.kind ?? t("logged in"))
+                      : t("not logged in")
                   }
                 />
                 <Info label={t("Update URL")} value={source.url || "—"} />
                 <Info
                   label={t("Enabled")}
-                  value={source.enabled ? "yes" : "no"}
+                  value={source.enabled ? t("yes") : t("no")}
                 />
               </div>
             </Card>
@@ -331,7 +331,7 @@ export default function SourceDetailPage() {
                   .filter(([, value]) => value === true)
                   .map(([name]) => (
                     <Badge key={name} tone="accent">
-                      {name}
+                      {t(name)}
                     </Badge>
                   ))}
               </div>
@@ -603,6 +603,7 @@ function SettingControl({
   onChange: (value: unknown) => void;
   onCallback: () => void;
 }) {
+  const t = useT();
   const label = definition.title ?? name;
   const [draft, setDraft] = useState(String(value ?? ""));
   useEffect(() => setDraft(String(value ?? "")), [value]);
@@ -636,7 +637,7 @@ function SettingControl({
       <div className="flex items-center justify-between gap-3">
         <span className="text-[13px]">{label}</span>
         <Button size="sm" onClick={onCallback}>
-          {definition.buttonText ?? "Run"}
+          {definition.buttonText ?? t("Run")}
         </Button>
       </div>
     );
@@ -649,7 +650,7 @@ function SettingControl({
           onChange={(event) => setDraft(event.target.value)}
         />
         <Button size="sm" onClick={() => onChange(draft)}>
-          {label === "" ? "Save" : "Save"}
+          {t("Save")}
         </Button>
       </div>
     </Field>
@@ -657,6 +658,7 @@ function SettingControl({
 }
 
 function CheckResult({ data }: { data: unknown }) {
+  const t = useT();
   const result = data as {
     status?: string;
     stage?: string;
@@ -667,10 +669,12 @@ function CheckResult({ data }: { data: unknown }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Badge tone={result.status === "readable" ? "success" : "danger"}>
-          {result.status ?? "unknown"}
+          {t(result.status ?? "unknown")}
         </Badge>
         {result.stage ? (
-          <span className="text-[12px] text-muted">stage: {result.stage}</span>
+          <span className="text-[12px] text-muted">
+            {t("stage")}: {t(result.stage)}
+          </span>
         ) : null}
       </div>
       {result.message ? (
@@ -684,7 +688,7 @@ function CheckResult({ data }: { data: unknown }) {
           className="flex justify-between rounded border border-border px-3 py-2 text-[12px]"
         >
           <span>{stage}</span>
-          <span>{String(value)}</span>
+          <span>{t(String(value))}</span>
         </div>
       ))}
     </div>

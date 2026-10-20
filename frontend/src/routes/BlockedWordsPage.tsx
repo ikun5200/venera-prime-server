@@ -41,7 +41,9 @@ export default function BlockedWordsPage({
     <>
       <PageHeader
         title={t(
-          kind === "words" ? "Keyword blocking" : "Comment keyword blocking",
+          kind === "words"
+            ? t("Keyword blocking")
+            : t("Comment keyword blocking"),
         )}
       />
       <PageBody className="max-w-[700px]">

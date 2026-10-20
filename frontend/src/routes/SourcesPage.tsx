@@ -14,6 +14,7 @@ import { api } from "../lib/api";
 import { toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { Source } from "../lib/types";
+import type { SourceUrlResult } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import {
@@ -70,13 +71,25 @@ export default function SourcesPage() {
       if (mode === "file") return api.importSourceFile(script);
       return api.importSource(script);
     },
-    onSuccess: (result) => {
-      toast.success(t("Added"));
+    onSuccess: (result: SourceUrlResult | { source: Source }) => {
       setAddOpen(false);
       setScript("");
       setUrl("");
+      const library = "library" in result ? result.library : null;
+      if (result.source?.key) {
+        toast.success(t("Added"));
+        refresh();
+        navigate(`/sources/${result.source.key}`);
+        return;
+      }
+      if (library) {
+        toast.success(t("Added as a source library"));
+        queryClient.invalidateQueries({ queryKey: ["source-libraries"] });
+        navigate(`/sources/libraries/${library.id}`);
+        return;
+      }
+      toast.success(t("Added"));
       refresh();
-      if (result.source?.key) navigate(`/sources/${result.source.key}`);
     },
     onError: (error) => toast.error(error.message),
   });
@@ -160,7 +173,7 @@ export default function SourcesPage() {
     <>
       <PageHeader
         title={t("Comic Source")}
-        subtitle={`${sources.length} sources`}
+        subtitle={t("@count sources", { count: sources.length })}
         actions={
           <>
             <IconButton
@@ -310,8 +323,8 @@ export default function SourcesPage() {
         <div className="flex flex-col gap-4">
           <Tabs
             items={[
-              { value: "paste", label: "Paste script" },
-              { value: "url", label: "URL" },
+              { value: "paste", label: t("Paste script") },
+              { value: "url", label: t("URL") },
               { value: "file", label: t("Use a config file") },
             ]}
             value={mode}
@@ -327,6 +340,11 @@ export default function SourcesPage() {
                 onChange={(event) => setUrl(event.target.value)}
                 placeholder="https://example.com/source.js"
               />
+              <p className="mt-1.5 text-[11px] text-muted">
+                {t(
+                  "You can also paste a source catalog URL (index.json); it will be added as a source library.",
+                )}
+              </p>
             </Field>
           ) : mode === "file" ? (
             <>
@@ -473,10 +491,12 @@ function CheckResult({ data }: { data: unknown }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <Badge tone={result.status === "readable" ? "success" : "danger"}>
-          {result.status ?? "unknown"}
+          {t(result.status ?? "unknown")}
         </Badge>
         {result.stage ? (
-          <span className="text-[12px] text-muted">stage: {result.stage}</span>
+          <span className="text-[12px] text-muted">
+            {t("stage")}: {t(result.stage)}
+          </span>
         ) : null}
       </div>
       {result.message ? (
@@ -500,7 +520,7 @@ function CheckResult({ data }: { data: unknown }) {
                     : "text-muted",
               )}
             >
-              {String(value)}
+              {t(String(value))}
             </span>
           </div>
         ))}

@@ -105,7 +105,7 @@ export function AppShell() {
                 {user?.username}
               </p>
               <p className="text-[10px] uppercase tracking-wide text-muted">
-                {user?.role === "admin" ? "Administrator" : "Reader"}
+                {user?.role === "admin" ? t("Administrator") : t("Reader")}
               </p>
             </div>
             <IconButton

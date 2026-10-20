@@ -685,23 +685,23 @@ export default function ComicDetailPage() {
                         {...rest}
                       >
                         <ListOrdered className="h-3.5 w-3.5" />
-                        {
+                        {t(
                           chapterOrderOptions.find(
                             (item) => item.value === order,
-                          )?.label
-                        }
+                          )?.label ?? "",
+                        )}
                         <ChevronDown className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     items={chapterOrderOptions.map((item) => ({
-                      label: item.label,
+                      label: t(item.label),
                       onSelect: () => changeOrder(item.value),
                     }))}
                   />
                   <Menu
                     trigger={({ onClick, ...rest }) => (
                       <IconButton
-                        label={`Reading order: ${readingOrderOptions.find((item) => item.value === readingOrder)?.label ?? readingOrder}`}
+                        label={`${t("Reading order")}: ${t(readingOrderOptions.find((item) => item.value === readingOrder)?.label ?? readingOrder)}`}
                         onClick={onClick}
                         {...rest}
                       >
@@ -709,7 +709,7 @@ export default function ComicDetailPage() {
                       </IconButton>
                     )}
                     items={readingOrderOptions.map((item) => ({
-                      label: item.label,
+                      label: t(item.label),
                       onSelect: () => changeReadingOrder(item.value),
                     }))}
                   />
@@ -729,7 +729,7 @@ export default function ComicDetailPage() {
                           : "border-border bg-surface text-muted",
                       )}
                     >
-                      {item.name || "Default"}
+                      {item.name || t("Default")}
                     </button>
                   ))}
                 </div>
@@ -761,7 +761,9 @@ export default function ComicDetailPage() {
                   className="mt-2"
                   onClick={() => setShowAll((value) => !value)}
                 >
-                  {showAll ? "Show less" : `Show all (${groupChapters.length})`}
+                  {showAll
+                    ? t("Show less")
+                    : t("Show all (@count)", { count: groupChapters.length })}
                 </Button>
               ) : null}
             </section>

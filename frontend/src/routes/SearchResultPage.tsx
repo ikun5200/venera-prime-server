@@ -285,7 +285,7 @@ export default function SearchResultPage() {
             </Select>
           </Field>
           {optionDefs.map((option) => {
-            const label = option.label ?? "Option";
+            const label = option.label ?? t("Option");
             return (
               <Field key={label} label={label}>
                 <div className="flex flex-wrap gap-1.5">
