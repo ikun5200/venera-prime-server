@@ -26,6 +26,13 @@ jobs:
         working-directory: backend
         run: dart pub get
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build JS host sidecar
+        working-directory: rust/js_host
+        run: cargo build
+
       - name: Analyze
         working-directory: backend
         run: dart analyze
