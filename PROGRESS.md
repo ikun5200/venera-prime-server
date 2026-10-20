@@ -1,8 +1,11 @@
 # Progress
 
-Updated: 2026-10-20T05:10Z
+Updated: 2026-10-20T11:20Z
 
 ## Current phase
+
+Localization round (E-17) completed: the site is Chinese-first, all UI and
+API messages are localized, and the NAS deployment was updated.
 
 Phase 8 audit complete; a gap-closing round (E-16) added CI test jobs,
 implemented previously-flagged rows (reader zoom, end-of-chapter comments,

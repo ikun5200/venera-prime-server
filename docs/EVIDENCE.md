@@ -377,3 +377,31 @@ Every acceptance item is backed by a reproducible command, output summary and
   build was gated on them. Two earlier failures were fixed: Dart SDK pinned to
   3.13.5 (matching the committed `pubspec.lock`), and the backend test job now
   builds the Rust JS host sidecar with `cargo build` first.
+
+## E-17 — Chinese-first localization (2026-10-20) — PASS
+
+- Requirement: the whole site must be Chinese.
+- Frontend:
+  - `settings_defaults.dart` now defaults `language` to `zh-CN`; unknown or
+    `system` values resolve to `zh-CN` in `useT`, with `zh-CN` as the fallback
+    dictionary and `zh-TW` still selectable.
+  - All previously hardcoded UI strings (JSX text, labels, hints,
+    placeholders, aria-labels, option lists, toasts, confirm/prompt dialogs,
+    reader markers, dates and durations) are wrapped in `t()`.
+  - Dictionary: 600+ `zh-CN` entries; every key used by the app is present
+    (script check: `keys 402 missing 0`), and `zh-TW` is filled.
+- Backend: `ApiException` defaults and ~100 user-visible messages (validation,
+  auth, uploads, downloads, WebDAV, archive limits, JS host, static handler)
+  are Chinese; verified live from the NAS container:
+  - `POST /api/init` → `{"error":{"code":"CONFLICT","message":"系统已初始化",...}}`
+  - `POST /api/auth/login` → `{"error":{"code":"UNAUTHORIZED","message":"用户名或密码错误",...}}`
+- Commands:
+  - `cd frontend && npm run typecheck && npm test && npm run build`
+    → typecheck clean; 13/13 tests; production build ok.
+  - `cd backend && dart analyze && dart test` → 0 errors; 41/41 tests.
+  - CI run [39412834988](https://github.com/ikun5200/venera-prime-server/actions/runs/39412834988)
+    succeeded (backend-test + frontend-test + image build/push).
+- NAS: pulled the new image and recreated the container at
+  `http://192.168.31.88:8082`; status `Up (healthy)`, `/api/health` ok, the
+  served bundle contains the Chinese dictionary (`首页`, `当前已是最新版本`).
+- Time: 2026-10-20T11:20:00Z
