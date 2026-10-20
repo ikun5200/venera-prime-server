@@ -9,13 +9,19 @@ the host. This server implements the same bridge inside a Rust sidecar
 
 1. The backend stores each user's source script in `sources.script`.
 2. A call sends `{op,script,method,args,context}` to the sidecar over stdin.
-3. The sidecar evaluates `assets/init.js`, then the user script, instantiates
-   the `class ... extends ComicSource`, registers it under its key, resolves the
-   method path (e.g. `search.load`) and invokes it with the JSON args.
+3. The sidecar sets `globalThis.appVersion` from `context.appVersion`
+   (currently `2.6.3`), evaluates `assets/init.js`, then the user script,
+   instantiates the `class ... extends ComicSource`, registers it under its key,
+   resolves the method path (e.g. `search.load`) and invokes it with the JSON
+   args. `APP.version` therefore matches the version reported by the API, which
+   sources use in `isAppVersionAfter()`.
 4. `sendMessage` returns values synchronously for sync methods and
    already-resolved Promises for async methods (`http`, `delay`, `UI`,
    clipboard, `compute`). The sidecar drains the QuickJS job queue until the
-   returned Promise settles.
+   returned Promise settles. The sidecar runs requests on separate threads, but
+   the Dart client writes request lines through a single future chain because
+   `IOSink.flush()` binds the process stdin sink; this keeps concurrent
+   aggregated searches safe.
 5. Timeout: 30 s interrupt handler. Memory: 256 MiB runtime limit. A failed
    call returns a structured error and never crashes the API.
 

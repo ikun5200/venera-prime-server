@@ -21,6 +21,11 @@ session cookie.
 - State-changing requests require `Origin`/`Referer` matching `PUBLIC_ORIGIN`
   (or the request host) and header `X-Requested-With: venera-web`.
 - `requestId` is echoed in `X-Request-Id` and in errors.
+- Path parameters must be percent-encoded (`encodeURIComponent`). Comic and
+  chapter ids are opaque source strings and may contain `/`, `?`, spaces or
+  full URLs; the router decodes each parameter exactly once before calling the
+  service, so `/api/comic/ykmh/https%3A%2F%2F...` reaches the source with the
+  original id.
 
 ## Public
 
