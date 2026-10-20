@@ -1,8 +1,13 @@
 # Progress
 
-Updated: 2026-10-20T11:20Z
+Updated: 2026-10-20T16:25Z
 
 ## Current phase
+
+Source-catalog import fix + second localization sweep (E-18) completed:
+catalog URLs are auto-detected as source libraries, the real
+meaninglesslyy catalog installs and searches, and the home-layout page and
+all remaining status/task strings are Chinese.
 
 Localization round (E-17) completed: the site is Chinese-first, all UI and
 API messages are localized, and the NAS deployment was updated.

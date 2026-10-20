@@ -405,3 +405,48 @@ Every acceptance item is backed by a reproducible command, output summary and
   `http://192.168.31.88:8082`; status `Up (healthy)`, `/api/health` ok, the
   served bundle contains the Chinese dictionary (`首页`, `当前已是最新版本`).
 - Time: 2026-10-20T11:20:00Z
+
+## E-18 — Source catalog import and full Chinese sweep (2026-10-20) — PASS
+
+- User report: adding `https://cdn.jsdelivr.net/gh/meaninglesslyy/venera-config@main/index.json`
+  as a comic source failed, and `/settings/home-layout` was still English.
+- Original behaviour (reference): the URL is a *source library catalog*
+  (`index.json` → array of `{key,name,version,fileName|url,description}`);
+  `resolveSourceDownloadUrl` resolves `fileName` relative to the list URL, and
+  the client shows it under Source libraries rather than parsing it as JS.
+- Fix: `POST /api/sources/url` now inspects the downloaded body. A JSON array
+  (or `{sources|data|items: [...]}`) with at least one entry carrying
+  `key|id` and `fileName|filename|url` is registered as a source library and
+  returned as `{source: null, library, items}`; the UI toasts
+  “已作为源仓库添加” and opens the catalog. Script URLs keep the old path.
+  `installFromUrl` still rejects catalogs with a clear message.
+- Verification with the user's real catalog:
+  - `POST /api/sources/url` → `{"source":null,"library":{"id":"fc856e8310c1",...}}`
+  - `GET /api/source-libraries/fc856e8310c1/catalog` → **18 entries**, first
+    `鸟鸟韩漫` → `.../translated/nnhanman.js`
+  - `POST .../install {"entryId":"nnhanman"}` → source `nnhanman 鸟鸟韩漫 1.1.1`
+  - `GET /api/search?source=nnhanman&q=恋` → real comics returned (e.g.
+    `戀愛作弊百科`), proving the installed third-party source runs on the server.
+- Hermetic regression test: `backend/test/features_test.dart` spins a local
+  HTTP catalog + script, asserts library registration, catalog URL resolution
+  and install; backend suite is now **42/42**.
+- Chinese sweep (beyond the earlier dictionary pass):
+  - `/settings/home-layout`: module names, drag hint, buttons now render via
+    `t()`; verified the production bundle contains
+    “长按并拖动即可排序”.
+  - `/settings` category descriptions, `/toolbox` descriptions, source
+    capability badges, source-check status/stage values (`readable`, `ok`,
+    `failed`, `skipped`, `running`), task titles
+    (更新漫画信息 / 刷新所有历史 / 检查订阅更新), source/library counts,
+    check results and the Confirm dialog default label.
+  - Scan of all `.tsx` files for literal English JSX/props now only finds
+    schema label sources that are passed through `t()` at render time.
+- Commands: `cd backend && dart analyze && dart test` (0 errors, 42/42);
+  `cd frontend && npm run typecheck && npm test && npm run build`
+  (clean, 13/13, build ok).
+- CI: run [39455347909](https://github.com/ikun5200/venera-prime-server/actions/runs/39455347909)
+  succeeded (backend-test + frontend-test + GHCR image).
+- NAS: image pulled and container recreated at `http://192.168.31.88:8082`;
+  `Up (healthy)`; served bundle `index-Bwk8NYUo.js` contains
+  “已作为源仓库添加”, “也可以粘贴漫画源目录地址”, “长按并拖动即可排序”.
+- Time: 2026-10-20T16:25:00Z
