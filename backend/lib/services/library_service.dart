@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import '../db/database.dart';
 import '../repositories/image_favorite_repository.dart';
@@ -61,6 +62,59 @@ class FavoriteService {
     _networkCache.removeWhere((key, _) => key.startsWith(prefix));
   }
 
+  final Set<String> _coverPrefetching = {};
+
+  /// Warms favorite covers in the background, three at a time. Covers are
+  /// keyed by comic identity, so a later list load serves them from disk even
+  /// if the source rotated the signed URL.
+  void _prefetchCovers(int userId, List<Map<String, Object?>> items) {
+    final pending = <Map<String, Object?>>[];
+    for (final item in items) {
+      if (pending.length >= 30) break;
+      final sourceKey = (item['sourceKey'] ?? '').toString();
+      final comicId = (item['id'] ?? '').toString();
+      final cover = (item['cover'] ?? '').toString();
+      if (sourceKey.isEmpty || comicId.isEmpty || cover.isEmpty) continue;
+      final token = '$userId|$sourceKey|$comicId';
+      if (_coverPrefetching.contains(token)) continue;
+      if (comics.hasCoverCache(userId, sourceKey, comicId)) continue;
+      _coverPrefetching.add(token);
+      pending.add({
+        'sourceKey': sourceKey,
+        'comicId': comicId,
+        'cover': cover,
+        'token': token,
+      });
+    }
+    if (pending.isEmpty) return;
+    unawaited(() async {
+      for (var offset = 0; offset < pending.length; offset += 3) {
+        final chunk = pending.sublist(
+            offset, math.min(offset + 3, pending.length));
+        await Future.wait(chunk.map((item) async {
+          try {
+            await comics.cover(
+              userId,
+              item['cover'] as String,
+              sourceKey: item['sourceKey'] as String,
+              comicId: item['comicId'] as String,
+            );
+          } catch (error) {
+            Log.warning('Favorite cover prefetch failed',
+                userId: userId,
+                extra: {
+                  'source': item['sourceKey'],
+                  'comic': item['comicId'],
+                  'error': '$error',
+                });
+          } finally {
+            _coverPrefetching.remove(item['token'] as String);
+          }
+        }));
+      }
+    }());
+  }
+
   List<Map<String, Object?>> folders(int userId) => favorites.folders(userId);
 
   int createFolder(int userId, String name) =>
@@ -95,6 +149,7 @@ class FavoriteService {
       return item;
     }).toList();
     result['items'] = items;
+    _prefetchCovers(userId, items);
     return result;
   }
 
@@ -431,6 +486,7 @@ class FavoriteService {
       'page': page,
     };
     _storeNetwork(cacheKey, response);
+    _prefetchCovers(userId, comics);
     return response;
   }
 

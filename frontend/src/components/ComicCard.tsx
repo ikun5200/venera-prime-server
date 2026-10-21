@@ -79,7 +79,10 @@ export function ComicCard({
         </div>
         {!compact ? (
           <div className="mt-2 min-w-0">
-            <p className="line-clamp-2 text-[13px] font-medium leading-snug text-fg">
+            <p
+              className="line-clamp-2 text-[13px] font-medium leading-snug text-fg"
+              title={comic.description || undefined}
+            >
               {comic.title}
             </p>
             {comic.subtitle ? (

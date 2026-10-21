@@ -1041,6 +1041,13 @@ class ComicService {
     } catch (_) {}
   }
 
+  bool hasCoverCache(int userId, String sourceKey, String comicId) {
+    if (sourceKey.isEmpty || comicId.isEmpty) return false;
+    final identity = 'cover|$userId|$sourceKey|$comicId';
+    final key = sha256.convert(utf8.encode(identity)).toString();
+    return _hasCache(userId, key);
+  }
+
   String? _cookieHeader(int userId, String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;

@@ -230,6 +230,52 @@ class FavSource extends ComicSource {
     expect(titleOf(refreshed.body), 'call=2');
   });
 
+  test('favorite list prefetches covers by comic identity', () async {
+    var hits = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final bytes = List<int>.generate(3072, (index) => index % 233);
+    server.listen((request) async {
+      hits++;
+      request.response.headers.contentType = ContentType('image', 'png');
+      request.response.add(bytes);
+      await request.response.close();
+    });
+    final base = 'http://127.0.0.1:${server.port}';
+
+    final created =
+        await admin.post('/api/favorites/folders', {'name': 'Cover folder'});
+    expect(created.status, 200);
+    final folders = await admin.get('/api/favorites/folders');
+    final folderId = ((folders.body['items'] as List).first as Map)['id'];
+    await admin.post('/api/favorites', {
+      'folderId': folderId,
+      'comic': {
+        'id': 'cover-comic',
+        'sourceKey': 'test_source',
+        'title': 'Cover',
+        'cover': '$base/one.png',
+      },
+    });
+    await admin.get('/api/favorites?folderId=$folderId');
+
+    var cacheBytes = 0;
+    for (var attempt = 0; attempt < 40; attempt++) {
+      final size = await admin.get('/api/maintenance/cache-size');
+      cacheBytes = size.body['bytes'] as int;
+      if (cacheBytes > 0) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    expect(cacheBytes, greaterThan(0));
+
+    final query = Uri.encodeQueryComponent('$base/two.png');
+    final cover = await admin.rawRequest('GET',
+        '/api/image/cover?url=$query&source=test_source&comic=cover-comic');
+    expect(cover.status, 200);
+    expect(cover.bytes.length, bytes.length);
+    expect(hits, 1, reason: 'the list prefetch should already hold the cover');
+  });
+
   test('suggestions endpoint works with empty text', () async {
     final res = await admin.get('/api/search/suggestions?q=');
     expect(res.status, 200);
