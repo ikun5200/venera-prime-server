@@ -116,6 +116,7 @@ Comic summary: `{id,title,subtitle,cover,tags,description,sourceKey,maxPage,lang
 |---|---|---|
 | GET | `/api/comic/:source/:id` | full `ComicDetails` + `favorite` + `progress` |
 | GET | `/api/comic/:source/:id/chapter/:ep/images` | `{images:[key],total}` |
+| POST | `/api/comic/:source/:id/chapter/:ep/prefetch` | `{from?:number}` → `{enabled,running,limit}`; warms the server disk cache in the background |
 | GET | `/api/comic/:source/:id/thumbnails` | `?next=` |
 | GET | `/api/comic/:source/:id/comments` | `?page=&subId=` |
 | POST | `/api/comic/:source/:id/comments` | `{content,subId?,replyTo?}` |
@@ -131,8 +132,15 @@ Comic summary: `{id,title,subtitle,cover,tags,description,sourceKey,maxPage,lang
 
 The image proxy calls the source's `comic.onImageLoad`, applies returned
 headers/cookies, follows `onLoadFailed` up to 5 times, and caches per user
-(7 days, 256 MiB cap). Response includes `Content-Type`, `Cache-Control:
+(7 days, 2 GiB cap by default). Response includes `Content-Type`, `Cache-Control:
 private, max-age=86400`.
+
+`POST .../prefetch` is fire-and-forget: it returns immediately and downloads
+the chapter into the same per-user cache, starting at `from` (1-based image
+index) and wrapping around. The number of images is controlled by the
+`serverPrefetchImageCount` setting (`0` = off, positive = count, `-1` = whole
+chapter). The reader also preloads `preloadImageCount` images around the
+current page in the browser.
 
 ## Favorites
 

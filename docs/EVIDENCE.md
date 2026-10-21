@@ -506,3 +506,66 @@ Every acceptance item is backed by a reproducible command, output summary and
   - SPA routes `/comic/goda/%2Fmanga%2Fa%2Fb` and the encoded reader route
     return the app shell; served bundle is `index-BCCZbqtH.js`.
 - Time: 2026-10-21T07:00:00Z
+
+## E-20 — Server-side chapter prefetch and reader interaction parity (2026-10-21) — PASS
+
+- User report: chapter images load slowly because each image is fetched on
+  demand; the reader's gestures/operations differ from the original app.
+- Server-side prefetch:
+  - `POST /api/comic/:source/:id/chapter/:ep/prefetch {from}` warms the
+    per-user image cache in the background. It calls `comic.loadEp` once,
+    resolves up to 10 `comic.onImageLoad` calls in **one** QuickJS runtime
+    (`image_config_batch`), then downloads with 3-way concurrency.
+  - Resolved image configs are kept for 2 minutes, so on-demand `/api/image`
+    requests after a prefetch do not start the JS host at all.
+  - Cache-limit enforcement is throttled to once per 15 s per user, avoiding
+    an O(n²) full-directory scan while hundreds of images are written.
+  - `serverPrefetchImageCount` (default `-1` = whole chapter; `0` = off;
+    10/20/30/50/100) is available in `/settings/reading` and the reader
+    drawer. The existing `preloadImageCount` (1–16) controls the browser
+    preload window; it now preloads both ahead and behind the current page.
+- Measured on the NAS (`goda`, 16-image chapter, disk cache cleared):
+  - Cold single image: **1.43 s** and **0.52 s** for the first two images.
+  - `POST .../prefetch` returned in **0.01 s**; all 16 images were written in
+    about **3 s**.
+  - Subsequent images: **0.033–0.040 s** each (HTTP round trip included).
+- Reader parity fixes (reference: `reference/venera-prime/lib/pages/reader/`):
+  - Toolbar starts hidden and any tap closes it while open (original
+    `_ReaderScaffoldState._isOpen = false` / `openOrClose`).
+  - Top-to-bottom gallery uses top/bottom 30% tap zones instead of left/right.
+  - Arrow keys follow the reading direction: LTR Right/Left, RTL Left/Right,
+    TTB Down/Up; unrelated arrows are ignored. Continuous mode scrolls the
+    container instead of changing page state.
+  - Continuous mode supports tap-zone scrolling and applies the configured
+    mouse scroll speed (non-passive wheel listener).
+  - Page transitions slide in the reading direction (170 ms) when page
+    animation is enabled.
+  - Long-press zoom now pans with the pointer instead of re-anchoring on every
+    move.
+  - Escape closes the settings/chapters/comments drawer or context menu first;
+    it only exits the reader when no panel is open.
+- Browser verification (Playwright, 1280×800, NAS):
+  - Login → aggregated search → GoDa result → details → reader; indicator
+    `1 / 10`; one `/prefetch` request observed.
+  - `ArrowRight` → `2 / 10`; centre tap shows the toolbar.
+  - Switch to `galleryTopToBottom`: `ArrowDown` 2→3, `ArrowUp` 3→2; bottom tap
+    zone advances and top tap zone goes back; Escape closes the drawer and
+    stays in the reader.
+  - Mobile 375×812: reader renders with `scrollWidth - innerWidth = 0`.
+  - Screenshots: `docs/screenshots/20-reader-ttb-1280.png`,
+    `docs/screenshots/20-reader-ttb-375.png`.
+- Tests:
+  - `backend/test/features_test.dart`: prefetch warms the cache, `/api/image`
+    then returns the bytes, and `serverPrefetchImageCount = 0` disables it.
+  - `frontend/src/routes/ReaderPage.test.tsx`: RTL and top-to-bottom arrow-key
+    mapping.
+  - `cd backend && dart analyze && dart test` → 0 errors, **45/45**.
+  - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
+    **18/18**, production build succeeds.
+- CI: run [39543339302](https://github.com/ikun5200/venera-prime-server/actions/runs/39543339302)
+  (prefetch + gestures) and
+  [39544427544](https://github.com/ikun5200/venera-prime-server/actions/runs/39544427544)
+  (Escape fix) succeeded.
+- NAS: image pulled and container recreated; `Up (healthy)`; served bundle
+  `index-B3a0-dZe.js` contains `/prefetch` and “服务端预缓存图片数”.
+- Time: 2026-10-21T12:40:00Z

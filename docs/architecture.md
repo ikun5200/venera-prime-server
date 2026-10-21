@@ -187,7 +187,14 @@ Responsive contract:
   a 30 s per-call timeout and a 256 MiB per-runtime memory cap.
 - Download workers: configurable 1–16 concurrent page downloads per job, one job
   active at a time per user (matching the original sequential queue).
-- Image proxy: 64 MiB memory LRU plus disk cache with 7-day retention.
+- Image proxy: per-user disk cache (default 2 GiB / 7-day retention, both
+  configurable). When a chapter opens, the reader asks the server to prefetch
+  the chapter in the background: `comic.loadEp` is called once, then up to 10
+  `comic.onImageLoad` calls share one QuickJS runtime and the resulting bytes
+  are fetched with 3-way concurrency. Prefetch count is configurable
+  (`serverPrefetchImageCount`: off, 10/20/30/50/100, or whole chapter).
+  Resolved configs are kept in a short-lived in-memory map so subsequent
+  on-demand image requests skip the JS host entirely.
 - Rate limit: 120 requests/minute per session/IP for API routes, 10/minute for
   login and init.
 

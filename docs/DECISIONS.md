@@ -186,3 +186,21 @@
 - Impact: concurrent searches and URL-shaped comic ids work end-to-end; route
   parameters stay encoded for matching and are decoded exactly once before
   business logic. Regression tests cover both paths.
+
+## D-020 — Server chapter prefetch and reader interaction parity
+- Choice: warm the per-user disk cache when a chapter opens, with a
+  fire-and-forget `POST .../prefetch` endpoint; batch `comic.onImageLoad` for up
+  to 10 images in one QuickJS runtime; keep resolved configs for 2 minutes;
+  throttle cache-limit enforcement; expose `serverPrefetchImageCount`
+  (off/count/whole chapter) and keep `preloadImageCount` as the browser-side
+  window.
+- Reason: the original app reads downloaded/cached images locally, while the
+  web proxy fetched every image only when the browser requested it and started
+  a new QuickJS runtime per `onImageLoad`. On a real 16-image chapter this was
+  0.5–1.4 s per image; after prefetch the same images serve in 0.03–0.04 s.
+- Reader parity: the web reader now follows the reference's toolbar state,
+  top/bottom tap zones for TTB, direction-aware keys, continuous-mode
+  scrolling, slide transitions and long-press panning. Escape is panel-first.
+- Impact: whole-chapter prefetch is the default (`-1`); users can cap it or
+  disable it. Prefetch runs in the background with 3-way concurrency and never
+  blocks the reader request.

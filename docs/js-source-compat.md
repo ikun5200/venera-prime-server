@@ -93,6 +93,13 @@ Compatibility additions:
 
 ## Method surface invoked by the backend
 
+`comic.onImageLoad` is normally invoked once per image. Chapter prefetch uses
+the `image_config_batch` op: the sidecar evaluates up to 10 `onImageLoad`
+calls (including their `onLoadFailed` chains) in one runtime, so a chapter no
+longer pays `init.js` + source startup for every image. A single failing image
+yields an empty config list for that image only; the backend then falls back to
+the raw image key.
+
 | Path | Args | Result |
 |---|---|---|
 | `search.load` | `(keyword, options, page)` | `{comics,maxPage}` |
@@ -113,6 +120,7 @@ Compatibility additions:
 | `comic.likeComment` | `(comicId,subId,commentId,isLiking)` | number |
 | `comic.voteComment` | `(comicId,subId,commentId,isUp,isCancel)` | number |
 | `comic.onImageLoad` | `(imageKey,comicId,epId)` | image config |
+| `comic.onImageLoad` batch | `(imageKey,comicId,epId)[]` | configs for a whole chapter |
 | `comic.onThumbnailLoad` | `(imageKey)` | image config |
 | `comic.starRating` | `(id,rating)` | any |
 | `comic.onClickTag` | `(namespace,tag)` | page target |

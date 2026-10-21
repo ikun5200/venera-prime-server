@@ -1,8 +1,15 @@
 # Progress
 
-Updated: 2026-10-21T07:00Z
+Updated: 2026-10-21T12:40Z
 
 ## Current phase
+
+Reader performance and interaction round (E-20) completed: opening a chapter
+now warms the server disk cache in the background (whole chapter by default,
+configurable), image configs are batched per chapter, and cached images serve
+in ~0.03 s instead of 0.5–1.4 s. Reader gestures now follow the reference:
+toolbar starts hidden, TTB top/bottom tap zones, direction-aware keys,
+continuous-mode scrolling, slide transitions and long-press panning.
 
 Third-party source runtime fix (E-19) completed: concurrent JS-host calls no
 longer collide on the stdin sink, sources using `APP.version` load details,
@@ -92,6 +99,16 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
 - Regression tests: concurrent JS calls, encoded comic/chapter ids,
   `APP.version`, and frontend comic/reader link builders (44 backend tests,
   17 frontend tests).
+- Added server-side chapter prefetch with a batched `onImageLoad` op, a
+  short-lived config cache, throttled cache enforcement, and the
+  `serverPrefetchImageCount` setting (off/count/whole chapter). NAS cold
+  images were 0.5–1.4 s; prefetched images serve in 0.03–0.04 s.
+- Aligned reader interactions with the reference: toolbar starts hidden and
+  closes on tap, TTB top/bottom tap zones, direction-aware keys, continuous
+  tap scrolling and mouse speed, backward preloading, slide transitions,
+  long-press panning, and panel-first Escape handling.
+- Tests now 45 backend / 18 frontend; Playwright verified the NAS reader flow
+  at 1280×800 and the 375 px layout (zero horizontal overflow).
 
 ## Next
 
