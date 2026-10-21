@@ -128,6 +128,18 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   tap-to-turn disabled not opening the toolbar. Playwright covered LTR, RTL,
   TTB, 375 px, and a 22-page NAS chapter (RTL + comments). Tests now
   49 backend / 20 frontend.
+- Fixed all 16 findings from `docs/usage-test-report-2026-10-21.md`:
+  source-setting defaults/validation, optimistic favorite and admin-user
+  refresh, ranking-category routing, progressive aggregated search with a
+  15 s per-source cap, explicit chapter/loading/error states, rate-limit
+  bootstrap handling, duplicate network sources, display names, category
+  `showWhen` filtering, invalid-URL 400, update-check messages, last-page
+  retention, Chinese dates and a broad i18n/plural pass. Added regression
+  tests for source defaults/URL validation and date/error formatting.
+  Verified on NAS: ranking now returns 30 covers (`male,day`), two-source
+  aggregation renders its first section in 2.0 s and finishes in 6.5 s,
+  favorites/users refresh immediately, and no raw source stacks remain.
+  Tests now 51 backend / 22 frontend. See E-24.
 
 ## Next
 

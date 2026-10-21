@@ -232,3 +232,23 @@
   resistance and one-page-per-fling behaviour. The comments page participates
   in the same track and can be swiped back. `enablePageAnimation = false`
   keeps the instant-jump path for e-ink users.
+
+## D-023 — Progressive aggregated search and cache-first mutations
+- Choice: aggregated search runs one request per configured source from the
+  browser (honoring `searchSources`) and aborts each source after 15 s; each
+  section renders independently. Favorites and admin-user mutations write the
+  known server result into the TanStack Query cache before invalidating.
+- Reason: the previous single aggregate request waited for all sources (up to
+  40 s each), so a 33-source search took ~39 s and showed nothing until the
+  slowest source answered. Source refetches are also flaky (rate limits,
+  502s); a failed background refetch must not erase a successful mutation or
+  replace an already-rendered detail page.
+- Impact: first results appear in ~2 s and the slowest source only delays its
+  own section. The trade-off is up to one API request per enabled search
+  source; the server's 120 req/min authenticated limit accommodates roughly
+  three full 33-source searches per minute. Aggregated searches can be scoped
+  with the existing Search Sources setting.
+- Additional UI decision: category option groups without a script-provided
+  `label` are keyed by group index. Sources such as `copy_manga` define two
+  unlabeled ranking groups; keying by label collapsed both to `day,day` and
+  produced HTTP 210. The index key sends `male,day` and restores rankings.

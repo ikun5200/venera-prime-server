@@ -716,3 +716,87 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Note: the NAS image was redeployed during the test window (new reader build,
   E-22); reader checks before and after the redeploy passed.
 - Time: 2026-10-21T14:45:00Z
+
+## E-24 — Usability report fixes (BUG-01…BUG-16) (2026-10-21) — PASS
+
+- Source: `docs/usage-test-report-2026-10-21.md` (16 reproducible findings,
+  1 high / 6 medium / 9 low). All 16 were addressed in code.
+- BUG-01 (source settings):
+  - `GET /api/sources/:key/settings` now merges each definition's `default`
+    into `values`; `PUT` with an empty input falls back to the non-empty
+    default and runs the definition's `validator`.
+  - NAS API: initial `base_url=api.copy2000.online`, after saving only
+    `image_quality=1200` the base_url stayed `api.copy2000.online`, and an
+    empty `base_url` PUT returned `api.copy2000.online`. The settings page
+    input renders `api.copy2000.online`. Original image quality restored.
+- BUG-02 (favorite panel): local favorite add/remove now updates the comic
+  cache and network-favorite cache immediately, then invalidates. A simulated
+  failing comic refetch (502) still changed the open drawer row from
+  `Reading / 已添加` to `Reading / 0`.
+- BUG-03 (admin users): create/update/delete write the mutation result into the
+  `admin-users` cache before invalidation. Playwright created `uitest_fix`
+  and the row appeared without a reload (“创建于 2026年10月20日 00:45”);
+  the user was deleted through the API afterwards.
+- BUG-04 (ranking): `copy_manga` exposes ranking as a category, so the ranking
+  page redirects to `/categories/copy_manga/排行?param="ranking"`. Unlabeled
+  option groups now use index-based keys, producing
+  `...ranking&options=male,day` → **200** with 30 covers and `页 1 / 10`
+  (screenshot `22-ranking-1280.png`). Source failures are shortened to
+  “源站返回异常（HTTP n）/漫画源暂时不可用”.
+- BUG-05 (aggregated search): the page now fans out one request per configured
+  source and renders each section as it finishes, with a 15 s per-source
+  abort. It also honors the saved `searchSources` setting. With two sources,
+  the first section appeared at **2.0 s** and the run completed at **6.5 s**;
+  failures show “漫画源暂时不可用，请稍后重试”, never `eval_script` or
+  `Invalid status code`. The backend aggregate endpoint timeout is 15 s.
+- BUG-06 (invalid chapter): an empty image list or a failed image query now
+  shows “章节加载失败 / 章节不存在或没有可用图片” with Retry/Back
+  (`22-reader-empty-chapter-1280.png`). Verified with a fulfilled
+  `{images:[],total:0}` response.
+- BUG-07 (rate limit): bootstrap distinguishes 401 (not logged in) from 429
+  and network errors; the latter show “无法连接服务器 / 请求过于频繁” with
+  Retry instead of the create-admin page. Verified both by mocking
+  `/api/init/status` 429 and by a real NAS 429 during the test burst.
+- BUG-08 (duplicate network sources): removed the duplicated `networkSources`
+  map; the sidebar renders each network source once (14 unique names,
+  `22-favorites-sidebar-1280.png`).
+- BUG-09 (network title): the network favorites heading uses the source
+  display name; `copy_manga` renders “拷贝漫画”.
+- BUG-10 (category filters): `showWhen`/`notShowWhen` are filtered against the
+  current category label. On `copy_manga/愛情`, “男频” and “上升最快” are
+  absent while “日漫” remains (`22-category-filter-1280.png`).
+- BUG-11 (invalid source URL): `abc` returns
+  `400 {"error":{"message":"请输入合法的 HTTP(S) 地址"}}`; non-HTTP schemes and
+  empty hosts are rejected before the HTTP client.
+- BUG-12 (update check): GitHub 404/403 map to “暂无发布版本” /
+  “更新服务繁忙，请稍后重试”; About no longer shows `GitHub API returned`.
+- BUG-13 (cold loading): comic details show a cover/description/chapter
+  skeleton plus “正在加载漫画详情…”; the reader shows a spinner with
+  “正在加载章节…” (`22-detail-skeleton-1280.png`,
+  `22-reader-loading-1280.png`). A source refetch failure no longer discards
+  already-rendered details.
+- BUG-14 (pagination): search/category/ranking pages keep the last `maxPage`
+  while the next page loads. NAS copy_manga search showed `页 1 / 2`,
+  `页 2 / 2` during the request, `页 2 / 2` after.
+- BUG-15 (dates): `formatDate`/`formatDay` use the selected Chinese locale
+  (`zh-CN`/`zh-TW`) with 24-hour time; logs convert ISO timestamps to local
+  time. NAS admin text contains “年”; logs contain no `T06:` ISO fragment.
+- BUG-16 (i18n): plural helpers (`@count comics/folders/users/images/
+  selected/running/tasks`), multi-select labels, task statuses, About/
+  WebDAV/Toolbox/Source login/readability/delete-user text, `Run`/`Export`/
+  `Import`, and the Traditional Chinese theme names are localized. NAS
+  samples: “2 部漫画”, “1 个任务”, “运行中”, About “多用户 Web 漫画阅读器 /
+  运行时间”, no English webview/WebDAV paragraphs; backend task messages are
+  Chinese (“成功 n 个，失败 n 个”, “已检查 n 部，更新 n 部”).
+- Tests:
+  - `cd backend && dart analyze && dart test` → 0 errors (2 pre-existing
+    info lints), **51/51**.
+  - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
+    **22/22**, production build succeeds.
+- CI: [39587132822](https://github.com/ikun5200/venera-prime-server/actions/runs/39587132822)
+  (initial fixes), [39588640355](https://github.com/ikun5200/venera-prime-server/actions/runs/39588640355)
+  (searchSources/filter groups) and [39589400343](https://github.com/ikun5200/venera-prime-server/actions/runs/39589400343)
+  (count labels) succeeded.
+- NAS: image recreated, `Up (healthy)`, `/api/health` ok, served bundle
+  `index-BQUtyec5.js`. Screenshots `docs/screenshots/22-*.png`.
+- Time: 2026-10-21T19:10:00Z
