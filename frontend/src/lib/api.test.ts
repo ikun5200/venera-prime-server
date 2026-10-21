@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { completeUpload, uploadFile } from "./api";
+import {
+  ApiError,
+  completeUpload,
+  shouldRetryRequest,
+  uploadFile,
+} from "./api";
+
+describe("retry policy", () => {
+  it("does not retry rate limits or other 4xx responses", () => {
+    expect(
+      shouldRetryRequest(0, new ApiError("busy", "RATE_LIMITED", 429, "")),
+    ).toBe(false);
+    expect(
+      shouldRetryRequest(0, new ApiError("missing", "NOT_FOUND", 404, "")),
+    ).toBe(false);
+    expect(shouldRetryRequest(0, new Error("network"))).toBe(true);
+    expect(shouldRetryRequest(1, new Error("network"))).toBe(false);
+  });
+});
 
 describe("chunked upload", () => {
   it("uploads a file in chunks and reports progress", async () => {

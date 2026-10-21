@@ -86,7 +86,8 @@ class TestApp {
   TestApp._(this.dir, this.config, this.db, this.ctx, this.handler);
 
   static TestApp create(
-      {String jsBin = '../rust/js_host/target/debug/venera_js_host'}) {
+      {String jsBin = '../rust/js_host/target/debug/venera_js_host',
+      Map<String, String> env = const {}}) {
     final dir = Directory.systemTemp.createTempSync('venera_test_');
     final dataDir = Directory('${dir.path}/data')..createSync(recursive: true);
     final config = Config.fromEnv({
@@ -98,6 +99,7 @@ class TestApp {
       'SESSION_SECRET': 'test-session-secret-0123456789abcdef',
       'APP_ENV': 'development',
       'LOG_LEVEL': 'error',
+      ...env,
     });
     final db = Db.open(config.dbPath);
     final ctx = AppContext(config, db);

@@ -38,7 +38,12 @@ export function AppShell() {
   const tasks = useQuery({
     queryKey: ["tasks"],
     queryFn: api.tasks,
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const items =
+        (query.state.data as { items?: { status: string }[] } | undefined)
+          ?.items ?? [];
+      return items.some((task) => task.status === "running") ? 5000 : 60000;
+    },
     enabled: showTasks,
   });
   const running = (tasks.data?.items ?? []).filter(

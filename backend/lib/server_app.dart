@@ -57,31 +57,32 @@ String randomSuffix() {
   return random.substring(random.length > 6 ? random.length - 6 : 0);
 }
 
-Middleware errorHandlerMiddleware(AppContext ctx) =>
-    (inner) => (request) async {
-          final requestId = requestIdOf(request);
-          try {
-            return await inner(request);
-          } on ApiException catch (error) {
-            Log.warning('API error',
-                requestId: requestId,
-                route: request.url.path,
-                extra: {'code': error.code, 'message': error.message});
-            return errorResponse(
-                requestId, error.code, error.message, error.status);
-          } catch (error, stack) {
-            Log.error('Unhandled error',
-                requestId: requestId,
-                route: request.url.path,
-                error: error,
-                stack: stack);
-            return errorResponse(
-                requestId, 'INTERNAL', 'Internal server error', 500);
-          }
-        };
+Middleware errorHandlerMiddleware(AppContext ctx) => (inner) =>
+    (request) async {
+      final requestId = requestIdOf(request);
+      try {
+        return await inner(request);
+      } on ApiException catch (error) {
+        Log.warning('API error',
+            requestId: requestId,
+            route: request.url.path,
+            extra: {'code': error.code, 'message': error.message});
+        return errorResponse(requestId, error.code, error.message, error.status,
+            headers: error.status == 429 ? const {'retry-after': '30'} : null);
+      } catch (error, stack) {
+        Log.error('Unhandled error',
+            requestId: requestId,
+            route: request.url.path,
+            error: error,
+            stack: stack);
+        return errorResponse(
+            requestId, 'INTERNAL', 'Internal server error', 500);
+      }
+    };
 
 Response errorResponse(
-    String requestId, String code, String message, int status) {
+    String requestId, String code, String message, int status,
+    {Map<String, String>? headers}) {
   return Response(
     status,
     body: jsonEncode({
@@ -90,6 +91,7 @@ Response errorResponse(
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'x-request-id': requestId,
+      ...?headers,
     },
   );
 }
@@ -107,31 +109,47 @@ Middleware loggingMiddleware(AppContext ctx) => (inner) => (request) async {
             route: request.url.path,
             status: response.statusCode,
             durationMs: stopwatch.elapsedMilliseconds);
-        if (request.url.path.startsWith('api')) {
-          try {
-            ctx.db.execute(
-              'INSERT INTO request_logs (ts,level,request_id,user_id,route,method,status,duration_ms,message) '
-              'VALUES (?,?,?,?,?,?,?,?,?)',
-              [
-                DateTime.now().millisecondsSinceEpoch,
-                response.statusCode >= 500 ? 'error' : 'info',
-                requestId,
-                auth?.user.id,
-                request.url.path,
-                request.method,
-                response.statusCode,
-                stopwatch.elapsedMilliseconds,
-                '',
-              ],
-            );
-          } catch (_) {}
-        }
+        _recordRequestLog(
+            ctx, request, requestId, response.statusCode, '', stopwatch);
         return response.change(headers: {'x-request-id': requestId});
-      } catch (error) {
+      } on ApiException catch (error) {
         stopwatch.stop();
+        _recordRequestLog(
+            ctx, request, requestId, error.status, error.code, stopwatch);
+        rethrow;
+      } catch (_) {
+        stopwatch.stop();
+        _recordRequestLog(ctx, request, requestId, 500, 'INTERNAL', stopwatch);
         rethrow;
       }
     };
+
+void _recordRequestLog(AppContext ctx, Request request, String requestId,
+    int status, String message, Stopwatch stopwatch) {
+  if (!request.url.path.startsWith('api')) return;
+  final auth = optionalAuth(request);
+  try {
+    ctx.db.execute(
+      'INSERT INTO request_logs (ts,level,request_id,user_id,route,method,status,duration_ms,message) '
+      'VALUES (?,?,?,?,?,?,?,?,?)',
+      [
+        DateTime.now().millisecondsSinceEpoch,
+        status >= 500
+            ? 'error'
+            : status >= 400
+                ? 'warning'
+                : 'info',
+        requestId,
+        auth?.user.id,
+        request.url.path,
+        request.method,
+        status,
+        stopwatch.elapsedMilliseconds,
+        message,
+      ],
+    );
+  } catch (_) {}
+}
 
 Middleware corsMiddleware(AppContext ctx) => (inner) => (request) async {
       final origin = request.headers['origin'];
@@ -206,14 +224,60 @@ Middleware rateLimitMiddleware(
           final key = auth != null
               ? 'u:${auth.user.id}'
               : 'ip:${clientIp(request) ?? 'unknown'}';
-          final isAuthPath = request.url.path == '/api/auth/login' ||
-              request.url.path == '/api/init';
-          final allowed = isAuthPath
-              ? authLimiter.allow(key, 10)
-              : general.allow(key, ctx.config.rateLimitPerMinute);
-          if (!allowed) throw ApiException.rateLimited();
+          final path = request.url.path;
+          final isAuthPath = path == '/api/auth/login' || path == '/api/init';
+          if (isAuthPath) {
+            if (!authLimiter.allow(key, 10)) {
+              throw ApiException.rateLimited();
+            }
+            return inner(request);
+          }
+
+          // Reading a chapter is a burst of dozens of image requests. Those
+          // must not consume the same minute budget as API actions, or normal
+          // reading starts returning 429 for the rest of the page.
+          final isContent = _isImagePath(path);
+          final isPoll = _isPollPath(path);
+          final bucket = isContent
+              ? 'content'
+              : isPoll
+                  ? 'poll'
+                  : 'api';
+          var limit = ctx.config.rateLimitPerMinute;
+          if (isContent) {
+            limit = limit * 4;
+            if (limit < 1200) limit = 1200;
+            if (limit > 6000) limit = 6000;
+          } else if (isPoll) {
+            limit = limit * 2;
+            if (limit < 300) limit = 300;
+            if (limit > 3000) limit = 3000;
+          }
+          if (!general.allow('$bucket:$key', limit)) {
+            throw ApiException.rateLimited();
+          }
           return inner(request);
         };
+
+bool _isImagePath(String path) {
+  if (path == 'api/image' ||
+      path == 'api/image/thumb' ||
+      path == 'api/image/cover') {
+    return true;
+  }
+  if (path.startsWith('api/local-comics/')) {
+    return path.contains('/image/') || path.endsWith('/cover');
+  }
+  return false;
+}
+
+bool _isPollPath(String path) {
+  return path == 'api/tasks' ||
+      path == 'api/downloads' ||
+      path == 'api/health' ||
+      path == 'api/init/status' ||
+      path == 'api/auth/me';
+}
 
 class RateLimiter {
   final Map<String, List<int>> _hits = {};

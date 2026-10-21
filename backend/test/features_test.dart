@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -164,6 +165,63 @@ void main() {
 
     await admin.patch('/api/settings', {'serverCacheOfflineFallback': true});
     await admin.patch('/api/sources/test_source', {'enabled': true});
+  });
+
+  test('images and polling use separate rate-limit buckets', () async {
+    final limited = TestApp.create(env: {'RATE_LIMIT_PER_MINUTE': '6'});
+    addTearDown(limited.dispose);
+    final client = limited.client();
+    await client.init('admin', 'admin123');
+    await client.login('admin', 'admin123');
+    final imported =
+        await client.post('/api/sources', {'script': testSourceScript});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final bytes = List<int>.generate(2048, (index) => index % 241);
+    server.listen((request) async {
+      request.response.headers.contentType = ContentType('image', 'png');
+      request.response.add(bytes);
+      await request.response.close();
+    });
+    final base = 'http://127.0.0.1:${server.port}';
+    final key = Uri.encodeComponent('$base/page.png');
+
+    // A chapter burst is expected to exceed the general API budget without
+    // consuming it: 20 images must all succeed even though the general limit
+    // is only six requests per minute.
+    for (var i = 0; i < 20; i++) {
+      final image = await client.rawRequest(
+          'GET', '/api/image?source=test_source&comic=comic-1&ep=1&key=$key');
+      expect(image.status, 200, reason: 'image $i');
+    }
+    // Polling endpoints also have their own bucket.
+    for (var i = 0; i < 20; i++) {
+      expect((await client.get('/api/tasks')).status, 200);
+    }
+
+    // The import consumed one general request; after the rest of the minute
+    // budget the next API call is rejected with Retry-After and a log row.
+    var limitedResponse = false;
+    for (var i = 0; i < 10; i++) {
+      final result = await client.rawRequest('GET', '/api/sources');
+      if (result.status == 429) {
+        limitedResponse = true;
+        expect(result.headers['retry-after'], '30');
+        final body = jsonDecode(utf8.decode(result.bytes)) as Map;
+        expect((body['error'] as Map)['code'], 'RATE_LIMITED');
+        break;
+      }
+      expect(result.status, 200);
+    }
+    expect(limitedResponse, true, reason: 'general limit must still apply');
+
+    final logs = limited.ctx.db.select(
+        'SELECT route,status,message FROM request_logs WHERE status=429');
+    expect(logs, isNotEmpty, reason: '429 responses must be logged');
+    expect(logs.first['route'], 'api/sources');
+    expect(logs.first['message'], 'RATE_LIMITED');
   });
 
   test('cache retention and size limit', () async {

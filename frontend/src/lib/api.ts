@@ -42,6 +42,17 @@ export class ApiError extends Error {
   }
 }
 
+/** React Query retry policy: retry transient failures once, never 4xx. */
+export function shouldRetryRequest(
+  failureCount: number,
+  error: unknown,
+): boolean {
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+    return false;
+  }
+  return failureCount < 1;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (

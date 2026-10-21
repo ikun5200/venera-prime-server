@@ -77,7 +77,10 @@ export default function App() {
   const setInitialized = useAppStore((state) => state.setInitialized);
   const setUser = useAppStore((state) => state.setUser);
   const setSettings = useAppStore((state) => state.setSettings);
-  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootError, setBootError] = useState<{
+    message: string;
+    status?: number;
+  } | null>(null);
   const [bootAttempt, setBootAttempt] = useState(0);
 
   useEffect(() => {
@@ -99,12 +102,22 @@ export default function App() {
             // Only a 401 means "not logged in"; rate limits and network
             // failures must not be mistaken for an uninitialized server.
             if (!(error instanceof ApiError && error.status === 401)) {
-              if (!cancelled) setBootError(friendlyError(error));
+              if (!cancelled) {
+                setBootError({
+                  message: friendlyError(error),
+                  status: error instanceof ApiError ? error.status : undefined,
+                });
+              }
             }
           }
         }
       } catch (error) {
-        if (!cancelled) setBootError(friendlyError(error));
+        if (!cancelled) {
+          setBootError({
+            message: friendlyError(error),
+            status: error instanceof ApiError ? error.status : undefined,
+          });
+        }
       } finally {
         if (!cancelled) setBootstrapped(true);
       }
@@ -129,6 +142,16 @@ export default function App() {
       window.removeEventListener("venera:unauthorized", onUnauthorized);
   }, [setUser]);
 
+  useEffect(() => {
+    if (bootError?.status !== 429) return;
+    const timer = window.setTimeout(() => {
+      setBootError(null);
+      setBootstrapped(false);
+      setBootAttempt((value) => value + 1);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [bootError, setBootstrapped]);
+
   if (!bootstrapped) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-bg">
@@ -141,8 +164,12 @@ export default function App() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-bg p-6">
         <EmptyState
-          title={t("Unable to connect to the server")}
-          description={bootError}
+          title={
+            bootError.status === 429
+              ? t("Too many requests")
+              : t("Unable to connect to the server")
+          }
+          description={bootError.message}
           action={
             <Button
               onClick={() => {

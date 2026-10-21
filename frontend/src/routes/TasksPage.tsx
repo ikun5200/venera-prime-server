@@ -14,7 +14,12 @@ export default function TasksPage() {
   const query = useQuery({
     queryKey: ["tasks"],
     queryFn: api.tasks,
-    refetchInterval: 2000,
+    refetchInterval: (query) => {
+      const items =
+        (query.state.data as { items?: { status: string }[] } | undefined)
+          ?.items ?? [];
+      return items.some((task) => task.status === "running") ? 2000 : 15000;
+    },
   });
   const clear = useMutation({
     mutationFn: api.clearTasks,

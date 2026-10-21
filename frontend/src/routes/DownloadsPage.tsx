@@ -23,7 +23,15 @@ export default function DownloadsPage() {
   const query = useQuery({
     queryKey: ["downloads"],
     queryFn: api.downloads,
-    refetchInterval: 2000,
+    refetchInterval: (query) => {
+      const items =
+        (query.state.data as { items?: { state: string }[] } | undefined)
+          ?.items ?? [];
+      const active = items.some(
+        (job) => job.state === "running" || job.state === "queued",
+      );
+      return active ? 2000 : 15000;
+    },
   });
 
   const action = useMutation({

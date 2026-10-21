@@ -103,7 +103,7 @@ class Config {
           read('JS_HOST_BIN', 'rust/js_host/target/release/venera_js_host'),
       jsTimeoutMs: readInt('JS_TIMEOUT_MS', 30000),
       jsConcurrency: readInt('JS_CONCURRENCY', 8),
-      rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 120),
+      rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 300),
       maxUploadBytes: readInt('MAX_UPLOAD_BYTES', 512 * 1024 * 1024),
       staticDir: read('STATIC_DIR', 'frontend/dist'),
       appVersion: read('APP_VERSION', '1.0.0'),
