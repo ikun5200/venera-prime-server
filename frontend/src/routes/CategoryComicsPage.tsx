@@ -70,27 +70,37 @@ export default function CategoryComicsPage() {
   const [optionValues, setOptionValues] = useState<Record<string, string[]>>(
     {},
   );
+  const [readyFor, setReadyFor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  // Option groups without a `label` are common (copy_manga's ranking has
+  // two of them); use the group index as the storage key so they do not
+  // overwrite each other.
+  const optionKey = (option: OptionDef, index: number) =>
+    option.label ?? `option-${index}`;
 
   useEffect(() => {
     const next: Record<string, string[]> = {};
-    for (const option of visibleOptionDefs) {
-      const label = option.label ?? "";
+    visibleOptionDefs.forEach((option, index) => {
+      const key = optionKey(option, index);
       if (option.type === "multi-select") {
-        next[label] = option.default ? option.default.split("|") : [];
+        next[key] = option.default ? option.default.split("|") : [];
       } else if (option.default !== undefined) {
-        next[label] = [String(option.default)];
+        next[key] = [String(option.default)];
       } else if (option.options && option.options.length > 0) {
-        next[label] = [parseOption(option.options[0]).value];
+        next[key] = [parseOption(option.options[0]).value];
       } else {
-        next[label] = [];
+        next[key] = [];
       }
-    }
+    });
     setOptionValues(next);
-  }, [visibleOptionDefs]);
+    setReadyFor(categoryLabel);
+  }, [categoryLabel, visibleOptionDefs]);
 
   const options = visibleOptionDefs
-    .map((option) => (optionValues[option.label ?? ""] ?? []).join("|"))
+    .map((option, index) =>
+      (optionValues[optionKey(option, index)] ?? []).join("|"),
+    )
     .filter(Boolean);
 
   const query = useQuery({
@@ -103,7 +113,7 @@ export default function CategoryComicsPage() {
       page,
     ],
     queryFn: () => api.categoryComics(key, category, param, options, page),
-    enabled: Boolean(key && category),
+    enabled: Boolean(source && key && category && readyFor === categoryLabel),
   });
   const lastMaxPage = useRef(1);
   useEffect(() => {
@@ -119,9 +129,10 @@ export default function CategoryComicsPage() {
       <PageBody>
         {visibleOptionDefs.length > 0 ? (
           <div className="mb-5 flex flex-wrap items-end gap-3 rounded-card border border-border bg-surface p-4">
-            {visibleOptionDefs.map((option) => {
+            {visibleOptionDefs.map((option, index) => {
+              const key = optionKey(option, index);
               const label = option.label ?? t("Option");
-              const values = optionValues[label] ?? [];
+              const values = optionValues[key] ?? [];
               if (
                 option.type === "dropdown" ||
                 (option.options?.length ?? 0) > 8
@@ -134,7 +145,7 @@ export default function CategoryComicsPage() {
                         onChange={(event) =>
                           setOptionValues({
                             ...optionValues,
-                            [label]: [event.target.value],
+                            [key]: [event.target.value],
                           })
                         }
                       >
@@ -171,7 +182,7 @@ export default function CategoryComicsPage() {
                             if (option.type === "multi-select") {
                               setOptionValues({
                                 ...optionValues,
-                                [label]: selected
+                                [key]: selected
                                   ? values.filter(
                                       (value) => value !== parsed.value,
                                     )
@@ -180,7 +191,7 @@ export default function CategoryComicsPage() {
                             } else {
                               setOptionValues({
                                 ...optionValues,
-                                [label]: [parsed.value],
+                                [key]: [parsed.value],
                               });
                             }
                             setPage(1);

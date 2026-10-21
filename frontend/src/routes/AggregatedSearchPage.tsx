@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
+import { useAppStore } from "../lib/store";
 import type { Comic } from "../lib/types";
 import { friendlyError } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
@@ -32,13 +33,26 @@ export default function AggregatedSearchPage() {
   const [running, setRunning] = useState(false);
 
   const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources });
-  const searchSources = useMemo(
-    () =>
-      (sources.data?.items ?? []).filter(
-        (source) => source.enabled && source.capabilities.search === true,
-      ),
-    [sources.data],
+  const configuredSources = useAppStore(
+    (state) => state.settings.searchSources,
   );
+  const configuredKeys = useMemo(
+    () =>
+      new Set(
+        (Array.isArray(configuredSources) ? configuredSources : []).map(
+          String,
+        ),
+      ),
+    [configuredSources],
+  );
+  const searchSources = useMemo(() => {
+    const items = (sources.data?.items ?? []).filter(
+      (source) => source.enabled && source.capabilities.search === true,
+    );
+    return configuredKeys.size === 0
+      ? items
+      : items.filter((source) => configuredKeys.has(source.key));
+  }, [configuredKeys, sources.data]);
 
   // Fan out one request per source so each section can render as soon as its
   // own source answers. The old aggregate endpoint waited for every source

@@ -75,6 +75,14 @@ describe("display helpers", () => {
     expect(friendlyError(new Error("429 RATE_LIMITED"))).toBe(
       "请求过于频繁，请稍后重试",
     );
+    expect(
+      friendlyError(
+        new Error("https://x.test: Connection Failed: Connection refused"),
+      ),
+    ).toBe("源站连接失败，请稍后重试");
+    expect(friendlyError(new Error("Login expired"))).toBe(
+      "登录状态已过期，请重新登录",
+    );
     expect(friendlyError(new Error("章节不存在"))).toBe("章节不存在");
   });
 });

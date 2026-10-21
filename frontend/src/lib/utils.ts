@@ -52,6 +52,16 @@ export function friendlyError(error: unknown): string {
     if (status) return `源站返回异常（HTTP ${status}），请稍后重试`;
     return "漫画源暂时不可用，请稍后重试";
   }
+  if (
+    /Connection Failed|Connection refused|Connect error|tls connection|TLS handshake/i.test(
+      message,
+    )
+  ) {
+    return "源站连接失败，请稍后重试";
+  }
+  if (/Login expired|Not logged in|Unauthorized|登录已过期/i.test(message)) {
+    return "登录状态已过期，请重新登录";
+  }
   if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
     return "网络连接失败，请稍后重试";
   }
