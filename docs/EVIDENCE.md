@@ -522,8 +522,10 @@ Every acceptance item is backed by a reproducible command, output summary and
     an O(n²) full-directory scan while hundreds of images are written.
   - `serverPrefetchImageCount` (default `-1` = whole chapter; `0` = off;
     10/20/30/50/100) is available in `/settings/reading` and the reader
-    drawer. The existing `preloadImageCount` (1–16) controls the browser
-    preload window; it now preloads both ahead and behind the current page.
+    drawer. The reader sends the effective per-comic/device value as an
+    explicit `limit` in the prefetch request. The existing
+    `preloadImageCount` (1–16) controls the browser preload window; it now
+    preloads both ahead and behind the current page.
 - Measured on the NAS (`goda`, 16-image chapter, disk cache cleared):
   - Cold single image: **1.43 s** and **0.52 s** for the first two images.
   - `POST .../prefetch` returned in **0.01 s**; all 16 images were written in
@@ -563,9 +565,13 @@ Every acceptance item is backed by a reproducible command, output summary and
   - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
     **18/18**, production build succeeds.
 - CI: run [39543339302](https://github.com/ikun5200/venera-prime-server/actions/runs/39543339302)
-  (prefetch + gestures) and
+  (prefetch + gestures),
   [39544427544](https://github.com/ikun5200/venera-prime-server/actions/runs/39544427544)
-  (Escape fix) succeeded.
+  (Escape fix) and
+  [39545715549](https://github.com/ikun5200/venera-prime-server/actions/runs/39545715549)
+  (per-comic prefetch limit + page clamp) succeeded.
 - NAS: image pulled and container recreated; `Up (healthy)`; served bundle
-  `index-B3a0-dZe.js` contains `/prefetch` and “服务端预缓存图片数”.
+  `index-4oY5-guC.js` contains `/prefetch` and “服务端预缓存图片数”. An explicit
+  `{"from":1,"limit":2}` prefetch returned `limit: 2` and wrote exactly two
+  images (683,806 B) to the cache.
 - Time: 2026-10-21T12:40:00Z
