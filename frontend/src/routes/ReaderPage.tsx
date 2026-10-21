@@ -330,6 +330,7 @@ export default function ReaderPage() {
     : sourceImagesQuery.data;
   const imagesLoading =
     localLookupPending ||
+    (chapters.length > 0 && !chapterId) ||
     (localChapterAvailable
       ? !usingLocalImages &&
         (localImagesQuery.isLoading || sourceImagesQuery.isLoading)
