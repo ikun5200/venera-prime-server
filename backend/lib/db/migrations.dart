@@ -353,4 +353,8 @@ ALTER TABLE reading_statistics ADD COLUMN source_key TEXT NOT NULL DEFAULT '';
   '''
 ALTER TABLE follow_update_config ADD COLUMN updated_at INTEGER;
 ''',
+  // 4 — favorite description snapshot for fast list rendering
+  '''
+ALTER TABLE favorites ADD COLUMN description TEXT NOT NULL DEFAULT '';
+''',
 ];

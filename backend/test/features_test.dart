@@ -145,6 +145,91 @@ class PrefetchSource extends ComicSource {
     expect(size.body['bytes'], 0);
   });
 
+  test('favorite snapshots store the description', () async {
+    final created = await admin
+        .post('/api/favorites/folders', {'name': 'Description folder'});
+    expect(created.status, 200, reason: '${created.body}');
+    final folders = await admin.get('/api/favorites/folders');
+    final folderId = ((folders.body['items'] as List).first as Map)['id'];
+    final added = await admin.post('/api/favorites', {
+      'folderId': folderId,
+      'comic': {
+        'id': 'comic-desc',
+        'sourceKey': 'test_source',
+        'title': 'Described',
+        'subtitle': 'Author',
+        'cover': 'https://example.com/c.jpg',
+        'description': 'A cached description',
+        'tags': ['tag'],
+      },
+    });
+    expect(added.status, 200, reason: '${added.body}');
+    final list = await admin.get('/api/favorites?folderId=$folderId');
+    final item = (list.body['items'] as List)
+        .cast<Map>()
+        .firstWhere((entry) => entry['id'] == 'comic-desc');
+    expect(item['description'], 'A cached description');
+  });
+
+  test('cover cache is keyed by comic identity, not the signed URL', () async {
+    var hits = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final bytes = List<int>.generate(2048, (index) => index % 239);
+    server.listen((request) async {
+      hits++;
+      request.response.headers.contentType = ContentType('image', 'png');
+      request.response.add(bytes);
+      await request.response.close();
+    });
+    final base = 'http://127.0.0.1:${server.port}';
+    String coverPath(String url) =>
+        '/api/image/cover?url=${Uri.encodeQueryComponent(url)}'
+        '&source=cover_source&comic=cover-1';
+
+    final first = await admin.rawRequest('GET', coverPath('$base/a.png'));
+    expect(first.status, 200);
+    final second = await admin.rawRequest('GET', coverPath('$base/b.png'));
+    expect(second.status, 200);
+    expect(second.bytes.length, bytes.length);
+    expect(hits, 1, reason: 'second URL must be served from the identity cache');
+  });
+
+  test('network favorites are cached and refresh bypasses the cache', () async {
+    const script = r'''
+class FavSource extends ComicSource {
+  name = "Fav"; key = "fav_source"; version = "1.0.0";
+  favorites = {
+    loadFolders: async () => ({ folders: { all: "All" }, favorited: [] }),
+    loadComics: async (page, folder) => {
+      const n = (this.loadData("calls") || 0) + 1;
+      this.saveData("calls", n);
+      return { comics: [{ id: "1", title: "call=" + n, cover: "", tags: [] }], maxPage: 1 };
+    },
+    addOrDelFavorite: async () => true,
+    addFolder: async () => true,
+    deleteFolder: async () => true,
+  };
+  comic = { loadInfo: async () => new ComicDetails({ title: "x", chapters: {} }) };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    String titleOf(Map<String, Object?> body) =>
+        ((body['comics'] as List).first as Map)['title'].toString();
+
+    final first = await admin.get('/api/favorites/network/fav_source/all?page=1');
+    final second = await admin.get('/api/favorites/network/fav_source/all?page=1');
+    expect(first.status, 200, reason: '${first.body}');
+    expect(titleOf(first.body), 'call=1');
+    expect(titleOf(second.body), 'call=1');
+
+    final refreshed = await admin
+        .get('/api/favorites/network/fav_source/all?page=1&refresh=1');
+    expect(titleOf(refreshed.body), 'call=2');
+  });
+
   test('suggestions endpoint works with empty text', () async {
     final res = await admin.get('/api/search/suggestions?q=');
     expect(res.status, 200);

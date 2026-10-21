@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import '../db/database.dart';
 import '../repositories/image_favorite_repository.dart';
@@ -20,6 +21,11 @@ class FavoriteService {
   final HistoryRepository history;
   final Db db;
 
+  /// Network favorites are source calls; caching them for a few minutes keeps
+  /// the favorites tab fast without touching the chapter list.
+  final Map<String, ({Object? value, int expiresAt})> _networkCache = {};
+  static const _networkCacheTtlMs = 5 * 60 * 1000;
+
   FavoriteService({
     required this.favorites,
     required this.sources,
@@ -29,6 +35,31 @@ class FavoriteService {
     required this.history,
     required this.db,
   });
+
+  Object? _networkCached(String key, bool refresh) {
+    if (refresh) return null;
+    final entry = _networkCache[key];
+    if (entry == null) return null;
+    if (entry.expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+      _networkCache.remove(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  void _storeNetwork(String key, Object? value) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _networkCache[key] = (value: value, expiresAt: now + _networkCacheTtlMs);
+    if (_networkCache.length > 500) {
+      _networkCache.removeWhere((_, entry) => entry.expiresAt <= now);
+      if (_networkCache.length > 500) _networkCache.clear();
+    }
+  }
+
+  void _invalidateNetwork(int userId, String sourceKey) {
+    final prefix = '$userId|$sourceKey|';
+    _networkCache.removeWhere((key, _) => key.startsWith(prefix));
+  }
 
   List<Map<String, Object?>> folders(int userId) => favorites.folders(userId);
 
@@ -295,8 +326,10 @@ class FavoriteService {
               title: (info['title'] ?? item.name).toString(),
               author: (info['subtitle'] ?? item.author).toString(),
               cover: (info['cover'] ?? item.coverPath).toString(),
+              description: (info['description'] ?? '').toString(),
               lastUpdateTime: info['updateTime']?.toString(),
             );
+            comics.clearCoverCache(userId, sourceKey, item.comicId);
           } catch (error) {
             errors.add('${item.name}: $error');
           }
@@ -350,7 +383,10 @@ class FavoriteService {
   // ---- network favorites ------------------------------------------------
 
   Future<Map<String, Object?>> networkFolders(int userId, String sourceKey,
-      {String? comicId}) async {
+      {String? comicId, bool refresh = false}) async {
+    final cacheKey = '$userId|$sourceKey|folders|${comicId ?? ''}';
+    final cached = _networkCached(cacheKey, refresh);
+    if (cached is Map<String, Object?>) return cached;
     final source = sourceService.require(userId, sourceKey);
     if (source.capabilities['favorites'] != true) {
       throw ApiException.badRequest('此源不支持收藏');
@@ -358,18 +394,25 @@ class FavoriteService {
     final result = await sourceService
         .callValue(userId, sourceKey, 'favorites.loadFolders', [comicId]);
     final map = result is Map ? result : const {};
-    return {
+    final response = <String, Object?>{
       'folders': map['folders'] ?? const {},
       'favorited': map['favorited'] ?? const [],
     };
+    _storeNetwork(cacheKey, response);
+    return response;
   }
 
   Future<Map<String, Object?>> networkComics(
     int userId,
     String sourceKey,
     Object? folder,
-    int page,
-  ) async {
+    int page, {
+    bool refresh = false,
+  }) async {
+    final cacheKey =
+        '$userId|$sourceKey|comics|${jsonEncode(folder)}|$page';
+    final cached = _networkCached(cacheKey, refresh);
+    if (cached is Map<String, Object?>) return cached;
     final result = await sourceService
         .callValue(userId, sourceKey, 'favorites.loadComics', [page, folder]);
     final map = result is Map ? result : const {};
@@ -381,12 +424,14 @@ class FavoriteService {
             return summary;
           }).toList()
         : <Map<String, Object?>>[];
-    return {
+    final response = <String, Object?>{
       'comics': comics,
       'maxPage': map['maxPage'] ?? 1,
       'next': map['next'],
       'page': page,
     };
+    _storeNetwork(cacheKey, response);
+    return response;
   }
 
   Future<Object?> networkToggle(
@@ -397,6 +442,7 @@ class FavoriteService {
     bool add, {
     Object? favoriteId,
   }) {
+    _invalidateNetwork(userId, sourceKey);
     return sourceService.callValue(
       userId,
       sourceKey,
@@ -405,13 +451,18 @@ class FavoriteService {
     );
   }
 
-  Future<Object?> networkAddFolder(int userId, String sourceKey, String name) =>
-      sourceService.callValue(userId, sourceKey, 'favorites.addFolder', [name]);
+  Future<Object?> networkAddFolder(int userId, String sourceKey, String name) {
+    _invalidateNetwork(userId, sourceKey);
+    return sourceService
+        .callValue(userId, sourceKey, 'favorites.addFolder', [name]);
+  }
 
   Future<Object?> networkDeleteFolder(
-          int userId, String sourceKey, Object? folderId) =>
-      sourceService
-          .callValue(userId, sourceKey, 'favorites.deleteFolder', [folderId]);
+      int userId, String sourceKey, Object? folderId) {
+    _invalidateNetwork(userId, sourceKey);
+    return sourceService
+        .callValue(userId, sourceKey, 'favorites.deleteFolder', [folderId]);
+  }
 }
 
 class HistoryService {

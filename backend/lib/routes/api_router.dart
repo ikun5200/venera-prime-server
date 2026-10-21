@@ -963,7 +963,12 @@ Handler buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final url = _q(request, 'url') ?? '';
     if (url.isEmpty) throw ApiException.badRequest('缺少地址');
-    final result = await ctx.comics.cover(auth.user.id, url);
+    final result = await ctx.comics.cover(
+      auth.user.id,
+      url,
+      sourceKey: _q(request, 'source'),
+      comicId: _q(request, 'comic'),
+    );
     return Response.ok(result.bytes, headers: {
       'content-type': result.mime,
       'cache-control': 'private, max-age=86400',
@@ -1166,6 +1171,7 @@ Handler buildApiRouter(AppContext ctx) {
       auth.user.id,
       source,
       comicId: _q(request, 'comicId'),
+      refresh: _q(request, 'refresh') == '1',
     ));
   });
 
@@ -1177,6 +1183,7 @@ Handler buildApiRouter(AppContext ctx) {
       source,
       folder == 'all' ? null : _decodeParam(folder),
       _page(request),
+      refresh: _q(request, 'refresh') == '1',
     ));
   });
 

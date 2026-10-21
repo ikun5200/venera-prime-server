@@ -13,6 +13,7 @@ class FavoriteRecord {
   final List<Object?> tags;
   final List<Object?> translatedTags;
   final String coverPath;
+  final String description;
   final String favoritedAt;
   final int displayOrder;
   final String? lastUpdateTime;
@@ -30,6 +31,7 @@ class FavoriteRecord {
     required this.tags,
     required this.translatedTags,
     required this.coverPath,
+    required this.description,
     required this.favoritedAt,
     required this.displayOrder,
     required this.lastUpdateTime,
@@ -63,6 +65,7 @@ class FavoriteRecord {
       tags: list(row['tags_json']),
       translatedTags: list(row['translated_tags_json']),
       coverPath: row['cover_path'] as String? ?? '',
+      description: row['description'] as String? ?? '',
       favoritedAt: row['favorited_at'] as String,
       displayOrder: row['display_order'] as int,
       lastUpdateTime: row['last_update_time'] as String?,
@@ -79,6 +82,7 @@ class FavoriteRecord {
         'title': name,
         'subtitle': author,
         'cover': coverPath,
+        'description': description,
         'tags': tags,
         'translatedTags': translatedTags,
         'folderId': folderId,
@@ -271,8 +275,8 @@ class FavoriteRepository {
     final translated = comic['translatedTags'];
     db.execute(
       'INSERT INTO favorites (user_id,folder_id,comic_id,comic_type,name,author,'
-      'tags_json,translated_tags_json,cover_path,favorited_at,display_order) '
-      'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      'tags_json,translated_tags_json,cover_path,description,favorited_at,display_order) '
+      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         userId,
         folderId,
@@ -283,6 +287,7 @@ class FavoriteRepository {
         jsonEncode(tags is List ? tags : const []),
         jsonEncode(translated is List ? translated : const []),
         (comic['cover'] ?? comic['coverPath'] ?? '').toString(),
+        (comic['description'] ?? '').toString(),
         DateTime.now()
             .toIso8601String()
             .replaceFirst('T', ' ')
@@ -390,6 +395,7 @@ class FavoriteRepository {
     String? title,
     String? author,
     String? cover,
+    String? description,
     List<Object?>? tags,
     String? lastUpdateTime,
     bool? hasNewUpdate,
@@ -408,6 +414,7 @@ class FavoriteRepository {
     set('name', title);
     set('author', author);
     set('cover_path', cover);
+    set('description', description);
     if (tags != null) set('tags_json', jsonEncode(tags));
     set('last_update_time', lastUpdateTime);
     if (hasNewUpdate != null) set('has_new_update', hasNewUpdate ? 1 : 0);

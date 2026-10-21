@@ -34,7 +34,9 @@ export function ComicCard({
 }) {
   const t = useT();
   const [broken, setBroken] = useState(false);
-  const cover = comic.cover ? coverUrl(comic.cover) : "";
+  const cover = comic.cover
+    ? coverUrl(comic.cover, comic.sourceKey, comic.id)
+    : "";
 
   return (
     <div className={cn("group relative", className)}>

@@ -128,6 +128,7 @@ export interface FavoriteItem {
   title: string;
   subtitle: string;
   cover: string;
+  description?: string;
   tags: unknown[];
   translatedTags: unknown[];
   folderId: number;

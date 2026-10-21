@@ -543,13 +543,23 @@ export const api = {
       `/favorites/folders/${folderId}/sync`,
       { pages },
     ),
-  networkFolders: (source: string, comicId?: string) =>
-    get<{ folders: Record<string, string>; favorited: string[] }>(
-      `/favorites/network/${enc(source)}${comicId ? `?comicId=${enc(comicId)}` : ""}`,
-    ),
-  networkComics: (source: string, folder: string | null, page = 1) =>
+  networkFolders: (source: string, comicId?: string, refresh = false) => {
+    const params = new URLSearchParams();
+    if (comicId) params.set("comicId", comicId);
+    if (refresh) params.set("refresh", "1");
+    const query = params.toString();
+    return get<{ folders: Record<string, string>; favorited: string[] }>(
+      `/favorites/network/${enc(source)}${query ? `?${query}` : ""}`,
+    );
+  },
+  networkComics: (
+    source: string,
+    folder: string | null,
+    page = 1,
+    refresh = false,
+  ) =>
     get<{ comics: Comic[]; maxPage: number; page: number }>(
-      `/favorites/network/${enc(source)}/${folder === null ? "all" : enc(JSON.stringify(folder))}?page=${page}`,
+      `/favorites/network/${enc(source)}/${folder === null ? "all" : enc(JSON.stringify(folder))}?page=${page}${refresh ? "&refresh=1" : ""}`,
     ),
   toggleNetworkFavorite: (
     source: string,
@@ -720,9 +730,16 @@ export function imageUrl(
   return `/api/image?${params}`;
 }
 
-export function coverUrl(url: string): string {
+export function coverUrl(
+  url: string,
+  source?: string,
+  comicId?: string,
+): string {
   if (!url) return "";
-  return `/api/image/cover?url=${enc(url)}`;
+  const params = new URLSearchParams({ url });
+  if (source) params.set("source", source);
+  if (comicId) params.set("comic", comicId);
+  return `/api/image/cover?${params}`;
 }
 
 export function localImageUrl(

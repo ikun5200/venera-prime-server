@@ -994,9 +994,17 @@ class ComicService {
   }
 
   Future<({Uint8List bytes, String mime})> cover(int userId, String url,
-      {String? sourceKey}) async {
-    final cacheKey =
-        sha256.convert(utf8.encode('cover|$userId|$url')).toString();
+      {String? sourceKey, String? comicId}) async {
+    // Cache by comic identity when possible: source CDNs often hand out a new
+    // signed URL for the same cover, which would otherwise miss the URL cache
+    // every time the favorites list is opened.
+    final identity = (sourceKey != null &&
+            sourceKey.isNotEmpty &&
+            comicId != null &&
+            comicId.isNotEmpty)
+        ? 'cover|$userId|$sourceKey|$comicId'
+        : 'cover|$userId|$url';
+    final cacheKey = sha256.convert(utf8.encode(identity)).toString();
     final cached = _readCache(userId, cacheKey);
     if (cached != null) return cached;
     final headers = {
@@ -1017,6 +1025,20 @@ class ComicService {
         response.headers['content-type']?.split(';').first ?? _guessMime(url);
     _writeCache(userId, cacheKey, response.bodyBytes, mime);
     return (bytes: response.bodyBytes, mime: mime);
+  }
+
+  /// Drops the identity-keyed cover cache after favorite metadata is updated,
+  /// so a changed cover URL is not hidden by the old bytes.
+  void clearCoverCache(int userId, String sourceKey, String comicId) {
+    try {
+      final identity = 'cover|$userId|$sourceKey|$comicId';
+      final key = sha256.convert(utf8.encode(identity)).toString();
+      final dir = _cacheDir(userId);
+      final file = File(p.join(dir.path, '$key.bin'));
+      final meta = File(p.join(dir.path, '$key.type'));
+      if (file.existsSync()) file.deleteSync();
+      if (meta.existsSync()) meta.deleteSync();
+    } catch (_) {}
   }
 
   String? _cookieHeader(int userId, String url) {

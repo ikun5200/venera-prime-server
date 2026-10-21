@@ -447,7 +447,7 @@ export default function ComicDetailPage() {
               onContextMenu={(event) => {
                 event.preventDefault();
                 if (!data.cover) return;
-                downloadUrl(coverUrl(data.cover), "cover.jpg").catch((error) =>
+                downloadUrl(coverUrl(data.cover, source, id), "cover.jpg").catch((error) =>
                   toast.error(
                     error instanceof Error ? error.message : String(error),
                   ),
@@ -457,7 +457,7 @@ export default function ComicDetailPage() {
             >
               {data.cover ? (
                 <img
-                  src={coverUrl(data.cover)}
+                  src={coverUrl(data.cover, source, id)}
                   alt={data.title}
                   className="h-full w-full object-cover"
                 />
@@ -833,7 +833,7 @@ export default function ComicDetailPage() {
                 variant="secondary"
                 onClick={() =>
                   data.cover
-                    ? downloadUrl(coverUrl(data.cover), "cover.jpg").catch(
+                    ? downloadUrl(coverUrl(data.cover, source, id), "cover.jpg").catch(
                         (error) =>
                           toast.error(
                             error instanceof Error
@@ -854,7 +854,7 @@ export default function ComicDetailPage() {
           <div className="flex min-h-[40dvh] items-center justify-center overflow-auto">
             {data.cover ? (
               <img
-                src={coverUrl(data.cover)}
+                src={coverUrl(data.cover, source, id)}
                 alt={data.title}
                 onClick={() => setCoverBarVisible((value) => !value)}
                 onDoubleClick={() => setCoverZoomed((value) => !value)}

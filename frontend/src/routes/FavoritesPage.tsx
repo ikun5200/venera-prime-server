@@ -43,7 +43,7 @@ function toComic(item: FavoriteItem): Comic {
     subtitle: item.subtitle,
     cover: item.cover,
     tags: [],
-    description: "",
+    description: item.description ?? "",
     sourceKey: item.sourceKey ?? "",
     comicType: item.comicType,
   };
@@ -69,6 +69,7 @@ export default function FavoritesPage() {
   const folders = useQuery({
     queryKey: ["favorite-folders"],
     queryFn: api.favoriteFolders,
+    staleTime: 5 * 60 * 1000,
   });
   const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources });
   const networkSources = (sources.data?.items ?? []).filter(
@@ -105,12 +106,14 @@ export default function FavoritesPage() {
         page,
       }),
     enabled: view === "local",
+    staleTime: 5 * 60 * 1000,
   });
 
   const networkFolders = useQuery({
     queryKey: ["network-folders", networkSource],
     queryFn: () => api.networkFolders(networkSource),
     enabled: view === "network" && Boolean(networkSource) && !networkFolder,
+    staleTime: 5 * 60 * 1000,
   });
   const networkComics = useQuery({
     queryKey: ["network-comics", networkSource, networkFolder, page],
@@ -118,6 +121,7 @@ export default function FavoritesPage() {
       api.networkComics(networkSource, networkFolder ?? null, page),
     enabled:
       view === "network" && Boolean(networkSource) && Boolean(networkFolder),
+    staleTime: 5 * 60 * 1000,
   });
 
   const currentFolder = folders.data?.items.find(
