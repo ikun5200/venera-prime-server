@@ -136,7 +136,10 @@ export default function ReaderPage() {
   }, [chapters]);
 
   const [chapterId, setChapterId] = useState("");
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(() => {
+    const requested = Number(searchParams.get("page") ?? "1");
+    return Number.isFinite(requested) ? Math.max(0, requested - 1) : 0;
+  });
   const [controlsVisible, setControlsVisible] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -167,9 +170,6 @@ export default function ReaderPage() {
     y: number;
   } | null>(null);
   const [rotation, setRotation] = useState(0);
-  const [slideDirection, setSlideDirection] = useState<"next" | "prev" | null>(
-    null,
-  );
   const [swipeHint, setSwipeHint] = useState<string | null>(null);
   const [downloadedEpisodes, setDownloadedEpisodes] = useState<Set<string>>(
     new Set(),
@@ -186,6 +186,7 @@ export default function ReaderPage() {
   const longPressActive = useRef(false);
   const suppressTapUntil = useRef(0);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const showHint = (text: string) => {
     setSwipeHint(text);
@@ -353,7 +354,8 @@ export default function ReaderPage() {
 
   const totalPages = pages.length;
   useEffect(() => {
-    setCurrentPage((value) => clamp(value, 0, Math.max(0, pages.length - 1)));
+    if (pages.length === 0) return;
+    setCurrentPage((value) => clamp(value, 0, pages.length - 1));
   }, [pages.length]);
   const commentsAtEnd =
     !isLocal &&
@@ -362,6 +364,7 @@ export default function ReaderPage() {
     readerSettings.showChapterComments === true &&
     readerSettings.showChapterCommentsAtEnd === true &&
     sourceInfo?.capabilities.chapterComments === true;
+  const galleryPageCount = pages.length + (commentsAtEnd ? 1 : 0);
   const onCommentsPage = commentsAtEnd && currentPage >= pages.length;
 
   useEffect(() => {
@@ -502,11 +505,9 @@ export default function ReaderPage() {
 
   const goNext = useCallback(() => {
     if (currentPage < totalPages - 1) {
-      setSlideDirection("next");
       setCurrentPage((value) => value + 1);
       setControlsVisible(false);
     } else if (commentsAtEnd && currentPage < totalPages) {
-      setSlideDirection("next");
       setCurrentPage(totalPages);
       setControlsVisible(false);
     } else if (nextChapter) {
@@ -527,11 +528,9 @@ export default function ReaderPage() {
 
   const goPrev = useCallback(() => {
     if (commentsAtEnd && currentPage >= totalPages) {
-      setSlideDirection("prev");
       setCurrentPage(Math.max(0, totalPages - 1));
       setControlsVisible(false);
     } else if (currentPage > 0) {
-      setSlideDirection("prev");
       setCurrentPage((value) => value - 1);
       setControlsVisible(false);
     } else if (prevChapter) {
@@ -827,22 +826,53 @@ export default function ReaderPage() {
     };
   };
 
+  const pageTrackTransform = (page: number, offset: number) => {
+    if (direction === "ttb") {
+      return `translate3d(0, calc(${-page * 100}% + ${offset}px), 0)`;
+    }
+    const sign = direction === "rtl" ? 1 : -1;
+    return `translate3d(calc(${sign * page * 100}% + ${offset}px), 0, 0)`;
+  };
+
+  const pageTransition = () =>
+    readerSettings.enablePageAnimation === false
+      ? "none"
+      : "transform 220ms cubic-bezier(0.215, 0.61, 0.355, 1)";
+
+  // Drags are written straight to the track so a 100-page chapter does not
+  // re-render every page item on each pointer move.
+  const setTrack = (offset: number, animate: boolean) => {
+    const element = trackRef.current;
+    if (!element) return;
+    element.style.transition = animate ? pageTransition() : "none";
+    element.style.transform = pageTrackTransform(currentPage, offset);
+  };
+
   const onGalleryPointerDown = (event: React.PointerEvent) => {
-    if (
-      isContinuous ||
-      onCommentsPage ||
-      readerSettings.enableLongPressToZoom !== true
-    )
-      return;
+    if (isContinuous) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select, button, a")) return;
     if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
     longPressStart.current = { x: event.clientX, y: event.clientY };
     longPressActive.current = false;
+    dragStart.current = {
+      x: event.clientX,
+      y: event.clientY,
+      time: Date.now(),
+      pointerId: event.pointerId,
+    };
+    draggingRef.current = false;
+    dragOffsetRef.current = 0;
+    if (onCommentsPage || readerSettings.enableLongPressToZoom !== true) return;
     const origin = zoomOrigin(event);
     longPressTimer.current = window.setTimeout(() => {
       longPressTimer.current = null;
       longPressActive.current = true;
       suppressTapUntil.current = Date.now() + 600;
+      dragStart.current = null;
+      draggingRef.current = false;
+      dragOffsetRef.current = 0;
       longPressPanStart.current = {
         x: event.clientX,
         y: event.clientY,
@@ -856,27 +886,52 @@ export default function ReaderPage() {
   const onGalleryPointerMove = (event: React.PointerEvent) => {
     const start = longPressStart.current;
     if (!start) return;
-    const distance = Math.hypot(
-      event.clientX - start.x,
-      event.clientY - start.y,
-    );
-    if (!longPressActive.current) {
-      if (distance > 10 && longPressTimer.current) {
+    if (longPressActive.current) {
+      const panStart = longPressPanStart.current;
+      const rect = galleryRef.current?.getBoundingClientRect();
+      if (!panStart || !rect || rect.width === 0 || rect.height === 0) return;
+      const dx = ((event.clientX - panStart.x) / rect.width) * 100;
+      const dy = ((event.clientY - panStart.y) / rect.height) * 100;
+      setZoom({
+        scale: 1.75,
+        x: clamp(panStart.zoomX - dx, 0, 100),
+        y: clamp(panStart.zoomY - dy, 0, 100),
+      });
+      return;
+    }
+    const drag = dragStart.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    const primary = direction === "ttb" ? dy : dx;
+    const cross = direction === "ttb" ? dx : dy;
+    if (!draggingRef.current) {
+      if (Math.abs(primary) < 8 || Math.abs(primary) <= Math.abs(cross)) {
+        if (Math.hypot(dx, dy) > 10 && longPressTimer.current) {
+          window.clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+        return;
+      }
+      draggingRef.current = true;
+      suppressTapUntil.current = Date.now() + 400;
+      if (longPressTimer.current) {
         window.clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
       }
-      return;
     }
-    const panStart = longPressPanStart.current;
-    const rect = galleryRef.current?.getBoundingClientRect();
-    if (!panStart || !rect || rect.width === 0 || rect.height === 0) return;
-    const dx = ((event.clientX - panStart.x) / rect.width) * 100;
-    const dy = ((event.clientY - panStart.y) / rect.height) * 100;
-    setZoom({
-      scale: 1.75,
-      x: clamp(panStart.zoomX - dx, 0, 100),
-      y: clamp(panStart.zoomY - dy, 0, 100),
-    });
+    // The track follows the finger. In RTL the next page sits to the left of
+    // the current one, so dragging right advances; TTB advances on drag up.
+    let offset = primary;
+    const advance = direction === "rtl" ? offset : -offset;
+    if (
+      (advance < 0 && currentPage <= 0) ||
+      (advance > 0 && currentPage >= galleryPageCount - 1)
+    ) {
+      offset *= 0.35;
+    }
+    dragOffsetRef.current = offset;
+    setTrack(offset, false);
   };
 
   const endLongPress = () => {
@@ -884,11 +939,117 @@ export default function ReaderPage() {
     longPressTimer.current = null;
     longPressStart.current = null;
     longPressPanStart.current = null;
+    dragStart.current = null;
+    draggingRef.current = false;
+    dragOffsetRef.current = 0;
+    setTrack(0, true);
     if (longPressActive.current) {
       longPressActive.current = false;
       suppressTapUntil.current = Date.now() + 400;
       setZoom(null);
     }
+  };
+
+  const onGalleryPointerUp = (event: React.PointerEvent) => {
+    if (longPressActive.current) {
+      endLongPress();
+      return;
+    }
+    const drag = dragStart.current;
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    longPressStart.current = null;
+    dragStart.current = null;
+
+    if (draggingRef.current) {
+      const offset = dragOffsetRef.current;
+      const elapsed = drag ? Math.max(1, Date.now() - drag.time) : 1;
+      const size =
+        direction === "ttb"
+          ? (galleryRef.current?.clientHeight ?? window.innerHeight)
+          : (galleryRef.current?.clientWidth ?? window.innerWidth);
+      const velocity = Math.abs(offset) / elapsed;
+      const threshold = Math.max(36, size * 0.18);
+      const crossDistance = drag
+        ? direction === "ttb"
+          ? Math.abs(event.clientX - drag.x)
+          : Math.abs(event.clientY - drag.y)
+        : 0;
+      const advance = direction === "rtl" ? offset : -offset;
+      const animate = readerSettings.enablePageAnimation !== false;
+      draggingRef.current = false;
+      dragOffsetRef.current = 0;
+      suppressTapUntil.current = Date.now() + 350;
+      if (
+        readerSettings.quickCollectImage === "Swipe" &&
+        crossDistance > 150
+      ) {
+        setTrack(0, animate);
+        collectRef.current();
+        return;
+      }
+      if (advance > threshold || (advance > 20 && velocity > 0.45)) {
+        if (currentPage < galleryPageCount - 1) {
+          setTrack(0, animate);
+          goNext();
+        } else {
+          setTrack(0, animate);
+          showHint(t("This is the last chapter"));
+        }
+      } else if (advance < -threshold || (advance < -20 && velocity > 0.45)) {
+        if (currentPage > 0) {
+          setTrack(0, animate);
+          goPrev();
+        } else {
+          setTrack(0, animate);
+          showHint(t("This is the first chapter"));
+        }
+      } else {
+        setTrack(0, animate);
+      }
+      return;
+    }
+
+    if (onCommentsPage) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button")) return;
+    const imageIndex = target.dataset?.imageIndex;
+    if (
+      imageIndex !== undefined &&
+      (pages[currentPage]?.images.length ?? 0) > 1
+    ) {
+      setSelectedImage(Number(imageIndex));
+      return;
+    }
+
+    const rect = galleryRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    let zone: "prev" | "center" | "next";
+    if (direction === "ttb") {
+      zone = y < 0.3 ? "prev" : y > 0.7 ? "next" : "center";
+    } else {
+      zone =
+        x < 0.3
+          ? direction === "rtl"
+            ? "next"
+            : "prev"
+          : x > 0.7
+            ? direction === "rtl"
+              ? "prev"
+              : "next"
+            : "center";
+    }
+    scheduleTapZone(zone);
+  };
+
+  const onGalleryPointerCancel = () => {
+    endLongPress();
+    longPressActive.current = false;
+    setZoom(null);
   };
 
   const zoneTapTimer = useRef<number | null>(null);
@@ -910,6 +1071,7 @@ export default function ReaderPage() {
       window.clearTimeout(zoneTapTimer.current);
       zoneTapTimer.current = null;
     }
+    if (onCommentsPage) return;
     if (readerSettings.quickCollectImage === "DoubleTap") {
       collectRef.current();
       return;
@@ -931,41 +1093,17 @@ export default function ReaderPage() {
     setZoom({ scale: 2, x, y });
   };
 
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+  const dragStart = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    pointerId: number;
+  } | null>(null);
   const continuousTap = useRef<{ x: number; y: number; time: number } | null>(
     null,
   );
-  const onTouchStart = (event: React.TouchEvent) => {
-    if (onCommentsPage) return;
-    const touch = event.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-  };
-  const onTouchEnd = (event: React.TouchEvent) => {
-    if (onCommentsPage || !touchStart.current) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - touchStart.current.x;
-    const dy = touch.clientY - touchStart.current.y;
-    touchStart.current = null;
-    if (readerSettings.quickCollectImage === "Swipe") {
-      const perpendicular = direction === "ttb" ? Math.abs(dx) : Math.abs(dy);
-      if (perpendicular > 150) {
-        collectRef.current();
-        return;
-      }
-    }
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx < 0) {
-        if (direction === "rtl") goPrev();
-        else goNext();
-      } else {
-        if (direction === "rtl") goNext();
-        else goPrev();
-      }
-    } else if (Math.abs(dy) > 80 && direction === "ttb" && !isContinuous) {
-      if (dy < 0) goNext();
-      else goPrev();
-    }
-  };
 
   const tapZone = (zone: "prev" | "center" | "next") => {
     // The original reader closes the toolbar on any tap while it is open;
@@ -978,7 +1116,10 @@ export default function ReaderPage() {
       setControlsVisible(true);
       return;
     }
-    if (readerSettings.enableTapToTurnPages === false) return;
+    if (readerSettings.enableTapToTurnPages === false) {
+      setControlsVisible(true);
+      return;
+    }
     const reverse = readerSettings.reverseTapToTurnPages === true;
     if (zone === "prev") {
       if (reverse) goNext();
@@ -998,7 +1139,10 @@ export default function ReaderPage() {
       setControlsVisible(true);
       return;
     }
-    if (readerSettings.enableTapToTurnPages === false) return;
+    if (readerSettings.enableTapToTurnPages === false) {
+      setControlsVisible(true);
+      return;
+    }
     const reverse = readerSettings.reverseTapToTurnPages === true;
     const forward = zone === "next" ? !reverse : reverse;
     const element = scrollRef.current;
@@ -1473,136 +1617,125 @@ export default function ReaderPage() {
       ) : (
         <div
           ref={galleryRef}
-          className="relative flex flex-1 items-center justify-center overflow-hidden"
-          style={{ transform: rotation ? `rotate(${rotation}deg)` : undefined }}
+          className="relative flex-1 overflow-hidden"
+          style={{
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
+            touchAction: direction === "ttb" ? "none" : "pan-y",
+            overscrollBehavior: "contain",
+          }}
           onWheel={onWheel}
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
           onPointerDown={onGalleryPointerDown}
           onPointerMove={onGalleryPointerMove}
-          onPointerUp={endLongPress}
-          onPointerCancel={endLongPress}
-          onPointerLeave={endLongPress}
+          onPointerUp={onGalleryPointerUp}
+          onPointerCancel={onGalleryPointerCancel}
+          onPointerLeave={onGalleryPointerCancel}
           onDoubleClick={onGalleryDoubleClick}
           onContextMenu={handleContextMenu}
         >
-          {!onCommentsPage ? (
-            direction === "ttb" ? (
-              <>
-                <button
-                  className="absolute inset-x-0 top-0 z-10 h-[30%] cursor-default"
-                  aria-label={t("Previous")}
-                  onClick={() => scheduleTapZone("prev")}
-                />
-                <button
-                  className="absolute inset-x-0 top-[30%] z-10 h-[40%] cursor-default"
-                  aria-label={t("Toggle controls")}
-                  onClick={() => scheduleTapZone("center")}
-                />
-                <button
-                  className="absolute inset-x-0 bottom-0 z-10 h-[30%] cursor-default"
-                  aria-label={t("Next")}
-                  onClick={() => scheduleTapZone("next")}
-                />
-              </>
-            ) : (
-              <>
-                <button
-                  className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
-                  aria-label={t("Previous")}
-                  onClick={() =>
-                    scheduleTapZone(direction === "rtl" ? "next" : "prev")
-                  }
-                />
-                <button
-                  className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
-                  aria-label={t("Toggle controls")}
-                  onClick={() => scheduleTapZone("center")}
-                />
-                <button
-                  className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
-                  aria-label={t("Next")}
-                  onClick={() =>
-                    scheduleTapZone(direction === "rtl" ? "prev" : "next")
-                  }
-                />
-              </>
-            )
-          ) : null}
-          {onCommentsPage ? (
-            <ChapterCommentsEndPage
-              source={sourceKey}
-              comicId={comicId}
-              epId={chapterId}
-              comicTitle={title}
-              chapterTitle={chapterTitle}
-              onExit={() => setCurrentPage(Math.max(0, totalPages - 1))}
-            />
-          ) : (
-            <div
-              key={`${chapterId}-${currentPage}`}
-              className={cn(
-                "flex h-full w-full items-center justify-center gap-px",
-                direction === "rtl" ? "flex-row-reverse" : "flex-row",
-                readerSettings.enablePageAnimation !== false &&
-                  !zoom &&
-                  (slideDirection === "prev"
-                    ? "reader-page-slide-prev"
-                    : slideDirection === "next"
-                      ? "reader-page-slide-next"
-                      : "reader-page-anim"),
-              )}
-              style={{
-                paddingLeft: `${marginPercent}%`,
-                paddingRight: `${marginPercent}%`,
-                transform: zoom ? `scale(${zoom.scale})` : undefined,
-                transformOrigin: zoom ? `${zoom.x}% ${zoom.y}%` : undefined,
-                transition: longPressActive.current
-                  ? "none"
-                  : "transform 160ms ease-out",
-              }}
-            >
-              {pages[currentPage]?.images.map((url, index) => {
-                const pageIndex = pages[currentPage]?.indexes[index] ?? 0;
-                return failed[pageIndex] ? (
-                  <button
-                    key={`${pageIndex}-${retryNonce}`}
-                    className="m-4 rounded border border-white/20 px-4 py-3 text-sm"
-                    onClick={() => {
-                      setFailed((value) => ({ ...value, [pageIndex]: false }));
-                      setRetryNonce((value) => value + 1);
-                    }}
-                  >
-                    {t("Retry")}
-                  </button>
-                ) : (
-                  <img
-                    key={`${pageIndex}-${retryNonce}`}
-                    src={url}
-                    alt={`${title} page ${pageIndex + 1}`}
-                    draggable={false}
-                    onError={() =>
-                      setFailed((value) => ({ ...value, [pageIndex]: true }))
-                    }
-                    onClick={() => {
-                      if (pages[currentPage]?.images.length > 1) {
-                        setSelectedImage((previous) =>
-                          previous === index ? null : index,
-                        );
-                      } else {
-                        setControlsVisible((value) => !value);
+          <div
+            ref={trackRef}
+            className={cn(
+              "flex h-full w-full",
+              direction === "ttb"
+                ? "flex-col"
+                : direction === "rtl"
+                  ? "flex-row-reverse"
+                  : "flex-row",
+            )}
+            style={{
+              transform: pageTrackTransform(currentPage, 0),
+              transition: pageTransition(),
+              willChange: "transform",
+            }}
+          >
+            {pages.map((page, pageIndex) => (
+              <div
+                key={`${chapterId}-${pageIndex}`}
+                data-page-index={pageIndex}
+                className={cn(
+                  "relative flex h-full w-full shrink-0 items-center justify-center gap-px",
+                  direction === "rtl" ? "flex-row-reverse" : "flex-row",
+                )}
+                style={{
+                  paddingLeft: direction !== "ttb" ? `${marginPercent}%` : 0,
+                  paddingRight: direction !== "ttb" ? `${marginPercent}%` : 0,
+                  paddingTop: direction === "ttb" ? `${marginPercent / 2}%` : 0,
+                  paddingBottom:
+                    direction === "ttb" ? `${marginPercent / 2}%` : 0,
+                  transform:
+                    pageIndex === currentPage && zoom
+                      ? `scale(${zoom.scale})`
+                      : undefined,
+                  transformOrigin:
+                    pageIndex === currentPage && zoom
+                      ? `${zoom.x}% ${zoom.y}%`
+                      : undefined,
+                  transition: longPressActive.current
+                    ? "none"
+                    : "transform 160ms ease-out",
+                }}
+              >
+                {page.images.map((url, index) => {
+                  const pageImageIndex = page.indexes[index] ?? 0;
+                  return failed[pageImageIndex] ? (
+                    <button
+                      key={`${pageImageIndex}-${retryNonce}`}
+                      className="m-4 rounded border border-white/20 px-4 py-3 text-sm"
+                      onClick={() => {
+                        setFailed((value) => ({
+                          ...value,
+                          [pageImageIndex]: false,
+                        }));
+                        setRetryNonce((value) => value + 1);
+                      }}
+                    >
+                      {t("Retry")}
+                    </button>
+                  ) : (
+                    <img
+                      key={`${pageImageIndex}-${retryNonce}`}
+                      src={url}
+                      alt={`${title} page ${pageImageIndex + 1}`}
+                      data-image-index={index}
+                      draggable={false}
+                      loading={
+                        Math.abs(pageIndex - currentPage) <= 1
+                          ? "eager"
+                          : "lazy"
                       }
-                    }}
-                    className={cn(
-                      "reader-page max-h-full min-w-0 flex-1 select-none object-contain transition-opacity duration-150",
-                      selectedImage === index &&
-                        "ring-2 ring-accent brightness-110",
-                    )}
+                      decoding="async"
+                      onError={() =>
+                        setFailed((value) => ({
+                          ...value,
+                          [pageImageIndex]: true,
+                        }))
+                      }
+                      className={cn(
+                        "reader-page max-h-full min-w-0 flex-1 select-none object-contain transition-opacity duration-150",
+                        pageIndex === currentPage &&
+                          selectedImage === index &&
+                          "ring-2 ring-accent brightness-110",
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+            {commentsAtEnd ? (
+              <div className="h-full w-full shrink-0">
+                {currentPage >= pages.length - 1 ? (
+                  <ChapterCommentsEndPage
+                    source={sourceKey}
+                    comicId={comicId}
+                    epId={chapterId}
+                    comicTitle={title}
+                    chapterTitle={chapterTitle}
+                    onExit={() => setCurrentPage(Math.max(0, totalPages - 1))}
                   />
-                );
-              })}
-            </div>
-          )}
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <div
             className="pointer-events-none absolute inset-0 bg-black"
             style={{
@@ -1698,7 +1831,7 @@ export default function ReaderPage() {
               type="range"
               min={1}
               max={Math.max(1, totalPages)}
-              value={currentPage + 1}
+              value={Math.min(currentPage + 1, totalPages)}
               onChange={(event) =>
                 setCurrentPage(Number(event.target.value) - 1)
               }
@@ -1709,12 +1842,12 @@ export default function ReaderPage() {
               {t("Last")}
             </button>
             <span className="w-16 text-right text-[11px] tabular text-white/70">
-              {currentPage + 1} / {totalPages}
+              {Math.min(currentPage + 1, totalPages)} / {totalPages}
             </span>
           </div>
         ) : (
           <div className="mb-2 text-center text-[11px] text-white/60">
-            {currentPage + 1} / {imageUrls.length}
+            {Math.min(currentPage + 1, imageUrls.length)} / {imageUrls.length}
           </div>
         )}
         <div className="flex items-center gap-1 overflow-x-auto">

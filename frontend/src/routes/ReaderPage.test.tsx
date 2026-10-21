@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ReaderPage from "./ReaderPage";
@@ -23,13 +29,13 @@ const details = {
   favoriteFolders: [],
 };
 
-function renderReader() {
+function renderReader(entry = "/reader/test_source/comic-1") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/reader/test_source/comic-1"]}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/reader/:source/:id" element={<ReaderPage />} />
         </Routes>
@@ -39,6 +45,8 @@ function renderReader() {
 }
 
 describe("ReaderPage", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     useAppStore.setState({
       user: {
@@ -130,6 +138,71 @@ describe("ReaderPage", () => {
     fireEvent.keyDown(document, { key: "ArrowUp" });
     await waitFor(() =>
       expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    unmountTtb();
+  });
+
+  it("opens at the page requested in the URL", async () => {
+    renderReader("/reader/test_source/comic-1?page=3");
+    await waitFor(() =>
+      expect(screen.getAllByText("3 / 3").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("slides the whole page track in each reading direction", async () => {
+    const { container, unmount } = renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByLabelText("下一张图片"));
+    await waitFor(() =>
+      expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
+    );
+    const track = container.querySelector<HTMLDivElement>(
+      '[style*="will-change: transform"]',
+    );
+    expect(track?.getAttribute("style")).toContain("calc(-100% + 0px)");
+    unmount();
+
+    useAppStore.setState({
+      settings: {
+        ...useAppStore.getState().settings,
+        readerMode: "galleryRightToLeft",
+      },
+    });
+    const { container: rtlContainer, unmount: unmountRtl } = renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByLabelText("下一张图片"));
+    await waitFor(() =>
+      expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
+    );
+    const rtlTrack = rtlContainer.querySelector<HTMLDivElement>(
+      '[style*="will-change: transform"]',
+    );
+    expect(rtlTrack?.getAttribute("style")).toContain("calc(100% + 0px)");
+    unmountRtl();
+
+    useAppStore.setState({
+      settings: {
+        ...useAppStore.getState().settings,
+        readerMode: "galleryTopToBottom",
+      },
+    });
+    const { container: ttbContainer, unmount: unmountTtb } = renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByLabelText("下一张图片"));
+    await waitFor(() =>
+      expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
+    );
+    const ttbTrack = ttbContainer.querySelector<HTMLDivElement>(
+      '[style*="will-change: transform"]',
+    );
+    expect(ttbTrack?.getAttribute("style")).toContain(
+      "translate3d(0, calc(-100% + 0px), 0)",
     );
     unmountTtb();
   });
