@@ -79,7 +79,8 @@ by any API.
 
 ### favorites
 PK `(folder_id, comic_id, comic_type)`, `user_id`, `name`, `author`,
-`tags_json`, `translated_tags_json`, `cover_path`, `favorited_at` (TEXT
+`tags_json`, `translated_tags_json`, `cover_path`, `description` (snapshot for
+instant list rendering, migration 4), `favorited_at` (TEXT
 `YYYY-MM-DD HH:MM:SS`), `display_order` (signed), `last_update_time`,
 `has_new_update`, `last_check_time`, `last_attempt_time`,
 `last_update_chapters_json`. Indexes `(user_id, folder_id, display_order)`,

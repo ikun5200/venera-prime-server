@@ -129,6 +129,7 @@ Comic summary: `{id,title,subtitle,cover,tags,description,sourceKey,maxPage,lang
 | GET | `/api/comic/:source/:id/archives` | source archive list |
 | GET | `/api/image` | `?source=&comic=&ep=&key=` → image bytes (proxy) |
 | GET | `/api/image/thumb` | `?source=&key=` → thumbnail bytes |
+| GET | `/api/image/cover` | `?url=&source=&comic=` → cover bytes; cached by comic identity when source+comic are present |
 
 The image proxy calls the source's `comic.onImageLoad`, applies returned
 headers/cookies, follows `onLoadFailed` up to 5 times, and caches per user
@@ -160,11 +161,17 @@ current page in the browser.
 | POST | `/api/favorites/update-info` | `{folderId?}` background task |
 | GET | `/api/favorites/export` | `?folderId=` JSON download |
 | POST | `/api/favorites/import` | `{data}` |
-| GET | `/api/favorites/network/:source` | remote folders |
-| GET | `/api/favorites/network/:source/:folder` | remote comics |
+| GET | `/api/favorites/network/:source` | remote folders; cached 5 min, `?refresh=1` bypasses |
+| GET | `/api/favorites/network/:source/:folder` | remote comics; cached 5 min, `?refresh=1` bypasses |
 | POST | `/api/favorites/network/:source` | add/remove `{comicId,folderId,add}` |
 | POST | `/api/favorites/network/:source/folder` | `{name}` |
 | DELETE | `/api/favorites/network/:source/folder/:id` | |
+
+Local favorite rows include a cached `description` snapshot. `GET
+/api/favorites` also schedules background cover downloads (up to 30, three at
+a time) keyed by `source + comic`, so a later visit serves covers from disk
+even if the source rotated its signed URL. Chapter lists are never cached by
+this path.
 
 ## History / progress / read later
 

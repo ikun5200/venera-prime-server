@@ -204,3 +204,15 @@
 - Impact: whole-chapter prefetch is the default (`-1`); users can cap it or
   disable it. Prefetch runs in the background with 3-way concurrency and never
   blocks the reader request.
+
+## D-021 — Favorites metadata and cover caching, chapter lists stay live
+- Choice: cache source-backed favorite folders/pages for 5 minutes; key cover
+  bytes by `user|source|comic`; prewarm up to 30 list covers with 3-way
+  concurrency; store a `description` snapshot on local favorite rows. Do not
+  cache chapter lists.
+- Reason: favorite lists are read far more often than they change, and source
+  CDNs rotate cover URLs, so URL-keyed caches missed even for the same comic.
+  Chapter lists must reflect source updates, so they remain uncached.
+- Impact: favorites render from snapshots/disk immediately; mutations
+  invalidate the list cache, and `refresh=1` provides an explicit bypass.
+  Covers are re-fetched after `update-info` clears the identity entry.

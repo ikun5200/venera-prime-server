@@ -575,3 +575,49 @@ Every acceptance item is backed by a reproducible command, output summary and
   `{"from":1,"limit":2}` prefetch returned `limit: 2` and wrote exactly two
   images (683,806 B) to the cache.
 - Time: 2026-10-21T12:40:00Z
+
+## E-21 — Favorites metadata, cover and network-list caching (2026-10-21) — PASS
+
+- User report: the favorites list keeps hitting the server/source for comic
+  covers and descriptions; they should be cached, while chapter lists should
+  stay fresh.
+- Implemented:
+  - **Network favorites cache**: `favorites.loadFolders` and
+    `favorites.loadComics` responses are cached in memory for 5 minutes per
+    user + source + folder + page. Favorite/folder mutations invalidate the
+    source's entries; `?refresh=1` bypasses the cache.
+  - **Cover identity cache**: `/api/image/cover` accepts `source` and `comic`
+    and keys the disk cache by `user|source|comic` instead of the URL. A
+    rotating/signed CDN URL therefore still hits the cached bytes. The cache
+    is cleared when `update-info` refreshes a favorite.
+  - **Cover prewarm**: `GET /api/favorites` and network favorite pages schedule
+    up to 30 missing covers in the background (3 concurrent), so the next
+    visit is served from disk.
+  - **Description snapshot**: migration 4 adds `favorites.description`;
+    add-favorite and `update-info` write it, and the list API returns it.
+    The card title exposes it as a tooltip.
+  - Frontend favorites queries keep a 5-minute client cache; mutations still
+    invalidate them.
+  - Chapter lists are deliberately **not** cached by any of these paths.
+- NAS verification:
+  - Favorite list request: **0.043 s**, returns the stored description
+    (“预热用简介”).
+  - Adding a favorite and opening the list triggered a cover prewarm; the
+    server cache grew by **44,194 B in 1.0 s**.
+  - Requesting the same comic with a changed signed URL
+    (`...?v=2`) returned **44,194 B in 0.029 s** from the identity cache
+    (the cold fetch of that cover previously took 8.164 s).
+  - Served bundle: `index-CIuDgUzt.js`.
+- Tests:
+  - `favorite snapshots store the description`
+  - `cover cache is keyed by comic identity, not the signed URL`
+  - `favorite list prefetches covers by comic identity`
+  - `network favorites are cached and refresh bypasses the cache`
+  - `cd backend && dart analyze && dart test` → 0 errors, **49/49**.
+  - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
+    **18/18**, production build succeeds.
+- CI: [39547869880](https://github.com/ikun5200/venera-prime-server/actions/runs/39547869880)
+  (favorites cache) and
+  [39548715548](https://github.com/ikun5200/venera-prime-server/actions/runs/39548715548)
+  (cover prewarm) succeeded.
+- Time: 2026-10-21T13:20:00Z

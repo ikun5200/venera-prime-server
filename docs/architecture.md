@@ -195,6 +195,12 @@ Responsive contract:
   (`serverPrefetchImageCount`: off, 10/20/30/50/100, or whole chapter).
   Resolved configs are kept in a short-lived in-memory map so subsequent
   on-demand image requests skip the JS host entirely.
+- Favorites: local favorite rows carry a metadata snapshot (including
+  `description`) and the list query prewarms up to 30 covers in the background
+  (3 concurrent), keyed by user + source + comic. Source-backed favorite
+  folders/pages are cached in memory for 5 minutes and invalidated on
+  favorite/folder mutations; `?refresh=1` bypasses. Chapter lists are not
+  cached.
 - Rate limit: 120 requests/minute per session/IP for API routes, 10/minute for
   login and init.
 

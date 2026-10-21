@@ -1,8 +1,13 @@
 # Progress
 
-Updated: 2026-10-21T12:40Z
+Updated: 2026-10-21T13:20Z
 
 ## Current phase
+
+Favorites caching round (E-21) completed: source-backed favorite lists are
+cached for 5 minutes, covers are cached by comic identity and prewarmed in the
+background, and local favorites store a description snapshot. Chapter lists
+remain uncached and live.
 
 Reader performance and interaction round (E-20) completed: opening a chapter
 now warms the server disk cache in the background (whole chapter by default,
@@ -109,6 +114,12 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   long-press panning, and panel-first Escape handling.
 - Tests now 45 backend / 18 frontend; Playwright verified the NAS reader flow
   at 1280×800 and the 375 px layout (zero horizontal overflow).
+- Cached source-backed favorite folders/pages for 5 minutes with mutation
+  invalidation and `refresh=1`; keyed covers by user+source+comic and prewarmed
+  up to 30 list covers (3 concurrent); added a `description` snapshot
+  (migration 4). NAS: favorite list 0.043 s, prewarmed cover 1.0 s, changed
+  signed URL served in 0.029 s. Chapter lists remain uncached. Tests now
+  49 backend / 18 frontend.
 
 ## Next
 
