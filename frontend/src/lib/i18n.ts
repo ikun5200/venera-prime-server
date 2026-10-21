@@ -9,6 +9,9 @@ const en: Dict = {
   Categories: "Categories",
   Cached: "Cached",
   "Too many requests": "Too many requests",
+  "Create an account at": "Create an account at",
+  "If the source rejects access, try another main domain in Source settings.":
+    "If the source rejects access, try another main domain in Source settings.",
   "no capabilities": "no capabilities",
   category: "categories",
   favorites: "favorites",
@@ -1015,9 +1018,12 @@ const zhCN: Dict = {
   "Every @hours hours": "每 @hours 小时",
   "Updates (@count)": "更新（@count）",
   "This source is logged in.": "该源已登录。",
+  "Create an account at": "注册地址：",
   "This source is not logged in.": "该源尚未登录。",
   "Runs catalog, details, pages and image stages against the live source.":
     "对照在线源依次运行目录、详情、页面和图片阶段。",
+  "If the source rejects access, try another main domain in Source settings.":
+    "如果源站拒绝访问（403），请在“源设置”中更换主域名后重试。",
   "The in-app webview is not available in the server build. Links open in a new browser tab.":
     "服务器版不提供内置浏览器，链接将在新标签页打开。",
   "Upload creates a versioned backup on the WebDAV server and keeps the ten newest. Download restores the newest backup for this account.":
@@ -1696,9 +1702,12 @@ const zhTW: Dict = {
   "Every @hours hours": "每 @hours 小時",
   "Updates (@count)": "更新（@count）",
   "This source is logged in.": "此來源已登入。",
+  "Create an account at": "註冊網址：",
   "This source is not logged in.": "此來源尚未登入。",
   "Runs catalog, details, pages and image stages against the live source.":
     "對照線上來源依序執行目錄、詳情、頁面與圖片階段。",
+  "If the source rejects access, try another main domain in Source settings.":
+    "如果來源拒絕存取（403），請在「來源設定」中更換主網域後重試。",
   "The in-app webview is not available in the server build. Links open in a new browser tab.":
     "伺服器版不提供內建瀏覽器，連結會在新分頁開啟。",
   "Upload creates a versioned backup on the WebDAV server and keeps the ten newest. Download restores the newest backup for this account.":

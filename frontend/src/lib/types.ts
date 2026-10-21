@@ -107,7 +107,7 @@ export interface Source {
 export interface SourceSettingDef {
   type: "select" | "switch" | "input" | "callback";
   title?: string;
-  options?: { value: string; text: string }[];
+  options?: { value?: string; text?: string }[];
   default?: unknown;
   buttonText?: string;
   validator?: string;

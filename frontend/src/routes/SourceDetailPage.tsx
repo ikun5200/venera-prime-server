@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { SourceSettingDef } from "../lib/types";
+import { friendlyError } from "../lib/utils";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Badge,
@@ -104,7 +105,7 @@ export default function SourceDetailPage() {
       setPassword("");
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(friendlyError(error)),
   });
 
   const loginCookies = useMutation({
@@ -113,7 +114,7 @@ export default function SourceDetailPage() {
       toast.success(t("Logged in"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(friendlyError(error)),
   });
 
   const importCookies = useMutation({
@@ -142,7 +143,7 @@ export default function SourceDetailPage() {
       setCookieHeader("");
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(friendlyError(error)),
   });
 
   const logout = useMutation({
@@ -151,7 +152,7 @@ export default function SourceDetailPage() {
       toast.success(t("Logged out"));
       queryClient.invalidateQueries({ queryKey: ["source", key] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toast.error(friendlyError(error)),
   });
 
   const bind = useMutation({
@@ -181,7 +182,7 @@ export default function SourceDetailPage() {
         loading: false,
         data: {
           status: "failed",
-          message: error instanceof Error ? error.message : String(error),
+          message: friendlyError(error),
         },
       });
     }
@@ -192,6 +193,12 @@ export default function SourceDetailPage() {
     return Array.isArray(raw) ? (raw as string[]) : [];
   }, [source?.capabilities.cookieFields]);
   const webviewUrl = String(source?.capabilities.webviewLoginUrl ?? "");
+  const rawRegisterWebsite = String(
+    source?.capabilities.registerWebsite ?? "",
+  );
+  const registerWebsite = /^https?:\/\//i.test(rawRegisterWebsite)
+    ? rawRegisterWebsite
+    : "";
 
   if (query.isLoading) {
     return (
@@ -499,17 +506,17 @@ export default function SourceDetailPage() {
               </Card>
             ) : null}
 
-            {source.capabilities.registerWebsite ? (
+            {registerWebsite ? (
               <Card className="p-4">
                 <p className="text-[13px]">
-                  Create an account at{" "}
+                  {t("Create an account at")}{" "}
                   <a
                     className="text-accent hover:underline"
-                    href={String(source.capabilities.registerWebsite)}
+                    href={registerWebsite}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {String(source.capabilities.registerWebsite)}
+                    {registerWebsite}
                   </a>
                 </p>
               </Card>
@@ -618,15 +625,31 @@ function SettingControl({
     );
   }
   if (definition.type === "select") {
+    const options = (definition.options ?? [])
+      .map((option) => {
+        const optionValue = String(option.value ?? "");
+        return {
+          value: optionValue,
+          text: option.text?.trim() || optionValue,
+        };
+      })
+      .filter((option, index, list) => {
+        return list.findIndex((item) => item.value === option.value) === index;
+      });
+    const current = String(value ?? "");
+    const hasCurrent = options.some((option) => option.value === current);
     return (
       <Field label={label}>
         <Select
-          value={String(value ?? "")}
+          value={current}
           onChange={(event) => onChange(event.target.value)}
         >
-          {(definition.options ?? []).map((option) => (
+          {!hasCurrent ? (
+            <option value={current}>{current || t("Default")}</option>
+          ) : null}
+          {options.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.text}
+              {option.text || t("Default")}
             </option>
           ))}
         </Select>
@@ -680,7 +703,15 @@ function CheckResult({ data }: { data: unknown }) {
       </div>
       {result.message ? (
         <p className="rounded bg-danger/10 px-3 py-2 text-[12px] text-danger">
-          {result.message}
+          {friendlyError(result.message)}
+        </p>
+      ) : null}
+      {result.stage === "catalog" &&
+      /403|源站返回异常/.test(friendlyError(result.message ?? "")) ? (
+        <p className="text-[11px] text-muted">
+          {t(
+            "If the source rejects access, try another main domain in Source settings.",
+          )}
         </p>
       ) : null}
       {Object.entries(result.stages ?? {}).map(([stage, value]) => (

@@ -12,6 +12,7 @@ import '../util/errors.dart';
 import '../util/log.dart';
 import 'content_cache_service.dart';
 import 'js_host_client.dart';
+import 'source_patches.dart';
 
 class _KeyedLock {
   final Map<String, Future<void>> _tails = {};
@@ -79,7 +80,7 @@ class SourceService {
       'locale': localeFor(userId),
       'platform': 'linux',
       'data': data,
-      'settings': source.settings,
+      'settings': SourcePatches.settings(source.key, source.settings),
       'cookies': repository.cookies(userId),
     };
   }
@@ -268,8 +269,18 @@ class SourceService {
     result['linkDomains'] = meta['linkDomains'];
     result['idMatch'] = meta['idMatch'];
     result['cookieFields'] = meta['cookieFields'];
-    result['webviewLoginUrl'] = meta['webviewLoginUrl'];
-    result['registerWebsite'] = meta['registerWebsite'];
+    // Getters that depend on runtime settings can serialize as
+    // "undefined/..." during parsing; never expose those as links.
+    String? validUrl(Object? value) {
+      if (value is! String) return null;
+      final lower = value.toLowerCase();
+      return lower.startsWith('http://') || lower.startsWith('https://')
+          ? value
+          : null;
+    }
+
+    result['webviewLoginUrl'] = validUrl(meta['webviewLoginUrl']);
+    result['registerWebsite'] = validUrl(meta['registerWebsite']);
     return result;
   }
 
@@ -319,7 +330,7 @@ class SourceService {
       final context = await _context(userId, current);
       final response = await js.request({
         'op': 'call',
-        'script': current.script,
+        'script': SourcePatches.script(source.key, current.script),
         'method': method,
         'args': args,
         'context': context,
@@ -358,7 +369,7 @@ class SourceService {
       final context = await _context(userId, current);
       final response = await js.request({
         'op': 'call',
-        'script': current.script,
+        'script': SourcePatches.script(source.key, current.script),
         'method': method,
         'args': args,
         'context': context,
@@ -380,7 +391,7 @@ class SourceService {
       final context = await _context(userId, current);
       final response = await js.request({
         'op': 'image_config',
-        'script': current.script,
+        'script': SourcePatches.script(source.key, current.script),
         'method': 'comic.onImageLoad',
         'args': args,
         'context': context,
@@ -409,7 +420,7 @@ class SourceService {
       final context = await _context(userId, current);
       final response = await js.request({
         'op': 'image_config_batch',
-        'script': current.script,
+        'script': SourcePatches.script(source.key, current.script),
         'args': args,
         'context': context,
       });
@@ -490,7 +501,8 @@ class SourceService {
     final source = require(userId, key);
     final values = source.data['settings'];
     final merged = <String, Object?>{};
-    for (final entry in source.settings.entries) {
+    final definitions = SourcePatches.settings(key, source.settings);
+    for (final entry in definitions.entries) {
       final definition = entry.value;
       if (definition is Map && definition.containsKey('default')) {
         merged[entry.key] = definition['default'];
@@ -502,7 +514,7 @@ class SourceService {
       }
     }
     return {
-      'definitions': source.settings,
+      'definitions': definitions,
       'values': merged,
     };
   }
@@ -633,9 +645,18 @@ class SourceService {
       stages['pages'] = 'running';
       final pages = await callValue(userId, key, 'comic.loadEp', [id, epId])
           .timeout(const Duration(seconds: 15));
-      stages['pages'] = 'ok';
       final images = pages is Map ? pages['images'] : null;
-      final image = images is List && images.isNotEmpty ? images.first : null;
+      if (images is! List || images.isEmpty) {
+        stages['pages'] = 'failed';
+        return {
+          'status': 'failed',
+          'stage': 'pages',
+          'message': '章节没有图片',
+          'stages': stages,
+        };
+      }
+      stages['pages'] = 'ok';
+      final image = images.first;
       if (image != null) {
         stages['image'] = 'running';
         final configs =
