@@ -222,7 +222,11 @@ export default function FavoritesPage() {
 
   const updateInfo = useMutation({
     mutationFn: () => api.updateFavoriteInfo(localFolderId),
-    onSuccess: () => toast.success(t("Running in background")),
+    onSuccess: () => {
+      toast.success(t("Running in background"));
+      window.setTimeout(invalidate, 3000);
+      window.setTimeout(invalidate, 15000);
+    },
     onError: (error) => toast.error(error.message),
   });
 
