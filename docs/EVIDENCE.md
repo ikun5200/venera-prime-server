@@ -742,7 +742,10 @@ Every acceptance item is backed by a reproducible command, output summary and
   option groups now use index-based keys, producing
   `...ranking&options=male,day` → **200** with 30 covers and `页 1 / 10`
   (screenshot `22-ranking-1280.png`). Source failures are shortened to
-  “源站返回异常（HTTP n）/漫画源暂时不可用”.
+  “源站返回异常（HTTP n）/漫画源暂时不可用”. `zaimanhua` 日排行
+  (`/categories/zaimanhua/日排行?param="0"`) now returns real covers and
+  `页 1 / 10` with no `eval_script` (screenshot
+  `22-zaimanhua-ranking-1280.png`).
 - BUG-05 (aggregated search): the page now fans out one request per configured
   source and renders each section as it finishes, with a 15 s per-source
   abort. It also honors the saved `searchSources` setting. With two sources,
