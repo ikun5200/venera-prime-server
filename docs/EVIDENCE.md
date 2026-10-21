@@ -884,3 +884,49 @@ Every acceptance item is backed by a reproducible command, output summary and
   `fallbackSourceKey` and `reader-local-images`; database
   `user_version=5`.
 - Time: 2026-10-21T15:30:00Z
+
+## E-26 — Rate-limit fix for image bursts (2026-10-21) — PASS
+
+- Symptom: the web app frequently showed “无法连接服务器 / 请求过于频繁，
+  请稍后重试”.
+- Diagnosis (NAS `request_logs`, last 7 days):
+  - Busiest minute (18:27) had 122 logged requests, **96 of them
+    `/api/image`**, plus history/prefetch/details calls. The general limiter
+    was 120/min, so a single chapter read consumed the API budget and later
+    requests were rejected.
+  - `request_logs` contained **zero** 429 rows: the limiter throws
+    `ApiException` from inside the logging middleware, so the catch path
+    rethrew without recording the rejection.
+  - `isAuthPath` compared `request.url.path` (no leading slash, e.g.
+    `api/auth/login`) with `'/api/auth/login'`, so the advertised 10/minute
+    login/init limit never applied.
+- Fixes:
+  - Separate sliding-window buckets: general API (default 300/min), image
+    proxies/local images (`max(1200, limit×4)`), polling endpoints
+    (`max(300, limit×2)`).
+  - `429` responses now include `Retry-After: 30`; every rejected request is
+    written to `request_logs` with status 429 and message `RATE_LIMITED`.
+  - Login/init now use the 10/minute auth bucket (path comparison fixed).
+  - Web client: React Query no longer retries any 4xx; bootstrap shows
+    “请求过于频繁” instead of “无法连接服务器” and auto-retries after 5 s;
+    idle task/download polling is 60 s/15 s (5 s/2 s only while work runs).
+  - NAS compose raised `RATE_LIMIT_PER_MINUTE` from 120 to **600**.
+- Automated regression:
+  - `backend: dart analyze && dart test` → 0 issues, **55/55 passed**. New
+    test uses a 6/min general limit, performs 20 image requests and 20 task
+    polls (all 200), then proves the general API still returns 429 with
+    `Retry-After: 30` and a `request_logs` row; 11 login attempts trigger the
+    separate auth 429.
+  - `frontend: npm run typecheck && npm test && npm run build` → clean,
+    **25/25 passed** (new test asserts 4xx is not retried).
+- CI: run `39629204668` (bucket fix) and `39630297433` (auth-limit path fix)
+  succeeded.
+- NAS (`http://192.168.31.88:8082`):
+  - Compose-managed container `Up (healthy)`, `/api/health` ok,
+    `RATE_LIMIT_PER_MINUTE=600`, bundle `index-Yy4an5Hi.js`, digest
+    `sha256:f2131f79…fd0a7a7e`.
+  - Live probe: 10 wrong-password logins → 401, 11th → **429** with
+    `retry-after: 30` and `{"code":"RATE_LIMITED"}`; the DB contains
+    `api/auth/login 429 RATE_LIMITED`, confirming both the auth bucket and
+    the new rejection logging.
+- Time: 2026-10-21T16:05:00Z

@@ -396,3 +396,14 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | CACHE-07 | server | Startup + hourly follow-up refresh | server | 8 s after boot, then hourly | DONE | E-25 |
 | FIX-17 | usage report BUG-17 | Explore cards keep `sourceKey` for every renderer | `/api/explore`, `/explore` | recursive normalization + frontend fallback | DONE | E-25 |
 | FIX-18 | usage report BUG-18 | Capability and role labels localized | `/sources`, `/admin/users` | Chinese labels (搜索/发现/分类…, 管理员/普通用户) | DONE | E-25 |
+
+## Rate-limit follow-up (E-26)
+
+| ID | Source | Item | Route/API | Behavior | Status | Evidence |
+|---|---|---|---|---|---|---|
+| RATE-01 | server | Images get their own rate-limit bucket | `/api/image*`, `/api/local-comics/*/image/*` | at least 1200/min, never consumes the API budget | DONE | E-26 |
+| RATE-02 | server | Polling gets its own bucket | `/api/tasks`, `/api/downloads`, `/api/health`, `/api/init/status`, `/api/auth/me` | at least 300/min | DONE | E-26 |
+| RATE-03 | server | 429 observability and headers | all API routes | `Retry-After: 30`, request_logs row with `RATE_LIMITED` | DONE | E-26 |
+| RATE-04 | server | Login/init limit applies | `/api/auth/login`, `/api/init` | 10/minute per user/IP (path comparison fixed) | DONE | E-26 |
+| RATE-05 | web | 4xx is not retried; bootstrap auto-recovers | client | no 429 retry storm, “请求过于频繁” title, 5 s auto-retry | DONE | E-26 |
+| RATE-06 | web | Idle polling is slow | tasks/downloads | 60 s/15 s idle, 5 s/2 s while running | DONE | E-26 |

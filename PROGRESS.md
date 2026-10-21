@@ -1,8 +1,14 @@
 # Progress
 
-Updated: 2026-10-21T15:20Z
+Updated: 2026-10-21T16:00Z
 
 ## Current phase
+
+Rate-limit fix (E-26) completed: chapter image bursts and idle polling no
+longer consume the general API budget, 429 responses now carry `Retry-After`
+and are recorded in `request_logs`, login/init actually enforce their
+10/minute limit, and the web client no longer retries 4xx responses or polling
+storms while idle. NAS is redeployed with `RATE_LIMIT_PER_MINUTE=600`.
 
 Server-cache and usability round (E-25) completed: source metadata (comic
 details, chapter lists, explore/search/categories/ranking/thumbnails/comments)
@@ -162,6 +168,15 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   Verified in a real browser: `/comic/explore_source/p1` (not `undefined`),
   “发现”/“管理员” labels, and local image URLs
   `/api/local-comics/1/image/1/*`. Tests: 54 backend / 24 frontend.
+
+- Rate-limit fix (E-26): classified API paths into general/content/poll
+  buckets, raised the default general budget to 300/min, added `Retry-After`
+  and 429 request-log rows, fixed the login/init path comparison so the
+  10/minute auth limit applies, stopped React Query retrying 4xx, added a
+  5-second bootstrap auto-retry for 429, and slowed idle task/download polling
+  to 60 s/15 s. Regression test loads 20 images and polls 20 times with a
+  6/min general limit, then confirms the API 429, header and log row. Tests:
+  55 backend / 25 frontend.
 
 ## Next
 
