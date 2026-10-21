@@ -607,7 +607,7 @@ Every acceptance item is backed by a reproducible command, output summary and
   - Requesting the same comic with a changed signed URL
     (`...?v=2`) returned **44,194 B in 0.029 s** from the identity cache
     (the cold fetch of that cover previously took 8.164 s).
-  - Served bundle: `index-CIuDgUzt.js`.
+  - Served bundle: `index-CPvQZFiW.js`.
 - Tests:
   - `favorite snapshots store the description`
   - `cover cache is keyed by comic identity, not the signed URL`
@@ -617,7 +617,9 @@ Every acceptance item is backed by a reproducible command, output summary and
   - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
     **18/18**, production build succeeds.
 - CI: [39547869880](https://github.com/ikun5200/venera-prime-server/actions/runs/39547869880)
-  (favorites cache) and
+  (favorites cache),
   [39548715548](https://github.com/ikun5200/venera-prime-server/actions/runs/39548715548)
-  (cover prewarm) succeeded.
+  (cover prewarm) and
+  [39549541934](https://github.com/ikun5200/venera-prime-server/actions/runs/39549541934)
+  (post-update list refresh) succeeded.
 - Time: 2026-10-21T13:20:00Z
