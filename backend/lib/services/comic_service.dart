@@ -156,7 +156,7 @@ class ComicService {
     final sections = await Future.wait(selected.map((source) async {
       try {
         final result = await search(userId, source.key, keyword, const [], 1)
-            .timeout(const Duration(seconds: 40));
+            .timeout(const Duration(seconds: 15));
         return {
           'source': source.key,
           'name': source.name,
@@ -692,8 +692,9 @@ class ComicService {
         _imageCacheKey(userId, sourceKey, comicId, epId, imageKey, thumbnail);
     final cached = _readCache(userId, cacheKey);
     if (cached != null) return cached;
-    final configs = await _imageConfigs(userId, sourceKey, comicId, epId,
-        imageKey, thumbnail: thumbnail);
+    final configs = await _imageConfigs(
+        userId, sourceKey, comicId, epId, imageKey,
+        thumbnail: thumbnail);
     return _downloadImage(userId, cacheKey, configs, imageKey);
   }
 
@@ -712,8 +713,7 @@ class ComicService {
     String imageKey, {
     bool thumbnail = false,
   }) async {
-    final cacheKey =
-        '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail';
+    final cacheKey = '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail';
     final now = DateTime.now().millisecondsSinceEpoch;
     final cached = _imageConfigCache[cacheKey];
     if (cached != null && cached.expiresAt > now) return cached.configs;
@@ -773,8 +773,10 @@ class ComicService {
   }) {
     final key = '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail';
     final now = DateTime.now().millisecondsSinceEpoch;
-    _imageConfigCache[key] =
-        (configs: configs, expiresAt: now + const Duration(minutes: 2).inMilliseconds);
+    _imageConfigCache[key] = (
+      configs: configs,
+      expiresAt: now + const Duration(minutes: 2).inMilliseconds
+    );
     if (_imageConfigCache.length > 4000) {
       _imageConfigCache.removeWhere((_, value) => value.expiresAt <= now);
       if (_imageConfigCache.length > 4000) _imageConfigCache.clear();
@@ -859,16 +861,13 @@ class ComicService {
     unawaited(_runPrefetch(userId, sourceKey, comicId, epId,
             from: from, limit: effective)
         .catchError((Object error) {
-          Log.warning('Chapter prefetch failed',
-              userId: userId,
-              extra: {
-                'source': sourceKey,
-                'comic': comicId,
-                'ep': epId,
-                'error': '$error',
-              });
-        })
-        .whenComplete(() => _prefetching.remove(token)));
+      Log.warning('Chapter prefetch failed', userId: userId, extra: {
+        'source': sourceKey,
+        'comic': comicId,
+        'ep': epId,
+        'error': '$error',
+      });
+    }).whenComplete(() => _prefetching.remove(token)));
     return {'enabled': true, 'running': true, 'limit': effective};
   }
 
@@ -891,13 +890,17 @@ class ComicService {
     if (total <= 0) return;
     final start = math.max(0, math.min(from - 1, keys.length - 1));
     final indexes = <int>[];
-    for (var offset = 0; offset < keys.length && indexes.length < total; offset++) {
+    for (var offset = 0;
+        offset < keys.length && indexes.length < total;
+        offset++) {
       indexes.add((start + offset) % keys.length);
     }
     final missing = <int>[];
     for (final index in indexes) {
-      if (!_hasCache(userId,
-          _imageCacheKey(userId, sourceKey, comicId, epId, keys[index], false))) {
+      if (!_hasCache(
+          userId,
+          _imageCacheKey(
+              userId, sourceKey, comicId, epId, keys[index], false))) {
         missing.add(index);
       }
     }
@@ -927,8 +930,7 @@ class ComicService {
           }
         } catch (error) {
           Log.warning('Batch image config failed',
-              userId: userId,
-              extra: {'source': sourceKey, 'error': '$error'});
+              userId: userId, extra: {'source': sourceKey, 'error': '$error'});
           for (final index in chunk) {
             configs[index] = [
               {'url': keys[index]}

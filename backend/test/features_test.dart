@@ -108,8 +108,7 @@ class PrefetchSource extends ComicSource {
   };
 }
 ''';
-    final imported =
-        await admin.post('/api/sources', {'script': script});
+    final imported = await admin.post('/api/sources', {'script': script});
     expect(imported.status, 200, reason: '${imported.body}');
 
     final prefetch = await admin.post(
@@ -136,8 +135,8 @@ class PrefetchSource extends ComicSource {
 
     await admin.patch('/api/settings', {'serverPrefetchImageCount': 0});
     await admin.post('/api/maintenance/clear-cache');
-    final disabled = await admin.post(
-        '/api/comic/prefetch_source/1/chapter/1/prefetch', {'from': 1});
+    final disabled = await admin
+        .post('/api/comic/prefetch_source/1/chapter/1/prefetch', {'from': 1});
     expect(disabled.status, 200);
     expect(disabled.body['enabled'], false);
     await Future.delayed(const Duration(milliseconds: 300));
@@ -192,7 +191,8 @@ class PrefetchSource extends ComicSource {
     final second = await admin.rawRequest('GET', coverPath('$base/b.png'));
     expect(second.status, 200);
     expect(second.bytes.length, bytes.length);
-    expect(hits, 1, reason: 'second URL must be served from the identity cache');
+    expect(hits, 1,
+        reason: 'second URL must be served from the identity cache');
   });
 
   test('network favorites are cached and refresh bypasses the cache', () async {
@@ -219,8 +219,10 @@ class FavSource extends ComicSource {
     String titleOf(Map<String, Object?> body) =>
         ((body['comics'] as List).first as Map)['title'].toString();
 
-    final first = await admin.get('/api/favorites/network/fav_source/all?page=1');
-    final second = await admin.get('/api/favorites/network/fav_source/all?page=1');
+    final first =
+        await admin.get('/api/favorites/network/fav_source/all?page=1');
+    final second =
+        await admin.get('/api/favorites/network/fav_source/all?page=1');
     expect(first.status, 200, reason: '${first.body}');
     expect(titleOf(first.body), 'call=1');
     expect(titleOf(second.body), 'call=1');
@@ -280,5 +282,59 @@ class FavSource extends ComicSource {
     final res = await admin.get('/api/search/suggestions?q=');
     expect(res.status, 200);
     expect(res.body['items'], isA<List>());
+  });
+
+  test('source setting defaults are returned and empty input falls back',
+      () async {
+    const script = r'''
+class SettingsSource extends ComicSource {
+  name = "Settings"; key = "settings_source"; version = "1.0.0";
+  settings = {
+    base_url: {
+      type: "input", default: "api.example.com", title: "API",
+      validator: "^[a-z.]+$"
+    },
+    quality: {
+      type: "select", default: "high",
+      options: [{ value: "high", text: "High" }, { value: "low", text: "Low" }]
+    }
+  };
+  search = { load: async (keyword, options, page) => ({ comics: [], maxPage: 1 }) };
+  comic = { loadInfo: async (id) => new ComicDetails({ title: "x", chapters: {} }) };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final initial = await admin.get('/api/sources/settings_source/settings');
+    expect(initial.status, 200);
+    expect((initial.body['values'] as Map)['base_url'], 'api.example.com');
+    expect((initial.body['values'] as Map)['quality'], 'high');
+
+    // Saving an unrelated option must not persist an empty base_url.
+    final saved = await admin.put('/api/sources/settings_source/settings', {
+      'values': {'quality': 'low'},
+    });
+    expect(saved.status, 200, reason: '${saved.body}');
+    expect((saved.body['values'] as Map)['base_url'], 'api.example.com');
+    expect((saved.body['values'] as Map)['quality'], 'low');
+
+    final empty = await admin.put('/api/sources/settings_source/settings', {
+      'values': {'base_url': ''},
+    });
+    expect(empty.status, 200, reason: '${empty.body}');
+    expect((empty.body['values'] as Map)['base_url'], 'api.example.com');
+
+    final invalid = await admin.put('/api/sources/settings_source/settings', {
+      'values': {'base_url': 'http://bad host'},
+    });
+    expect(invalid.status, 400, reason: '${invalid.body}');
+  });
+
+  test('adding a source rejects non-http URLs with 400', () async {
+    final res = await admin.post('/api/sources/url', {'url': 'abc'});
+    expect(res.status, 400, reason: '${res.body}');
+    final error = res.body['error'] as Map;
+    expect(error['message'], contains('HTTP'));
   });
 }

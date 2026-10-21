@@ -428,29 +428,78 @@ class SourceService {
       int userId, String key, Map<String, Object?> values) async {
     final source = require(userId, key);
     final allowed = source.settings.keys.toSet();
+    final sanitized = <String, Object?>{};
     for (final entry in values.entries) {
       if (allowed.isNotEmpty && !allowed.contains(entry.key)) {
         throw ApiException.badRequest('未知源设置: ${entry.key}');
       }
+      sanitized[entry.key] =
+          _normalizeSetting(entry.key, source.settings[entry.key], entry.value);
     }
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     final current = data['settings'];
     final settings = current is Map
         ? current.map((k, v) => MapEntry(k.toString(), v))
         : <String, Object?>{};
-    settings.addAll(values);
+    settings.addAll(sanitized);
     data['settings'] = settings;
     repository.saveData(userId, key, data);
+  }
+
+  /// Source settings are defined by the script with optional defaults and a
+  /// JS-style validator. The original client never persists an empty value
+  /// over a default, so an empty input falls back to the default and invalid
+  /// values are rejected before they can break every later request.
+  Object? _normalizeSetting(String name, Object? rawDefinition, Object? value) {
+    if (rawDefinition is! Map) return value;
+    final definition = rawDefinition.map((k, v) => MapEntry(k.toString(), v));
+    final type = (definition['type'] ?? '').toString();
+    final fallback = definition['default'];
+    if (type == 'input') {
+      if (value == null || (value is String && value.trim().isEmpty)) {
+        if (fallback != null &&
+            !(fallback is String && fallback.trim().isEmpty)) {
+          return fallback;
+        }
+      }
+      if (value is String && value.trim().isNotEmpty) {
+        final validator = (definition['validator'] ?? '').toString();
+        if (validator.isNotEmpty) {
+          try {
+            if (!RegExp(validator).hasMatch(value)) {
+              final title = (definition['title'] ?? name).toString();
+              throw ApiException.badRequest('“$title”格式不正确');
+            }
+          } on FormatException {
+            // A validator the server cannot compile is left to the script.
+          }
+        }
+      }
+    }
+    if (type == 'switch' && value is! bool) {
+      return value == true || value == 'true' || value == 1;
+    }
+    return value;
   }
 
   Map<String, Object?> settingsFor(int userId, String key) {
     final source = require(userId, key);
     final values = source.data['settings'];
+    final merged = <String, Object?>{};
+    for (final entry in source.settings.entries) {
+      final definition = entry.value;
+      if (definition is Map && definition.containsKey('default')) {
+        merged[entry.key] = definition['default'];
+      }
+    }
+    if (values is Map) {
+      for (final entry in values.entries) {
+        merged[entry.key.toString()] = entry.value;
+      }
+    }
     return {
       'definitions': source.settings,
-      'values': values is Map
-          ? values.map((k, v) => MapEntry(k.toString(), v))
-          : <String, Object?>{},
+      'values': merged,
     };
   }
 
@@ -638,8 +687,18 @@ class SourceService {
 
   // ---- source libraries -------------------------------------------------
 
+  Uri _httpUri(String raw) {
+    final uri = Uri.tryParse(raw.trim());
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
+      throw ApiException.badRequest('请输入合法的 HTTP(S) 地址');
+    }
+    return uri;
+  }
+
   Future<List<Map<String, Object?>>> fetchCatalog(String url) async {
-    final response = await http.get(Uri.parse(url)).timeout(
+    final response = await http.get(_httpUri(url)).timeout(
           const Duration(seconds: 20),
         );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -660,7 +719,7 @@ class SourceService {
     } else {
       entries = const [];
     }
-    final base = Uri.parse(url);
+    final base = _httpUri(url);
     return entries.whereType<Map>().map((entry) {
       final map = entry.map((k, v) => MapEntry(k.toString(), v));
       final rawUrl = map['url'] ?? map['fileName'] ?? map['filename'];
@@ -687,7 +746,7 @@ class SourceService {
       installFromUrlOrCatalog(int userId, String url,
           {String? libraryId, String? originId, String? ip}) async {
     final response =
-        await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+        await http.get(_httpUri(url)).timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException.sourceError('下载失败: ${response.statusCode}');
     }

@@ -89,8 +89,8 @@ class FavoriteService {
     if (pending.isEmpty) return;
     unawaited(() async {
       for (var offset = 0; offset < pending.length; offset += 3) {
-        final chunk = pending.sublist(
-            offset, math.min(offset + 3, pending.length));
+        final chunk =
+            pending.sublist(offset, math.min(offset + 3, pending.length));
         await Future.wait(chunk.map((item) async {
           try {
             await comics.cover(
@@ -464,8 +464,7 @@ class FavoriteService {
     int page, {
     bool refresh = false,
   }) async {
-    final cacheKey =
-        '$userId|$sourceKey|comics|${jsonEncode(folder)}|$page';
+    final cacheKey = '$userId|$sourceKey|comics|${jsonEncode(folder)}|$page';
     final cached = _networkCached(cacheKey, refresh);
     if (cached is Map<String, Object?>) return cached;
     final result = await sourceService
@@ -612,7 +611,7 @@ class HistoryService {
         }
         tasks.update(task.id,
             progress: (i + 1) / items.length,
-            message: '$success ok, $failed failed');
+            message: '成功 $success 个，失败 $failed 个');
       }
       return {'success': success, 'failed': failed, 'skipped': skipped};
     });
@@ -863,7 +862,7 @@ class FollowUpdateService {
         }
         tasks.update(task.id,
             progress: (i + 1) / items.length,
-            message: '$checked checked, $updated updates');
+            message: '已检查 $checked 部，更新 $updated 部');
       }
       return {'checked': checked, 'updated': updated, 'failed': failed};
     });
