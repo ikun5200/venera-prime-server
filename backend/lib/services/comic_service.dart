@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -27,6 +28,14 @@ class ComicService {
   final SettingsRepository settings;
   final PathGuard paths;
   final http.Client httpClient = http.Client();
+
+  /// Image configs resolved by `comic.onImageLoad`, reused for on-demand
+  /// requests after a prefetch. Configs can contain signed URLs, so keep the
+  /// window short.
+  final Map<String, ({List<Map<String, Object?>> configs, int expiresAt})>
+      _imageConfigCache = {};
+  final Set<String> _prefetching = {};
+  final Map<int, int> _lastCacheEnforce = {};
 
   ComicService({
     required this.config,
@@ -679,12 +688,35 @@ class ComicService {
     String imageKey, {
     bool thumbnail = false,
   }) async {
-    final cacheKey = sha256
-        .convert(utf8
-            .encode('$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail'))
-        .toString();
+    final cacheKey =
+        _imageCacheKey(userId, sourceKey, comicId, epId, imageKey, thumbnail);
     final cached = _readCache(userId, cacheKey);
     if (cached != null) return cached;
+    final configs = await _imageConfigs(userId, sourceKey, comicId, epId,
+        imageKey, thumbnail: thumbnail);
+    return _downloadImage(userId, cacheKey, configs, imageKey);
+  }
+
+  String _imageCacheKey(int userId, String sourceKey, String comicId,
+          String epId, String imageKey, bool thumbnail) =>
+      sha256
+          .convert(utf8
+              .encode('$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail'))
+          .toString();
+
+  Future<List<Map<String, Object?>>> _imageConfigs(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+    String imageKey, {
+    bool thumbnail = false,
+  }) async {
+    final cacheKey =
+        '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cached = _imageConfigCache[cacheKey];
+    if (cached != null && cached.expiresAt > now) return cached.configs;
 
     List<Map<String, Object?>> configs;
     if (thumbnail) {
@@ -719,12 +751,42 @@ class ComicService {
           {'url': imageKey}
         ];
       }
-      if (configs.isEmpty)
+      if (configs.isEmpty) {
         configs = [
           {'url': imageKey}
         ];
+      }
     }
+    _rememberConfig(userId, sourceKey, comicId, epId, imageKey, configs,
+        thumbnail: thumbnail);
+    return configs;
+  }
 
+  void _rememberConfig(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+    String imageKey,
+    List<Map<String, Object?>> configs, {
+    bool thumbnail = false,
+  }) {
+    final key = '$userId|$sourceKey|$comicId|$epId|$imageKey|$thumbnail';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _imageConfigCache[key] =
+        (configs: configs, expiresAt: now + const Duration(minutes: 2).inMilliseconds);
+    if (_imageConfigCache.length > 4000) {
+      _imageConfigCache.removeWhere((_, value) => value.expiresAt <= now);
+      if (_imageConfigCache.length > 4000) _imageConfigCache.clear();
+    }
+  }
+
+  Future<({Uint8List bytes, String mime})> _downloadImage(
+    int userId,
+    String cacheKey,
+    List<Map<String, Object?>> configs,
+    String imageKey,
+  ) async {
     Object? lastError;
     for (final config in configs) {
       try {
@@ -756,9 +818,8 @@ class ComicService {
             bytes.isNotEmpty) {
           final mime = response.headers['content-type']?.split(';').first ??
               _guessMime(url);
-          final result = (bytes: bytes, mime: mime);
           _writeCache(userId, cacheKey, bytes, mime);
-          return result;
+          return (bytes: bytes, mime: mime);
         }
         lastError = 'HTTP ${response.statusCode}';
       } catch (error) {
@@ -766,6 +827,167 @@ class ComicService {
       }
     }
     throw ApiException.sourceError('图片加载失败: $lastError');
+  }
+
+  /// Warms the per-user disk cache for a chapter. Returns immediately; the
+  /// download runs in the background with a small concurrency limit.
+  Future<Map<String, Object?>> prefetchChapter(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId, {
+    int from = 1,
+  }) async {
+    final source = sources.require(userId, sourceKey);
+    if (!source.enabled) {
+      return {'enabled': false, 'running': false, 'reason': 'disabled'};
+    }
+    final values = settings.all(userId);
+    final raw = values['serverPrefetchImageCount'];
+    final limit = raw is num ? raw.toInt() : -1;
+    if (limit == 0) {
+      return {'enabled': false, 'running': false, 'limit': 0};
+    }
+    final token = '$userId|$sourceKey|$comicId|$epId';
+    if (_prefetching.contains(token)) {
+      return {'enabled': true, 'running': true, 'limit': limit};
+    }
+    _prefetching.add(token);
+    unawaited(_runPrefetch(userId, sourceKey, comicId, epId,
+            from: from, limit: limit)
+        .catchError((Object error) {
+          Log.warning('Chapter prefetch failed',
+              userId: userId,
+              extra: {
+                'source': sourceKey,
+                'comic': comicId,
+                'ep': epId,
+                'error': '$error',
+              });
+        })
+        .whenComplete(() => _prefetching.remove(token)));
+    return {'enabled': true, 'running': true, 'limit': limit};
+  }
+
+  Future<void> _runPrefetch(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId, {
+    required int from,
+    required int limit,
+  }) async {
+    final result = await sources
+        .callValue(userId, sourceKey, 'comic.loadEp', [comicId, epId]);
+    final keys = _list(_map(result)['images'])
+        .map((value) => value.toString())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (keys.isEmpty) return;
+    final total = limit < 0 ? keys.length : math.min(limit, keys.length);
+    if (total <= 0) return;
+    final start = math.max(0, math.min(from - 1, keys.length - 1));
+    final indexes = <int>[];
+    for (var offset = 0; offset < keys.length && indexes.length < total; offset++) {
+      indexes.add((start + offset) % keys.length);
+    }
+    final missing = <int>[];
+    for (final index in indexes) {
+      if (!_hasCache(userId,
+          _imageCacheKey(userId, sourceKey, comicId, epId, keys[index], false))) {
+        missing.add(index);
+      }
+    }
+    if (missing.isEmpty) return;
+
+    final source = sources.require(userId, sourceKey);
+    final configs = <int, List<Map<String, Object?>>>{};
+    if (source.capabilities['imageLoad'] == true) {
+      const chunkSize = 10;
+      for (var offset = 0; offset < missing.length; offset += chunkSize) {
+        final chunk = missing.sublist(
+            offset, math.min(offset + chunkSize, missing.length));
+        try {
+          final lists = await sources.imageConfigsBatch(userId, sourceKey, [
+            for (final index in chunk) [keys[index], comicId, epId],
+          ]);
+          for (var i = 0; i < chunk.length; i++) {
+            final index = chunk[i];
+            final list = i < lists.length && lists[i].isNotEmpty
+                ? lists[i]
+                : <Map<String, Object?>>[
+                    {'url': keys[index]}
+                  ];
+            configs[index] = list;
+            _rememberConfig(
+                userId, sourceKey, comicId, epId, keys[index], list);
+          }
+        } catch (error) {
+          Log.warning('Batch image config failed',
+              userId: userId,
+              extra: {'source': sourceKey, 'error': '$error'});
+          for (final index in chunk) {
+            configs[index] = [
+              {'url': keys[index]}
+            ];
+          }
+        }
+      }
+    } else {
+      for (final index in missing) {
+        configs[index] = [
+          {'url': keys[index]}
+        ];
+      }
+    }
+
+    var completed = 0;
+    await _forEachLimited(missing, 3, (index) async {
+      final list = configs[index] ??
+          <Map<String, Object?>>[
+            {'url': keys[index]}
+          ];
+      try {
+        await _downloadImage(
+          userId,
+          _imageCacheKey(userId, sourceKey, comicId, epId, keys[index], false),
+          list,
+          keys[index],
+        );
+        completed++;
+      } catch (error) {
+        Log.warning('Prefetch image failed',
+            userId: userId,
+            extra: {'source': sourceKey, 'index': index, 'error': '$error'});
+      }
+    });
+    Log.info('Chapter prefetch finished', userId: userId, extra: {
+      'source': sourceKey,
+      'comic': comicId,
+      'ep': epId,
+      'requested': total,
+      'downloaded': completed,
+    });
+  }
+
+  Future<void> _forEachLimited<T>(
+    List<T> items,
+    int limit,
+    Future<void> Function(T item) action,
+  ) async {
+    if (items.isEmpty) return;
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= items.length) return;
+        await action(items[index]);
+      }
+    }
+
+    await Future.wait(
+      List.generate(math.min(limit, items.length), (_) => worker()),
+    );
   }
 
   Future<({Uint8List bytes, String mime})> cover(int userId, String url,
@@ -847,6 +1069,27 @@ class ComicService {
     return (retentionDays: retention, limitBytes: limitMb * 1024 * 1024);
   }
 
+  bool _hasCache(int userId, String key) {
+    try {
+      final dir = _cacheDir(userId);
+      final file = File(p.join(dir.path, '$key.bin'));
+      final meta = File(p.join(dir.path, '$key.type'));
+      if (!file.existsSync() || !meta.existsSync()) return false;
+      final policy = _cachePolicy(userId);
+      if (policy.retentionDays > 0) {
+        final age = DateTime.now().difference(file.statSync().modified);
+        if (age > Duration(days: policy.retentionDays)) {
+          file.deleteSync();
+          meta.deleteSync();
+          return false;
+        }
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   ({Uint8List bytes, String mime})? _readCache(int userId, String key) {
     try {
       final dir = _cacheDir(userId);
@@ -882,6 +1125,13 @@ class ComicService {
   }
 
   void _enforceCacheLimit(int userId) {
+    // Prefetch writes hundreds of files; scanning the whole cache after each
+    // write would make it O(n²). A short per-user throttle keeps the cap
+    // effective without blocking chapter prefetch.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final last = _lastCacheEnforce[userId] ?? 0;
+    if (now - last < 15000) return;
+    _lastCacheEnforce[userId] = now;
     try {
       final policy = _cachePolicy(userId);
       final dir = _cacheDir(userId);

@@ -43,6 +43,7 @@ const Map<String, Object?> defaultSettings = {
   'showSystemStatusBar': false,
   'quickCollectImage': 'No',
   'preloadImageCount': 4,
+  'serverPrefetchImageCount': -1,
   'showPageNumberInReader': true,
   'removeReadLaterOnComplete': true,
   'showChapterComments': true,

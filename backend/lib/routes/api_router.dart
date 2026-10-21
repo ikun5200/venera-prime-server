@@ -746,6 +746,15 @@ Handler buildApiRouter(AppContext ctx) {
     return _json(await ctx.comics.chapterImages(auth.user.id, source, id, ep));
   });
 
+  router.post('/api/comic/<source>/<id>/chapter/<ep>/prefetch',
+      (Request request, String source, String id, String ep) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final from = (body['from'] as num?)?.toInt() ?? 1;
+    return _json(await ctx.comics
+        .prefetchChapter(auth.user.id, source, id, ep, from: from));
+  });
+
   router.get('/api/comic/<source>/<id>/thumbnails',
       (Request request, String source, String id) async {
     final auth = requireAuth(request);

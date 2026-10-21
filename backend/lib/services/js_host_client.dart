@@ -77,6 +77,19 @@ class JsHostClient {
   Future<Map<String, Object?>> run(String code, Map<String, Object?> context) =>
       request({'op': 'run', 'script': code, 'context': context});
 
+  /// Resolves `comic.onImageLoad` for several images in one runtime.
+  Future<Map<String, Object?>> imageConfigBatch(
+    String script,
+    List<List<Object?>> args,
+    Map<String, Object?> context,
+  ) =>
+      request({
+        'op': 'image_config_batch',
+        'script': script,
+        'args': args,
+        'context': context,
+      });
+
   Future<Map<String, Object?>> request(Map<String, Object?> payload) async {
     await _semaphore.acquire();
     try {

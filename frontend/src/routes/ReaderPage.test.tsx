@@ -92,6 +92,48 @@ describe("ReaderPage", () => {
     );
   });
 
+  it("maps arrow keys to the reading direction", async () => {
+    useAppStore.setState({
+      settings: {
+        ...useAppStore.getState().settings,
+        readerMode: "galleryRightToLeft",
+      },
+    });
+    const { unmount } = renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.keyDown(document, { key: "ArrowLeft" });
+    await waitFor(() =>
+      expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    unmount();
+
+    useAppStore.setState({
+      settings: {
+        ...useAppStore.getState().settings,
+        readerMode: "galleryTopToBottom",
+      },
+    });
+    const { unmount: unmountTtb } = renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(screen.getAllByText("2 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.keyDown(document, { key: "ArrowUp" });
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    unmountTtb();
+  });
+
   it("opens the chapter drawer", async () => {
     renderReader();
     await waitFor(() =>

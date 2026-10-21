@@ -578,6 +578,101 @@ globalThis.__error = null;
         return Ok(json!({"result": value}));
     }
 
+    if op == "image_config_batch" {
+        // One runtime for a whole batch: chapter prefetching would otherwise
+        // pay init.js + source-script startup for every single image.
+        let args = request.get("args").cloned().unwrap_or_else(|| json!([]));
+        let args_literal = serde_json::to_string(&args.to_string()).unwrap();
+        let code = format!(
+            r#"
+globalThis.__done = 0;
+globalThis.__result = null;
+globalThis.__error = null;
+(async () => {{
+  try {{
+    const src = globalThis.__src;
+    const argsList = JSON.parse({args_literal});
+    if (!src || !src.comic || typeof src.comic.onImageLoad !== 'function') {{
+      globalThis.__result = JSON.stringify(argsList.map(() => []));
+    }} else {{
+      const out = [];
+      for (const args of argsList) {{
+        try {{
+          let cfg = await src.comic.onImageLoad.apply(src.comic, args);
+          const list = [];
+          let guard = 0;
+          while (cfg && guard < 6) {{
+            const copy = {{}};
+            for (const k of Object.keys(cfg)) {{
+              if (k !== 'onLoadFailed') copy[k] = cfg[k];
+            }}
+            list.push(__toHost(copy));
+            if (typeof cfg.onLoadFailed === 'function') {{
+              try {{ cfg = await cfg.onLoadFailed(); }} catch (e) {{ break; }}
+            }} else {{
+              break;
+            }}
+            guard++;
+          }}
+          out.push(list);
+        }} catch (e) {{
+          out.push([]);
+        }}
+      }}
+      globalThis.__result = JSON.stringify(out);
+    }}
+  }} catch (e) {{
+    globalThis.__error = String((e && e.stack) || e);
+  }} finally {{
+    globalThis.__done = 1;
+  }}
+}})();
+"#
+        );
+        ctx.eval::<(), _>(code).map_err(|e| {
+            (
+                "JS_ERROR".to_string(),
+                format!("image config batch: {e}"),
+            )
+        })?;
+        let mut idle = 0;
+        loop {
+            let done: i32 = ctx.globals().get::<_, i32>("__done").unwrap_or(0);
+            if done != 0 {
+                break;
+            }
+            if Instant::now() > deadline {
+                return Err(("TIMEOUT".to_string(), "Source timed out".to_string()));
+            }
+            if ctx.execute_pending_job() {
+                idle = 0;
+                continue;
+            }
+            idle += 1;
+            if idle > 500 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let error: Option<String> = ctx
+            .globals()
+            .get::<_, Option<String>>("__error")
+            .ok()
+            .flatten();
+        if let Some(error) = error {
+            return Err(("JS_ERROR".to_string(), error));
+        }
+        let result: Option<String> = ctx
+            .globals()
+            .get::<_, Option<String>>("__result")
+            .ok()
+            .flatten();
+        let value = result
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_else(|| json!([]));
+        return Ok(json!({"result": value}));
+    }
+
     let method = request
         .get("method")
         .and_then(|v| v.as_str())

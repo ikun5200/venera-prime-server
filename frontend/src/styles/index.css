@@ -121,6 +121,36 @@ button {
   animation: reader-page-in 160ms ease-out;
 }
 
+@keyframes reader-page-slide-next {
+  from {
+    opacity: 0.35;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes reader-page-slide-prev {
+  from {
+    opacity: 0.35;
+    transform: translateX(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.reader-page-slide-next {
+  animation: reader-page-slide-next 170ms ease-out;
+}
+
+.reader-page-slide-prev {
+  animation: reader-page-slide-prev 170ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -334,6 +334,11 @@ export const api = {
     get<{ images: string[]; total: number }>(
       `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/images`,
     ),
+  prefetchChapter: (source: string, id: string, ep: string, from = 1) =>
+    post<{ enabled: boolean; running: boolean; limit?: number }>(
+      `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/prefetch`,
+      { from },
+    ),
   thumbnails: (source: string, id: string, next?: string) =>
     get<{ thumbnails: unknown; next: unknown }>(
       `/comic/${enc(source)}/${enc(id)}/thumbnails${next ? `?next=${enc(next)}` : ""}`,

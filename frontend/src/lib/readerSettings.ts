@@ -23,6 +23,7 @@ export const readerSettingKeys = new Set([
   "showSystemStatusBar",
   "quickCollectImage",
   "preloadImageCount",
+  "serverPrefetchImageCount",
   "showPageNumberInReader",
   "removeReadLaterOnComplete",
   "showChapterComments",

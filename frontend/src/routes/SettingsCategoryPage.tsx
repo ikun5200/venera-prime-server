@@ -150,6 +150,7 @@ export default function SettingsCategoryPage() {
         [
           "readerScreenPicNumberForPortrait",
           "readerScreenPicNumberForLandscape",
+          "serverPrefetchImageCount",
           "cacheRetentionDays",
         ].includes(key) &&
         typeof value === "string" &&
@@ -1022,6 +1023,20 @@ function buildItems(category: string): Item[] {
           label: "Number of images preloaded",
           min: 1,
           max: 16,
+        },
+        {
+          kind: "select",
+          key: "serverPrefetchImageCount",
+          label: "Server chapter prefetch",
+          options: [
+            { value: "0", label: "Off" },
+            { value: "10", label: "10" },
+            { value: "20", label: "20" },
+            { value: "30", label: "30" },
+            { value: "50", label: "50" },
+            { value: "100", label: "100" },
+            { value: "-1", label: "Whole chapter" },
+          ],
         },
         {
           kind: "switch",

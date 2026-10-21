@@ -86,6 +86,63 @@ void main() {
     expect((installed.body['source'] as Map)['key'], 'test_source');
   });
 
+  test('chapter prefetch warms the server image cache', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final bytes = List<int>.generate(4096, (index) => index % 251);
+    server.listen((request) async {
+      request.response.headers.contentType = ContentType('image', 'png');
+      request.response.add(bytes);
+      await request.response.close();
+    });
+    final base = 'http://127.0.0.1:${server.port}';
+    final script = '''
+class PrefetchSource extends ComicSource {
+  name = "Prefetch"; key = "prefetch_source"; version = "1.0.0";
+  comic = {
+    loadInfo: async (id) => new ComicDetails({ title: "p", chapters: { "1": "c" } }),
+    loadEp: async (id, ep) => ({ images: [
+      "$base/img/1", "$base/img/2", "$base/img/3", "$base/img/4"
+    ]}),
+    onImageLoad: (url) => ({ url: url })
+  };
+}
+''';
+    final imported =
+        await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final prefetch = await admin.post(
+        '/api/comic/prefetch_source/1/chapter/1/prefetch', {'from': 1});
+    expect(prefetch.status, 200, reason: '${prefetch.body}');
+    expect(prefetch.body['enabled'], true);
+
+    var cacheBytes = 0;
+    for (var attempt = 0; attempt < 40; attempt++) {
+      final size = await admin.get('/api/maintenance/cache-size');
+      cacheBytes = size.body['bytes'] as int;
+      if (cacheBytes > 0) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    expect(cacheBytes, greaterThan(0));
+
+    final key = Uri.encodeComponent('$base/img/1');
+    final image = await admin.rawRequest(
+        'GET', '/api/image?source=prefetch_source&comic=1&ep=1&key=$key');
+    expect(image.status, 200);
+    expect(image.bytes.length, bytes.length);
+
+    await admin.patch('/api/settings', {'serverPrefetchImageCount': 0});
+    await admin.post('/api/maintenance/clear-cache');
+    final disabled = await admin.post(
+        '/api/comic/prefetch_source/1/chapter/1/prefetch', {'from': 1});
+    expect(disabled.status, 200);
+    expect(disabled.body['enabled'], false);
+    await Future.delayed(const Duration(milliseconds: 300));
+    final size = await admin.get('/api/maintenance/cache-size');
+    expect(size.body['bytes'], 0);
+  });
+
   test('suggestions endpoint works with empty text', () async {
     final res = await admin.get('/api/search/suggestions?q=');
     expect(res.status, 200);

@@ -395,6 +395,35 @@ class SourceService {
     });
   }
 
+  Future<List<List<Map<String, Object?>>>> imageConfigsBatch(
+    int userId,
+    String key,
+    List<List<Object?>> args,
+  ) async {
+    final source = require(userId, key);
+    return _lock.run('$userId:${source.key}', () async {
+      final current = repository.get(userId, source.key)!;
+      final context = await _context(userId, current);
+      final response = await js.request({
+        'op': 'image_config_batch',
+        'script': current.script,
+        'args': args,
+        'context': context,
+      });
+      await _applyResponse(userId, current, response);
+      if (response['ok'] != true) _throwResponse(response);
+      final result = response['result'];
+      if (result is! List) return <List<Map<String, Object?>>>[];
+      return result.map((item) {
+        if (item is! List) return <Map<String, Object?>>[];
+        return item
+            .whereType<Map>()
+            .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+            .toList();
+      }).toList();
+    });
+  }
+
   Future<void> updateSettings(
       int userId, String key, Map<String, Object?> values) async {
     final source = require(userId, key);

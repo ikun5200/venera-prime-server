@@ -137,7 +137,7 @@ export default function ReaderPage() {
 
   const [chapterId, setChapterId] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
-  const [controlsVisible, setControlsVisible] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -167,6 +167,9 @@ export default function ReaderPage() {
     y: number;
   } | null>(null);
   const [rotation, setRotation] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<"next" | "prev" | null>(
+    null,
+  );
   const [swipeHint, setSwipeHint] = useState<string | null>(null);
   const [downloadedEpisodes, setDownloadedEpisodes] = useState<Set<string>>(
     new Set(),
@@ -174,6 +177,12 @@ export default function ReaderPage() {
   const hintTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressPanStart = useRef<{
+    x: number;
+    y: number;
+    zoomX: number;
+    zoomY: number;
+  } | null>(null);
   const longPressActive = useRef(false);
   const suppressTapUntil = useRef(0);
   const galleryRef = useRef<HTMLDivElement>(null);
@@ -490,9 +499,11 @@ export default function ReaderPage() {
 
   const goNext = useCallback(() => {
     if (currentPage < totalPages - 1) {
+      setSlideDirection("next");
       setCurrentPage((value) => value + 1);
       setControlsVisible(false);
     } else if (commentsAtEnd && currentPage < totalPages) {
+      setSlideDirection("next");
       setCurrentPage(totalPages);
       setControlsVisible(false);
     } else if (nextChapter) {
@@ -513,9 +524,11 @@ export default function ReaderPage() {
 
   const goPrev = useCallback(() => {
     if (commentsAtEnd && currentPage >= totalPages) {
+      setSlideDirection("prev");
       setCurrentPage(Math.max(0, totalPages - 1));
       setControlsVisible(false);
     } else if (currentPage > 0) {
+      setSlideDirection("prev");
       setCurrentPage((value) => value - 1);
       setControlsVisible(false);
     } else if (prevChapter) {
@@ -565,35 +578,62 @@ export default function ReaderPage() {
         goToEnd();
         return;
       }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        if (direction === "rtl") goPrev();
-        else goNext();
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        if (direction === "rtl") goNext();
-        else goPrev();
-      } else if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (isContinuous)
+      const forwardKey =
+        direction === "ttb"
+          ? "ArrowDown"
+          : direction === "rtl"
+            ? "ArrowLeft"
+            : "ArrowRight";
+      const backwardKey =
+        direction === "ttb"
+          ? "ArrowUp"
+          : direction === "rtl"
+            ? "ArrowRight"
+            : "ArrowLeft";
+      if (isContinuous) {
+        if (event.key === forwardKey || event.key === backwardKey) {
+          event.preventDefault();
+          const forward = event.key === forwardKey;
+          const delta = forward ? 1 : -1;
           scrollRef.current?.scrollBy({
-            top: window.innerHeight * 0.25,
+            top: direction === "ttb" ? delta * window.innerHeight * 0.8 : 0,
+            left: direction !== "ttb" ? delta * window.innerWidth * 0.8 : 0,
             behavior: "smooth",
           });
-        else goNext();
-      } else if (event.key === "ArrowUp") {
+        }
+      } else if (event.key === forwardKey) {
         event.preventDefault();
-        if (isContinuous)
-          scrollRef.current?.scrollBy({
-            top: -window.innerHeight * 0.25,
-            behavior: "smooth",
-          });
-        else goPrev();
+        goNext();
+      } else if (event.key === backwardKey) {
+        event.preventDefault();
+        goPrev();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [direction, goNext, goPrev, isContinuous, navigate]);
+
+  // Continuous mode keeps native scrolling, but the original app applies the
+  // configured mouse scroll speed. A non-passive listener is required to
+  // prevent the browser from also applying the raw delta.
+  useEffect(() => {
+    if (!isContinuous) return;
+    const element = scrollRef.current;
+    if (!element) return;
+    const speed = Number(readerSettings.readerScrollSpeed ?? 1) || 1;
+    if (speed === 1) return;
+    const onWheelNative = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      event.preventDefault();
+      if (direction === "ttb") {
+        element.scrollTop += event.deltaY * speed;
+      } else {
+        element.scrollLeft += event.deltaY * speed;
+      }
+    };
+    element.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => element.removeEventListener("wheel", onWheelNative);
+  }, [direction, isContinuous, readerSettings.readerScrollSpeed]);
 
   useEffect(() => {
     if (!autoTurning) return;
@@ -614,13 +654,35 @@ export default function ReaderPage() {
     const count = Number(readerSettings.preloadImageCount ?? 4);
     const start = pages[currentPage]?.start ?? 0;
     for (let offset = 1; offset <= count; offset++) {
-      const url = imageUrls[start + offset];
-      if (url) {
+      for (const index of [start + offset, start - offset]) {
+        const url = imageUrls[index];
+        if (!url) continue;
         const image = new Image();
         image.src = url;
       }
     }
   }, [currentPage, imageUrls, pages, readerSettings.preloadImageCount]);
+
+  // Ask the server to warm its disk cache for this chapter. The request is
+  // fire-and-forget; repeated calls are deduplicated by the backend.
+  const prefetchBucket = useRef("");
+  useEffect(() => {
+    if (isLocal || !chapterId || imageKeys.length === 0) return;
+    const bucket = Math.floor(currentPage / 8);
+    const token = `${chapterId}:${bucket}`;
+    if (prefetchBucket.current === token) return;
+    prefetchBucket.current = token;
+    api
+      .prefetchChapter(sourceKey, comicId, chapterId, currentPage + 1)
+      .catch(() => {});
+  }, [
+    chapterId,
+    comicId,
+    currentPage,
+    imageKeys.length,
+    isLocal,
+    sourceKey,
+  ]);
 
   useEffect(() => {
     const onFullscreen = () =>
@@ -705,6 +767,7 @@ export default function ReaderPage() {
   useEffect(() => {
     setZoom(null);
     longPressActive.current = false;
+    longPressPanStart.current = null;
     if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
   }, [currentPage, chapterId]);
@@ -736,6 +799,12 @@ export default function ReaderPage() {
       longPressTimer.current = null;
       longPressActive.current = true;
       suppressTapUntil.current = Date.now() + 600;
+      longPressPanStart.current = {
+        x: event.clientX,
+        y: event.clientY,
+        zoomX: origin.x,
+        zoomY: origin.y,
+      };
       setZoom({ scale: 1.75, ...origin });
     }, 350);
   };
@@ -754,14 +823,23 @@ export default function ReaderPage() {
       }
       return;
     }
-    const origin = zoomOrigin(event);
-    setZoom({ scale: 1.75, ...origin });
+    const panStart = longPressPanStart.current;
+    const rect = galleryRef.current?.getBoundingClientRect();
+    if (!panStart || !rect || rect.width === 0 || rect.height === 0) return;
+    const dx = ((event.clientX - panStart.x) / rect.width) * 100;
+    const dy = ((event.clientY - panStart.y) / rect.height) * 100;
+    setZoom({
+      scale: 1.75,
+      x: clamp(panStart.zoomX - dx, 0, 100),
+      y: clamp(panStart.zoomY - dy, 0, 100),
+    });
   };
 
   const endLongPress = () => {
     if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
     longPressStart.current = null;
+    longPressPanStart.current = null;
     if (longPressActive.current) {
       longPressActive.current = false;
       suppressTapUntil.current = Date.now() + 400;
@@ -770,7 +848,7 @@ export default function ReaderPage() {
   };
 
   const zoneTapTimer = useRef<number | null>(null);
-  const scheduleTapZone = (zone: "left" | "center" | "right") => {
+  const scheduleTapZone = (zone: "prev" | "center" | "next") => {
     if (Date.now() < suppressTapUntil.current) return;
     if (readerSettings.enableDoubleTapToZoom !== true) {
       tapZone(zone);
@@ -810,6 +888,9 @@ export default function ReaderPage() {
   };
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const continuousTap = useRef<{ x: number; y: number; time: number } | null>(
+    null,
+  );
   const onTouchStart = (event: React.TouchEvent) => {
     if (onCommentsPage) return;
     const touch = event.touches[0];
@@ -842,21 +923,117 @@ export default function ReaderPage() {
     }
   };
 
-  const tapZone = (zone: "left" | "center" | "right") => {
+  const tapZone = (zone: "prev" | "center" | "next") => {
+    // The original reader closes the toolbar on any tap while it is open;
+    // page turning only applies when the toolbar is hidden.
+    if (controlsVisible) {
+      setControlsVisible(false);
+      return;
+    }
     if (zone === "center") {
-      setControlsVisible((value) => !value);
+      setControlsVisible(true);
       return;
     }
     if (readerSettings.enableTapToTurnPages === false) return;
     const reverse = readerSettings.reverseTapToTurnPages === true;
-    const leftGoesNext = reverse ? direction !== "rtl" : direction === "rtl";
-    if (zone === "left") {
-      if (leftGoesNext) goNext();
+    if (zone === "prev") {
+      if (reverse) goNext();
       else goPrev();
     } else {
-      if (leftGoesNext) goPrev();
+      if (reverse) goPrev();
       else goNext();
     }
+  };
+
+  const tapContinuous = (zone: "prev" | "center" | "next") => {
+    if (controlsVisible) {
+      setControlsVisible(false);
+      return;
+    }
+    if (zone === "center") {
+      setControlsVisible(true);
+      return;
+    }
+    if (readerSettings.enableTapToTurnPages === false) return;
+    const reverse = readerSettings.reverseTapToTurnPages === true;
+    const forward = zone === "next" ? !reverse : reverse;
+    const element = scrollRef.current;
+    if (!element) return;
+    const atEnd =
+      direction === "ttb"
+        ? element.scrollTop + element.clientHeight >= element.scrollHeight - 8
+        : Math.abs(element.scrollLeft) + element.clientWidth >=
+          element.scrollWidth - 8;
+    const atStart =
+      direction === "ttb"
+        ? element.scrollTop <= 8
+        : Math.abs(element.scrollLeft) <= 8;
+    if (forward && atEnd) {
+      if (nextChapter) {
+        showHint(nextChapter.title);
+        goToChapter(chapterIndex + step, 0);
+      } else {
+        showHint(t("This is the last chapter"));
+      }
+      return;
+    }
+    if (!forward && atStart) {
+      if (prevChapter) {
+        showHint(prevChapter.title);
+        setPendingLastPage(true);
+        goToChapter(chapterIndex - step, 0);
+      } else {
+        showHint(t("This is the first chapter"));
+      }
+      return;
+    }
+    element.scrollBy({
+      top: direction === "ttb" ? (forward ? 1 : -1) * element.clientHeight * 0.8 : 0,
+      left:
+        direction !== "ttb"
+          ? (forward ? 1 : -1) * element.clientWidth * 0.8
+          : 0,
+      behavior: "smooth",
+    });
+  };
+
+  const onContinuousPointerDown = (event: React.PointerEvent) => {
+    if ((event.target as HTMLElement).closest("button")) return;
+    continuousTap.current = {
+      x: event.clientX,
+      y: event.clientY,
+      time: Date.now(),
+    };
+  };
+
+  const onContinuousPointerUp = (event: React.PointerEvent) => {
+    const start = continuousTap.current;
+    continuousTap.current = null;
+    if (!start) return;
+    if ((event.target as HTMLElement).closest("button")) return;
+    if (Date.now() - start.time > 500) return;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) return;
+    const element = scrollRef.current;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const x = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
+    const y = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+    let zone: "prev" | "center" | "next";
+    if (direction === "ttb") {
+      zone = y < 0.3 ? "prev" : y > 0.7 ? "next" : "center";
+    } else {
+      zone =
+        x < 0.3
+          ? direction === "rtl"
+            ? "next"
+            : "prev"
+          : x > 0.7
+            ? direction === "rtl"
+              ? "prev"
+              : "next"
+            : "center";
+    }
+    tapContinuous(zone);
   };
 
   const updateSetting = async (patch: Record<string, unknown>) => {
@@ -1149,6 +1326,11 @@ export default function ReaderPage() {
                 ? "flex flex-row-reverse overflow-x-auto overflow-y-hidden"
                 : "flex flex-row overflow-x-auto overflow-y-hidden",
           )}
+          onPointerDown={onContinuousPointerDown}
+          onPointerUp={onContinuousPointerUp}
+          onPointerCancel={() => {
+            continuousTap.current = null;
+          }}
           style={{
             paddingLeft: direction !== "ttb" ? `${marginPercent}%` : 0,
             paddingRight: direction !== "ttb" ? `${marginPercent}%` : 0,
@@ -1221,7 +1403,6 @@ export default function ReaderPage() {
                   onError={() =>
                     setFailed((value) => ({ ...value, [index]: true }))
                   }
-                  onClick={() => setControlsVisible((value) => !value)}
                   className={cn(
                     "reader-page select-none object-contain",
                     direction === "ttb" ? "w-full" : "max-h-full",
@@ -1262,23 +1443,47 @@ export default function ReaderPage() {
           onContextMenu={handleContextMenu}
         >
           {!onCommentsPage ? (
-            <>
-              <button
-                className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
-                aria-label={t("Previous")}
-                onClick={() => scheduleTapZone("left")}
-              />
-              <button
-                className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
-                aria-label={t("Toggle controls")}
-                onClick={() => scheduleTapZone("center")}
-              />
-              <button
-                className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
-                aria-label={t("Next")}
-                onClick={() => scheduleTapZone("right")}
-              />
-            </>
+            direction === "ttb" ? (
+              <>
+                <button
+                  className="absolute inset-x-0 top-0 z-10 h-[30%] cursor-default"
+                  aria-label={t("Previous")}
+                  onClick={() => scheduleTapZone("prev")}
+                />
+                <button
+                  className="absolute inset-x-0 top-[30%] z-10 h-[40%] cursor-default"
+                  aria-label={t("Toggle controls")}
+                  onClick={() => scheduleTapZone("center")}
+                />
+                <button
+                  className="absolute inset-x-0 bottom-0 z-10 h-[30%] cursor-default"
+                  aria-label={t("Next")}
+                  onClick={() => scheduleTapZone("next")}
+                />
+              </>
+            ) : (
+              <>
+                <button
+                  className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-default"
+                  aria-label={t("Previous")}
+                  onClick={() =>
+                    scheduleTapZone(direction === "rtl" ? "next" : "prev")
+                  }
+                />
+                <button
+                  className="absolute inset-y-0 left-[30%] z-10 w-[40%] cursor-default"
+                  aria-label={t("Toggle controls")}
+                  onClick={() => scheduleTapZone("center")}
+                />
+                <button
+                  className="absolute inset-y-0 right-0 z-10 w-[30%] cursor-default"
+                  aria-label={t("Next")}
+                  onClick={() =>
+                    scheduleTapZone(direction === "rtl" ? "prev" : "next")
+                  }
+                />
+              </>
+            )
           ) : null}
           {onCommentsPage ? (
             <ChapterCommentsEndPage
@@ -1297,7 +1502,11 @@ export default function ReaderPage() {
                 direction === "rtl" ? "flex-row-reverse" : "flex-row",
                 readerSettings.enablePageAnimation !== false &&
                   !zoom &&
-                  "reader-page-anim",
+                  (slideDirection === "prev"
+                    ? "reader-page-slide-prev"
+                    : slideDirection === "next"
+                      ? "reader-page-slide-next"
+                      : "reader-page-anim"),
               )}
               style={{
                 paddingLeft: `${marginPercent}%`,
@@ -1832,6 +2041,29 @@ export default function ReaderPage() {
             value={Number(readerSettings.preloadImageCount ?? 4)}
             onChange={(value) => updateSetting({ preloadImageCount: value })}
           />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px]">{t("Server chapter prefetch")}</span>
+            <Select
+              value={String(readerSettings.serverPrefetchImageCount ?? -1)}
+              onChange={(event) =>
+                updateSetting({
+                  serverPrefetchImageCount: Number(event.target.value),
+                })
+              }
+              className="w-[140px]"
+            >
+              <option value="0">{t("Off")}</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="-1">{t("Whole chapter")}</option>
+            </Select>
+          </div>
+          <p className="-mt-3 text-[11px] leading-relaxed text-muted">
+            {t("Prefetch hint")}
+          </p>
           <Button
             variant="secondary"
             onClick={() => {
