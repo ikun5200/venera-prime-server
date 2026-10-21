@@ -113,9 +113,11 @@ class PrefetchSource extends ComicSource {
     expect(imported.status, 200, reason: '${imported.body}');
 
     final prefetch = await admin.post(
-        '/api/comic/prefetch_source/1/chapter/1/prefetch', {'from': 1});
+        '/api/comic/prefetch_source/1/chapter/1/prefetch',
+        {'from': 1, 'limit': 2});
     expect(prefetch.status, 200, reason: '${prefetch.body}');
     expect(prefetch.body['enabled'], true);
+    expect(prefetch.body['limit'], 2);
 
     var cacheBytes = 0;
     for (var attempt = 0; attempt < 40; attempt++) {

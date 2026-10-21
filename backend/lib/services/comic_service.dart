@@ -837,24 +837,27 @@ class ComicService {
     String comicId,
     String epId, {
     int from = 1,
+    int? limit,
   }) async {
     final source = sources.require(userId, sourceKey);
     if (!source.enabled) {
       return {'enabled': false, 'running': false, 'reason': 'disabled'};
     }
     final values = settings.all(userId);
-    final raw = values['serverPrefetchImageCount'];
-    final limit = raw is num ? raw.toInt() : -1;
-    if (limit == 0) {
+    final raw = limit ?? values['serverPrefetchImageCount'];
+    var effective = raw is num ? raw.toInt() : -1;
+    if (effective < -1) effective = -1;
+    if (effective > 500) effective = 500;
+    if (effective == 0) {
       return {'enabled': false, 'running': false, 'limit': 0};
     }
     final token = '$userId|$sourceKey|$comicId|$epId';
     if (_prefetching.contains(token)) {
-      return {'enabled': true, 'running': true, 'limit': limit};
+      return {'enabled': true, 'running': true, 'limit': effective};
     }
     _prefetching.add(token);
     unawaited(_runPrefetch(userId, sourceKey, comicId, epId,
-            from: from, limit: limit)
+            from: from, limit: effective)
         .catchError((Object error) {
           Log.warning('Chapter prefetch failed',
               userId: userId,
@@ -866,7 +869,7 @@ class ComicService {
               });
         })
         .whenComplete(() => _prefetching.remove(token)));
-    return {'enabled': true, 'running': true, 'limit': limit};
+    return {'enabled': true, 'running': true, 'limit': effective};
   }
 
   Future<void> _runPrefetch(

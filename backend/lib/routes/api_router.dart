@@ -751,8 +751,10 @@ Handler buildApiRouter(AppContext ctx) {
     final auth = requireAuth(request);
     final body = await readJsonBody(request);
     final from = (body['from'] as num?)?.toInt() ?? 1;
-    return _json(await ctx.comics
-        .prefetchChapter(auth.user.id, source, id, ep, from: from));
+    final limit = (body['limit'] as num?)?.toInt();
+    return _json(await ctx.comics.prefetchChapter(
+        auth.user.id, source, id, ep,
+        from: from, limit: limit));
   });
 
   router.get('/api/comic/<source>/<id>/thumbnails',

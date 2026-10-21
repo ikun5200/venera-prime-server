@@ -352,6 +352,9 @@ export default function ReaderPage() {
   }, [imageUrls, perPage, singleFirst]);
 
   const totalPages = pages.length;
+  useEffect(() => {
+    setCurrentPage((value) => clamp(value, 0, Math.max(0, pages.length - 1)));
+  }, [pages.length]);
   const commentsAtEnd =
     !isLocal &&
     !isContinuous &&
@@ -583,11 +586,27 @@ export default function ReaderPage() {
         return;
       }
       if (event.key === "Home") {
-        setCurrentPage(0);
+        if (isContinuous) {
+          const element = scrollRef.current;
+          element?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+        } else {
+          setCurrentPage(0);
+        }
         return;
       }
       if (event.key === "End") {
-        goToEnd();
+        if (isContinuous) {
+          const element = scrollRef.current;
+          if (element) {
+            element.scrollTo({
+              top: element.scrollHeight,
+              left: element.scrollWidth,
+              behavior: "smooth",
+            });
+          }
+        } else {
+          goToEnd();
+        }
         return;
       }
       const forwardKey =
@@ -692,11 +711,12 @@ export default function ReaderPage() {
   useEffect(() => {
     if (isLocal || !chapterId || imageKeys.length === 0) return;
     const bucket = Math.floor(currentPage / 8);
-    const token = `${chapterId}:${bucket}`;
+    const limit = Number(readerSettings.serverPrefetchImageCount ?? -1);
+    const token = `${chapterId}:${bucket}:${limit}`;
     if (prefetchBucket.current === token) return;
     prefetchBucket.current = token;
     api
-      .prefetchChapter(sourceKey, comicId, chapterId, currentPage + 1)
+      .prefetchChapter(sourceKey, comicId, chapterId, currentPage + 1, limit)
       .catch(() => {});
   }, [
     chapterId,
@@ -704,6 +724,7 @@ export default function ReaderPage() {
     currentPage,
     imageKeys.length,
     isLocal,
+    readerSettings.serverPrefetchImageCount,
     sourceKey,
   ]);
 
