@@ -565,9 +565,21 @@ export default function ReaderPage() {
         return;
       }
       if (event.key === "Escape") {
-        if (document.fullscreenElement)
+        if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
-        else navigate(-1);
+        } else if (contextMenu) {
+          setContextMenu(null);
+        } else if (settingsOpen) {
+          setSettingsOpen(false);
+        } else if (chaptersOpen) {
+          setChaptersOpen(false);
+        } else if (commentsOpen) {
+          setCommentsOpen(false);
+        } else if (controlsVisible) {
+          setControlsVisible(false);
+        } else {
+          navigate(-1);
+        }
         return;
       }
       if (event.key === "Home") {
@@ -611,7 +623,18 @@ export default function ReaderPage() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [direction, goNext, goPrev, isContinuous, navigate]);
+  }, [
+    chaptersOpen,
+    commentsOpen,
+    contextMenu,
+    controlsVisible,
+    direction,
+    goNext,
+    goPrev,
+    isContinuous,
+    navigate,
+    settingsOpen,
+  ]);
 
   // Continuous mode keeps native scrolling, but the original app applies the
   // configured mouse scroll speed. A non-passive listener is required to
