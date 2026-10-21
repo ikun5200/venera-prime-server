@@ -961,7 +961,9 @@ function Overview({
           className="rounded-card border border-border bg-surface p-4 text-left transition-colors duration-100 hover:border-accent/40 hover:bg-accent/5"
         >
           <p className="truncate text-[14px] font-medium">{folder.name}</p>
-          <p className="mt-1 text-[12px] text-muted">{folder.count} comics</p>
+          <p className="mt-1 text-[12px] text-muted">
+            {t("@count comics", { count: folder.count })}
+          </p>
         </button>
       ))}
     </div>

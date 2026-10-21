@@ -45,7 +45,7 @@ export default function DownloadsPage() {
     <>
       <PageHeader
         title={t("Downloading")}
-        subtitle={`${jobs.length} tasks`}
+        subtitle={t("@count tasks", { count: jobs.length })}
         actions={
           active ? (
             <>

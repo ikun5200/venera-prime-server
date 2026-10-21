@@ -970,6 +970,7 @@ const zhCN: Dict = {
   "@count images": "@count 张图片",
   "@count selected": "已选择 @count 项",
   "@count running": "@count 个运行中",
+  "@count tasks": "@count 个任务",
   "Created @time": "创建于 @time",
   "Delete user @name?": "删除用户 @name？",
   "All favorites, history, sources, uploads and sessions for this user are deleted.":
@@ -1639,6 +1640,7 @@ const zhTW: Dict = {
   "@count images": "@count 張圖片",
   "@count selected": "已選擇 @count 項",
   "@count running": "@count 個執行中",
+  "@count tasks": "@count 個任務",
   "Created @time": "建立於 @time",
   "Delete user @name?": "刪除使用者 @name？",
   "All favorites, history, sources, uploads and sessions for this user are deleted.":
