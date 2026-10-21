@@ -20,6 +20,7 @@ export function ComicCard({
   favorite,
   progress,
   sourceName,
+  fallbackSourceKey,
   className,
   compact = false,
 }: {
@@ -29,13 +30,15 @@ export function ComicCard({
   favorite?: boolean;
   progress?: { ep: number; page: number; maxPage?: number | null } | null;
   sourceName?: string;
+  fallbackSourceKey?: string;
   className?: string;
   compact?: boolean;
 }) {
   const t = useT();
   const [broken, setBroken] = useState(false);
+  const sourceKey = comic.sourceKey || fallbackSourceKey;
   const cover = comic.cover
-    ? coverUrl(comic.cover, comic.sourceKey, comic.id)
+    ? coverUrl(comic.cover, sourceKey, comic.id)
     : "";
 
   return (
@@ -129,6 +132,7 @@ export function ComicGrid({
   getFavorite,
   getProgress,
   getSourceName,
+  fallbackSourceKey,
   scale = 1,
   className,
 }: {
@@ -140,6 +144,7 @@ export function ComicGrid({
     comic: Comic,
   ) => { ep: number; page: number; maxPage?: number | null } | null;
   getSourceName?: (comic: Comic) => string | undefined;
+  fallbackSourceKey?: string;
   scale?: number;
   className?: string;
 }) {
@@ -160,6 +165,7 @@ export function ComicGrid({
           favorite={getFavorite?.(comic)}
           progress={getProgress?.(comic)}
           sourceName={getSourceName?.(comic)}
+          fallbackSourceKey={fallbackSourceKey}
         />
       ))}
     </div>

@@ -125,8 +125,8 @@ export default function SettingsCategoryPage() {
     enabled: category === "local-favorites",
   });
   const cache = useQuery({
-    queryKey: ["cache-size"],
-    queryFn: api.cacheSize,
+    queryKey: ["cache-stats"],
+    queryFn: () => api.cacheStats(),
     enabled: category === "app",
   });
   const storage = useQuery({
@@ -151,6 +151,9 @@ export default function SettingsCategoryPage() {
           "readerScreenPicNumberForPortrait",
           "readerScreenPicNumberForLandscape",
           "serverPrefetchImageCount",
+          "serverCacheListMinutes",
+          "serverCacheComicMinutes",
+          "serverCacheChapterDays",
           "cacheRetentionDays",
         ].includes(key) &&
         typeof value === "string" &&
@@ -190,9 +193,14 @@ export default function SettingsCategoryPage() {
           fileRef.current?.click();
           break;
         case "clear-cache":
-          await api.clearCache();
+          await api.clearCacheScope("all");
           toast.success(t("Cache cleared"));
-          queryClient.invalidateQueries({ queryKey: ["cache-size"] });
+          queryClient.invalidateQueries({ queryKey: ["cache-stats"] });
+          break;
+        case "clear-metadata":
+          await api.clearCacheScope("metadata");
+          toast.success(t("Metadata cache cleared"));
+          queryClient.invalidateQueries({ queryKey: ["cache-stats"] });
           break;
         case "refresh-library":
           await api.refreshLocalLibrary();
@@ -377,7 +385,7 @@ export default function SettingsCategoryPage() {
                   settings={settings}
                   sources={sources.data?.items ?? []}
                   folders={folders.data?.items ?? []}
-                  cacheBytes={cache.data?.bytes}
+                  cacheStats={cache.data}
                   storagePath={storage.data?.path}
                   serverVersion={health.data?.version}
                   jsCode={jsCode}
@@ -586,6 +594,22 @@ function TextRow({
   );
 }
 
+type CacheStats = {
+  bytes: number;
+  images: {
+    entries: number;
+    bytes: number;
+    bySource: { source: string; entries: number; bytes: number }[];
+    chapters: { ep: string; images: number; bytes: number }[];
+  };
+  metadata: {
+    entries: number;
+    bytes: number;
+    byKind: { kind: string; entries: number; bytes: number }[];
+    bySource: { source: string; entries: number; bytes: number }[];
+  };
+};
+
 function CustomRow({
   itemKey,
   label,
@@ -593,7 +617,7 @@ function CustomRow({
   settings,
   sources,
   folders,
-  cacheBytes,
+  cacheStats,
   storagePath,
   serverVersion,
   jsCode,
@@ -611,7 +635,7 @@ function CustomRow({
   settings: Record<string, unknown>;
   sources: { key: string; name: string }[];
   folders: { id: number; name: string }[];
-  cacheBytes?: number;
+  cacheStats?: CacheStats;
   storagePath?: string;
   serverVersion?: string;
   jsCode: string;
@@ -666,9 +690,17 @@ function CustomRow({
   if (itemKey === "cacheInfo") {
     return (
       <Row label={t(label)} hint={hint ? t(hint) : undefined}>
-        <span className="text-[13px] tabular text-muted">
-          {cacheBytes === undefined ? "…" : formatBytes(cacheBytes)}
-        </span>
+        <div className="text-right text-[12px] tabular text-muted">
+          <p className="text-[13px] text-fg">
+            {cacheStats === undefined ? "…" : formatBytes(cacheStats.bytes)}
+          </p>
+          {cacheStats ? (
+            <p>
+              {t("Image cache")} {formatBytes(cacheStats.images.bytes)} ·{" "}
+              {t("Metadata cache")} {formatBytes(cacheStats.metadata.bytes)}
+            </p>
+          ) : null}
+        </div>
       </Row>
     );
   }
@@ -1223,8 +1255,49 @@ function buildItems(category: string): Item[] {
           label: "Floating task button",
         },
         { kind: "link", label: "Background tasks", to: "/tasks" },
+        {
+          kind: "switch",
+          key: "serverCacheEnabled",
+          label: "Server-side cache",
+          hint: "Cache source results on the server",
+        },
+        {
+          kind: "number",
+          key: "serverCacheListMinutes",
+          label: "List cache duration",
+          suffix: "min",
+        },
+        {
+          kind: "number",
+          key: "serverCacheComicMinutes",
+          label: "Comic details cache duration",
+          suffix: "min",
+        },
+        {
+          kind: "select",
+          key: "serverCacheChapterDays",
+          label: "Chapter cache duration",
+          options: [
+            { value: "0", label: "Never" },
+            { value: "1", label: "1 day" },
+            { value: "3", label: "3 days" },
+            { value: "7", label: "7 days" },
+            { value: "30", label: "30 days" },
+          ],
+        },
+        {
+          kind: "switch",
+          key: "serverCacheOfflineFallback",
+          label: "Offline fallback",
+          hint: "Show cached data when the source is unavailable",
+        },
         { kind: "custom", key: "cacheInfo", label: "Cache Size" },
         { kind: "action", label: "Clear Cache", action: "clear-cache" },
+        {
+          kind: "action",
+          label: "Clear metadata cache",
+          action: "clear-metadata",
+        },
         { kind: "custom", key: "storagePath", label: "Storage path" },
         {
           kind: "number",

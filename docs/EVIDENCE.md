@@ -693,8 +693,14 @@ Every acceptance item is backed by a reproducible command, output summary and
   read later, follow updates, local/downloads, sources (settings/login/edit/
   check/libraries), all settings pages, admin users, toolbox, tasks, 404 and
   invalid routes.
-- Report: `docs/usage-test-report-2026-10-21.md` (16 findings with repro).
+- Report: `docs/usage-test-report-2026-10-21.md` (18 findings with repro;
+  BUG-01…BUG-16 fixed by E-24, BUG-17/18 re-checked on the final bundle).
 - Key findings:
+  - Explore comic cards navigate to `/comic/undefined/:id`: 51/51
+    copy_manga and 20/20 zaimanhua summaries lack `sourceKey`; only the
+    `mixed` path (nhentai) is normalized. 32/33 explore sources affected;
+    `comic_service.explore()` returns raw source JSON for non-mixed types.
+    Re-checked on final bundle `index-BQUtyec5.js`: still reproduces.
   - Saving source settings with the rendered-empty `API地址` persisted
     `base_url:""`, breaking `copy_manga` (DNS `api`). Restored
     `api.copy2000.online`; search returned 30 results again.
@@ -707,14 +713,19 @@ Every acceptance item is backed by a reproducible command, output summary and
     briefly showed the `/init` create-admin page.
   - i18n gaps: English plurals (`1 comics`/`2 folders`/`1 users`), `Run`,
     `Export`, `Multi-Select`, `completed`, `Every N hours`, About/WebDAV/
-    Toolbox English paragraphs, en-US/ISO dates.
+    Toolbox English paragraphs, en-US/ISO dates. Fixed by E-24; remaining
+    on the final bundle: source capability chips (`search · explore · …`)
+    and role labels (`admin`/`user`).
 - Screenshots: `docs/screenshots/usage-2026-10-21-home-375.png`,
   `docs/screenshots/usage-2026-10-21-home-1280.png`.
 - Test data restored: base_url, image quality 800, RTL reading, double-page
   off, language/theme system, random module off, follow updates disabled,
-  test folder/user/image-favorite/read-later removed, proxy `system`.
-- Note: the NAS image was redeployed during the test window (new reader build,
-  E-22); reader checks before and after the redeploy passed.
+  test folder/users (uitest, uitest2)/image-favorite/read-later removed,
+  proxy `system`.
+- Note: the NAS image was redeployed during the test window (E-22 reader,
+  then E-24 usability fixes); reader and fixed-feature checks passed before
+  and after each redeploy. Remaining open: BUG-17 (explore `sourceKey`) and
+  BUG-18 (capability/role labels).
 - Time: 2026-10-21T14:45:00Z
 
 ## E-24 — Usability report fixes (BUG-01…BUG-16) (2026-10-21) — PASS

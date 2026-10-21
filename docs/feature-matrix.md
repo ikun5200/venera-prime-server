@@ -382,3 +382,17 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | NEW-06 | task §5.3 | Browser download single/multi chapter zip | `/downloads` | Download | DONE | E-03/E-04/E-12 |
 | NEW-07 | task §11 | Health endpoint | `/api/health` | Status | DONE | E-03/E-04/E-12 |
 | NEW-08 | task §11 | Structured JSON logs + audit log | `/settings/logs` | View | DONE | E-03/E-04/E-12 |
+
+## Server cache and 2026-10-21 follow-up (E-25)
+
+| ID | Source | Item | Route/API | Behavior | Status | Evidence |
+|---|---|---|---|---|---|---|
+| CACHE-01 | server | Persistent comic details and chapter-list cache | `/api/comic/...` | SQLite TTL 60 min / 7 days, stale-while-revalidate | DONE | E-25 |
+| CACHE-02 | server | Search/explore/categories/category/ranking/thumbnail/comment cache | `/api/search`, `/api/explore`, ... | per-kind TTL, `refresh=1` bypass | DONE | E-25 |
+| CACHE-03 | server | Single-flight identical source calls | internal | one JS-host round trip for concurrent identical keys | DONE | E-25 |
+| CACHE-04 | server | Offline fallback to last good payload | API/UI | `cache.stale=true`, detail badge, can be disabled | DONE | E-25 |
+| CACHE-05 | server | Cache index, stats and management | `/api/maintenance/cache*`, `/settings/app` | image/metadata bytes, by-source/chapter, clear scopes | DONE | E-25 |
+| CACHE-06 | server | Local-first reader for downloaded chapters | `/reader/...` | local image endpoints, source fallback | DONE | E-25 |
+| CACHE-07 | server | Startup + hourly follow-up refresh | server | 8 s after boot, then hourly | DONE | E-25 |
+| FIX-17 | usage report BUG-17 | Explore cards keep `sourceKey` for every renderer | `/api/explore`, `/explore` | recursive normalization + frontend fallback | DONE | E-25 |
+| FIX-18 | usage report BUG-18 | Capability and role labels localized | `/sources`, `/admin/users` | Chinese labels (搜索/发现/分类…, 管理员/普通用户) | DONE | E-25 |

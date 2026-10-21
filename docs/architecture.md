@@ -194,13 +194,35 @@ Responsive contract:
   are fetched with 3-way concurrency. Prefetch count is configurable
   (`serverPrefetchImageCount`: off, 10/20/30/50/100, or whole chapter).
   Resolved configs are kept in a short-lived in-memory map so subsequent
-  on-demand image requests skip the JS host entirely.
+  on-demand image requests skip the JS host entirely. Downloaded chapters are
+  written only to the local library (`persistCache: false`) so they are not
+  duplicated in the image cache.
+- Metadata cache: `ContentCacheService` persists normalized source payloads in
+  SQLite (`content_cache`, migration 5): comic details, chapter image lists,
+  explore/search/category/ranking/categories/thumbnails/comments. TTLs are
+  configurable per user (`serverCacheListMinutes`, `serverCacheComicMinutes`,
+  `serverCacheChapterDays`); comments use 2 minutes and categories 24 hours.
+  Identical concurrent requests share one JS-host round trip (single-flight).
+  Stale entries are returned immediately while one background refresh runs;
+  when the source fails, the last good payload is served with
+  `cache.stale=true` unless `serverCacheOfflineFallback` is disabled. Source
+  script/settings/login changes and deletion invalidate that source's rows.
+- Reader local-first: when a chapter of the current source/comic is present in
+  `local_comics` and `downloaded_chapters`, the reader fetches
+  `/api/local-comics/<id>/chapter/<ep>/images` and local image URLs instead of
+  calling the source. If local files are missing, it falls back to the source
+  chapter list automatically.
+- Cache maintenance: `image_cache` indexes every cached image (source, comic,
+  chapter, size, mime) so the settings page can report image/metadata cache
+  size, per-chapter counts and clear one source, all metadata, or everything.
+  Hourly housekeeping prunes expired metadata rows and orphaned image rows.
 - Favorites: local favorite rows carry a metadata snapshot (including
   `description`) and the list query prewarms up to 30 covers in the background
   (3 concurrent), keyed by user + source + comic. Source-backed favorite
   folders/pages are cached in memory for 5 minutes and invalidated on
-  favorite/folder mutations; `?refresh=1` bypasses. Chapter lists are not
-  cached.
+  favorite/folder mutations; `?refresh=1` bypasses.
+- Startup: the server runs due follow-up checks 8 seconds after boot and then
+  hourly, so the metadata cache and unread badges are current.
 - Rate limit: 120 requests/minute per session/IP for API routes, 10/minute for
   login and init.
 

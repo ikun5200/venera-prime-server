@@ -1,8 +1,16 @@
 # Progress
 
-Updated: 2026-10-21T13:20Z
+Updated: 2026-10-21T15:20Z
 
 ## Current phase
+
+Server-cache and usability round (E-25) completed: source metadata (comic
+details, chapter lists, explore/search/categories/ranking/thumbnails/comments)
+is now persisted in SQLite with per-kind TTLs, single-flight coalescing,
+stale-while-revalidate and offline fallback; the image cache is indexed for
+stats and scoped clearing; the reader uses downloaded local chapters before
+the source; BUG-17 (explore `sourceKey`) and BUG-18 (capability/role labels)
+from the usability report are fixed with regression tests.
 
 Favorites caching round (E-21) completed: source-backed favorite lists are
 cached for 5 minutes, covers are cached by comic identity and prewarmed in the
@@ -140,6 +148,20 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   aggregation renders its first section in 2.0 s and finishes in 6.5 s,
   favorites/users refresh immediately, and no raw source stacks remain.
   Tests now 51 backend / 22 frontend. See E-24.
+
+- Server-cache redesign (E-25): added migration 5 (`content_cache`,
+  `image_cache`) and `ContentCacheService`; all detail/chapter/list/comment
+  reads now use cache-first with TTL, single-flight, background refresh and
+  stale fallback. Settings gained `serverCacheEnabled`,
+  `serverCacheListMinutes`, `serverCacheComicMinutes`,
+  `serverCacheChapterDays` and `serverCacheOfflineFallback`. The image cache
+  is indexed for per-source/chapter stats and scoped clearing. The reader
+  prefers downloaded local chapters and falls back to the source if local
+  files are missing. Explore normalizes every renderer type and stamps
+  `sourceKey` (BUG-17), and source/role labels are localized (BUG-18).
+  Verified in a real browser: `/comic/explore_source/p1` (not `undefined`),
+  “发现”/“管理员” labels, and local image URLs
+  `/api/local-comics/1/image/1/*`. Tests: 54 backend / 24 frontend.
 
 ## Next
 

@@ -29,6 +29,8 @@ int _qi(Request request, String key, [int fallback = 0]) =>
 
 int _page(Request request) => _qi(request, 'page', 1).clamp(1, 100000);
 
+bool _refresh(Request request) => _q(request, 'refresh') == '1';
+
 int _pageSize(Request request, [int fallback = 60]) =>
     _qi(request, 'pageSize', fallback).clamp(1, 500);
 
@@ -99,12 +101,14 @@ class _DecodingRouter {
     };
   }
 
-  void get(String route, Function handler) => _router.get(route, _wrap(handler));
+  void get(String route, Function handler) =>
+      _router.get(route, _wrap(handler));
 
   void post(String route, Function handler) =>
       _router.post(route, _wrap(handler));
 
-  void put(String route, Function handler) => _router.put(route, _wrap(handler));
+  void put(String route, Function handler) =>
+      _router.put(route, _wrap(handler));
 
   void patch(String route, Function handler) =>
       _router.patch(route, _wrap(handler));
@@ -318,6 +322,41 @@ Handler buildApiRouter(AppContext ctx) {
   });
 
   // ---- maintenance -----------------------------------------------------
+  router.get('/api/maintenance/cache', (Request request) {
+    final auth = requireAuth(request);
+    return _json(ctx.comics.cacheStats(
+      auth.user.id,
+      sourceKey: _q(request, 'source'),
+      comicId: _q(request, 'comic'),
+    ));
+  });
+
+  router.post('/api/maintenance/cache/clear', (Request request) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final scope = (body['scope'] ?? 'all').toString();
+    final sourceKey = body['sourceKey']?.toString();
+    var metadataRemoved = 0;
+    var imagesRemoved = 0;
+    if (scope == 'all' || scope == 'metadata') {
+      metadataRemoved = ctx.comics.clearMetadataCache(
+        auth.user.id,
+        sourceKey: sourceKey,
+        kind: body['kind']?.toString(),
+      );
+    }
+    if (scope == 'all' || scope == 'images') {
+      imagesRemoved =
+          await ctx.comics.clearImageCache(auth.user.id, sourceKey: sourceKey);
+    }
+    return _json({
+      'ok': true,
+      'metadataRemoved': metadataRemoved,
+      'imagesRemoved': imagesRemoved,
+      'cache': ctx.comics.cacheStats(auth.user.id),
+    });
+  });
+
   router.get('/api/maintenance/cache-size', (Request request) {
     final auth = requireAuth(request);
     return _json({'bytes': ctx.comics.cacheBytes(auth.user.id)});
@@ -424,6 +463,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.delete('/api/sources/<key>', (Request request, String key) {
     final auth = requireAuth(request);
     ctx.sourceRepository.delete(auth.user.id, key);
+    ctx.contentCache.invalidate(auth.user.id, sourceKey: key);
     ctx.audit.log('source_delete', userId: auth.user.id, detail: {'key': key});
     return _json({'ok': true});
   });
@@ -641,7 +681,8 @@ Handler buildApiRouter(AppContext ctx) {
       throw ApiException.badRequest('缺少源');
     }
     return _json(await ctx.comics.search(
-        auth.user.id, source, keyword, _options(request), _page(request)));
+        auth.user.id, source, keyword, _options(request), _page(request),
+        refresh: _refresh(request)));
   });
 
   router.get('/api/search/aggregated', (Request request) async {
@@ -680,8 +721,8 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(
-        await ctx.comics.explore(auth.user.id, source, _page(request)));
+    return _json(await ctx.comics.explore(auth.user.id, source, _page(request),
+        refresh: _refresh(request)));
   });
 
   router.get('/api/explore/next', (Request request) async {
@@ -690,8 +731,9 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics
-        .explore(auth.user.id, source, _qi(request, 'next', 1)));
+    return _json(await ctx.comics.explore(
+        auth.user.id, source, _qi(request, 'next', 1),
+        refresh: _refresh(request)));
   });
 
   router.get('/api/categories', (Request request) async {
@@ -700,7 +742,8 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.categories(auth.user.id, source));
+    return _json(await ctx.comics
+        .categories(auth.user.id, source, refresh: _refresh(request)));
   });
 
   router.get('/api/category-comics', (Request request) async {
@@ -716,6 +759,7 @@ Handler buildApiRouter(AppContext ctx) {
       _decodeParam(_q(request, 'param')),
       _options(request),
       _page(request),
+      refresh: _refresh(request),
     ));
   });
 
@@ -730,6 +774,7 @@ Handler buildApiRouter(AppContext ctx) {
       source,
       _q(request, 'option') ?? '',
       _page(request),
+      refresh: _refresh(request),
     ));
   });
 
@@ -737,13 +782,15 @@ Handler buildApiRouter(AppContext ctx) {
   router.get('/api/comic/<source>/<id>',
       (Request request, String source, String id) async {
     final auth = requireAuth(request);
-    return _json(await ctx.comics.comicInfo(auth.user.id, source, id));
+    return _json(await ctx.comics
+        .comicInfo(auth.user.id, source, id, refresh: _refresh(request)));
   });
 
   router.get('/api/comic/<source>/<id>/chapter/<ep>/images',
       (Request request, String source, String id, String ep) async {
     final auth = requireAuth(request);
-    return _json(await ctx.comics.chapterImages(auth.user.id, source, id, ep));
+    return _json(await ctx.comics.chapterImages(auth.user.id, source, id, ep,
+        refresh: _refresh(request)));
   });
 
   router.post('/api/comic/<source>/<id>/chapter/<ep>/prefetch',
@@ -752,8 +799,7 @@ Handler buildApiRouter(AppContext ctx) {
     final body = await readJsonBody(request);
     final from = (body['from'] as num?)?.toInt() ?? 1;
     final limit = (body['limit'] as num?)?.toInt();
-    return _json(await ctx.comics.prefetchChapter(
-        auth.user.id, source, id, ep,
+    return _json(await ctx.comics.prefetchChapter(auth.user.id, source, id, ep,
         from: from, limit: limit));
   });
 
@@ -761,7 +807,8 @@ Handler buildApiRouter(AppContext ctx) {
       (Request request, String source, String id) async {
     final auth = requireAuth(request);
     return _json(await ctx.comics.thumbnails(
-        auth.user.id, source, id, _decodeParam(_q(request, 'next'))));
+        auth.user.id, source, id, _decodeParam(_q(request, 'next')),
+        refresh: _refresh(request)));
   });
 
   router.get('/api/comic/<source>/<id>/comments',
@@ -774,6 +821,7 @@ Handler buildApiRouter(AppContext ctx) {
       subId: _q(request, 'subId'),
       page: _page(request),
       replyTo: _decodeParam(_q(request, 'replyTo')),
+      refresh: _refresh(request),
     ));
   });
 
@@ -802,6 +850,7 @@ Handler buildApiRouter(AppContext ctx) {
       ep,
       page: _page(request),
       replyTo: _decodeParam(_q(request, 'replyTo')),
+      refresh: _refresh(request),
     ));
   });
 

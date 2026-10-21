@@ -266,9 +266,11 @@ export const api = {
     options: string[],
     page: number,
     signal?: AbortSignal,
+    refresh = false,
   ) => {
     const params = new URLSearchParams({ source, q, page: String(page) });
     if (options.length) params.set("options", options.join(","));
+    if (refresh) params.set("refresh", "1");
     return get<{ comics: Comic[]; maxPage: number; page: number }>(
       `/search?${params}`,
       signal ? { signal } : undefined,
@@ -284,7 +286,7 @@ export const api = {
         error: string | null;
       }[];
     }>(`/search/aggregated?q=${enc(q)}`),
-  explore: (source: string, page: number) =>
+  explore: (source: string, page: number, refresh = false) =>
     get<{
       source: string;
       page: number;
@@ -295,7 +297,9 @@ export const api = {
         data: unknown;
         error: string | null;
       }[];
-    }>(`/explore?source=${enc(source)}&page=${page}`),
+    }>(
+      `/explore?source=${enc(source)}&page=${page}${refresh ? "&refresh=1" : ""}`,
+    ),
   categories: (source: string) =>
     get<{
       source: string;
@@ -714,6 +718,37 @@ export const api = {
 
   cacheSize: () => get<{ bytes: number }>("/maintenance/cache-size"),
   clearCache: () => post<{ ok: boolean }>("/maintenance/clear-cache"),
+  cacheStats: (params: { source?: string; comic?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.source) query.set("source", params.source);
+    if (params.comic) query.set("comic", params.comic);
+    const suffix = query.toString();
+    return get<{
+      bytes: number;
+      images: {
+        entries: number;
+        bytes: number;
+        bySource: { source: string; entries: number; bytes: number }[];
+        chapters: { ep: string; images: number; bytes: number }[];
+      };
+      metadata: {
+        entries: number;
+        bytes: number;
+        byKind: { kind: string; entries: number; bytes: number }[];
+        bySource: { source: string; entries: number; bytes: number }[];
+      };
+    }>(`/maintenance/cache${suffix ? `?${suffix}` : ""}`);
+  },
+  clearCacheScope: (
+    scope: "all" | "images" | "metadata",
+    options: { sourceKey?: string; kind?: string } = {},
+  ) =>
+    post<{
+      ok: boolean;
+      metadataRemoved: number;
+      imagesRemoved: number;
+      cache: unknown;
+    }>("/maintenance/cache/clear", { scope, ...options }),
   storagePath: () => get<{ path: string }>("/settings/storage"),
   resolveLink: (url: string) =>
     post<{ result: { source: string; comicId: string } | null }>(

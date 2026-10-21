@@ -10,6 +10,7 @@ import 'repositories/user_repository.dart';
 import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'services/comic_service.dart';
+import 'services/content_cache_service.dart';
 import 'services/download_service.dart';
 import 'services/js_host_client.dart';
 import 'services/library_service.dart';
@@ -43,6 +44,7 @@ class AppContext {
   late final AuthService auth;
   late final AdminService admin;
   late final SettingsService settings;
+  late final ContentCacheService contentCache;
   late final TaskService tasks;
   late final SourceService sources;
   late final ComicService comics;
@@ -82,6 +84,7 @@ class AppContext {
     );
     admin = AdminService(users: users, sessions: sessions, audit: audit);
     settings = SettingsService(settingsRepository);
+    contentCache = ContentCacheService(db: db, settings: settingsRepository);
     tasks = TaskService();
     sources = SourceService(
       config: config,
@@ -90,6 +93,7 @@ class AppContext {
       settingsRepository: settingsRepository,
       audit: audit,
       js: js,
+      contentCache: contentCache,
     );
     comics = ComicService(
       config: config,
@@ -99,6 +103,7 @@ class AppContext {
       favorites: favoriteRepository,
       settings: settingsRepository,
       paths: paths,
+      contentCache: contentCache,
     );
     favorites = FavoriteService(
       favorites: favoriteRepository,

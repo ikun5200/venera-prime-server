@@ -58,6 +58,13 @@ export interface ComicDetails extends Omit<Comic, "tags"> {
   progress?: Progress | null;
   favoriteFolders: number[];
   localComicId?: number | null;
+  cache?: {
+    hit: boolean;
+    stale: boolean;
+    fetchedAt: number;
+    expiresAt: number;
+    error?: string;
+  } | null;
 }
 
 export interface Chapter {

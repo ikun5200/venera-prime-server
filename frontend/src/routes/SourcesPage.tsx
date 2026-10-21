@@ -243,7 +243,7 @@ export default function SourcesPage() {
                     ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted">
-                    {source.key} · {capabilitySummary(source)}
+                    {source.key} · {capabilitySummary(source, t)}
                   </p>
                 </button>
                 <Switch
@@ -460,20 +460,23 @@ export default function SourcesPage() {
   );
 }
 
-function capabilitySummary(source: Source): string {
+function capabilitySummary(
+  source: Source,
+  t: (key: string) => string,
+): string {
   const labels: [string, string][] = [
     ["search", "search"],
     ["explore", "explore"],
-    ["category", "categories"],
+    ["category", "category"],
     ["favorites", "favorites"],
     ["comments", "comments"],
-    ["imageLoad", "images"],
+    ["imageLoad", "imageLoad"],
     ["login", "login"],
   ];
   const active = labels
     .filter(([key]) => source.capabilities[key] === true)
-    .map(([, label]) => label);
-  return active.join(" · ") || "no capabilities";
+    .map(([, key]) => t(key));
+  return active.join(" · ") || t("no capabilities");
 }
 
 function CheckResult({ data }: { data: unknown }) {

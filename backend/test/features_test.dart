@@ -3,6 +3,26 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'test_utils.dart';
 
+const exploreSourceScript = r'''
+class ExploreSource extends ComicSource {
+  name = "Explore"; key = "explore_source"; version = "1.0.0";
+  explore = [
+    { title: "Paged", type: "multiPageComicList",
+      load: async (page) => ({ comics: [{ id: "p1", title: "P1" }], maxPage: 2 }) },
+    { title: "Parts", type: "multiPartPage",
+      load: async () => [{ title: "Group", comics: [{ id: "m1", title: "M1" }], viewMore: "search:foo" }] },
+    { title: "Single", type: "singlePageWithMultiPart",
+      load: async () => ({ Group: [{ id: "s1", title: "S1" }] }) },
+    { title: "Mixed", type: "mixed",
+      load: async (page) => ({ data: [
+        [{ id: "x1", title: "X1" }],
+        { title: "Mixed part", comics: [{ id: "x2", title: "X2" }], viewMore: null }
+      ], maxPage: 3 }) }
+  ];
+  comic = { loadInfo: async (id) => new ComicDetails({ title: id, chapters: {} }) };
+}
+''';
+
 void main() {
   late TestApp app;
   late Client admin;
@@ -28,6 +48,122 @@ void main() {
         (await admin.get('/api/settings/search-history')).body['items'] as List;
     expect(items.length, 1);
     expect((items.first as Map)['keyword'], 'two');
+  });
+
+  test('explore payloads carry sourceKey for every renderer type', () async {
+    final imported =
+        await admin.post('/api/sources', {'script': exploreSourceScript});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final first = await admin.get('/api/explore?source=explore_source&page=1');
+    expect(first.status, 200, reason: '${first.body}');
+    final pages = first.body['pages'] as List;
+    expect(pages, hasLength(4));
+    expect((first.body['cache'] as Map)['hit'], false);
+
+    var comics = 0;
+    void walk(Object? value) {
+      if (value is List) {
+        for (final item in value) {
+          walk(item);
+        }
+        return;
+      }
+      if (value is! Map) return;
+      if (value['id'] != null && value['title'] != null) {
+        comics++;
+        expect(value['sourceKey'], 'explore_source',
+            reason: 'comic ${value['id']} must carry its source');
+      }
+      for (final item in value.values) {
+        walk(item);
+      }
+    }
+
+    for (final page in pages) {
+      walk((page as Map)['data']);
+    }
+    expect(comics, 5, reason: 'paged + part + single + two mixed comics');
+
+    final second = await admin.get('/api/explore?source=explore_source&page=1');
+    expect((second.body['cache'] as Map)['hit'], true);
+    final refreshed =
+        await admin.get('/api/explore?source=explore_source&page=1&refresh=1');
+    expect((refreshed.body['cache'] as Map)['hit'], false);
+  });
+
+  test('details, chapters and searches are served from the server cache',
+      () async {
+    final first = await admin.get('/api/comic/test_source/comic-1');
+    expect(first.status, 200, reason: '${first.body}');
+    expect((first.body['cache'] as Map)['hit'], false);
+
+    final second = await admin.get('/api/comic/test_source/comic-1');
+    expect((second.body['cache'] as Map)['hit'], true);
+
+    // Per-user progress is merged fresh on top of the cached source payload.
+    await admin.put('/api/history', {
+      'comicId': 'comic-1',
+      'sourceKey': 'test_source',
+      'title': 'Comic comic-1',
+      'ep': 2,
+      'page': 3,
+    });
+    final withProgress = await admin.get('/api/comic/test_source/comic-1');
+    expect((withProgress.body['progress'] as Map)['ep'], 2);
+    expect((withProgress.body['progress'] as Map)['page'], 3);
+    expect((withProgress.body['cache'] as Map)['hit'], true);
+
+    final chapter =
+        await admin.get('/api/comic/test_source/comic-1/chapter/1/images');
+    expect((chapter.body['cache'] as Map)['hit'], false);
+    final chapterAgain =
+        await admin.get('/api/comic/test_source/comic-1/chapter/1/images');
+    expect((chapterAgain.body['cache'] as Map)['hit'], true);
+
+    final stats = await admin.get('/api/maintenance/cache');
+    expect((stats.body['metadata'] as Map)['entries'] as int,
+        greaterThanOrEqualTo(2));
+    expect(
+      ((stats.body['metadata'] as Map)['byKind'] as List)
+          .map((entry) => (entry as Map)['kind']),
+      containsAll(['comic', 'chapter']),
+    );
+
+    // Updating source settings invalidates cached payloads for that source.
+    await admin.put('/api/sources/test_source/settings', {
+      'values': {'quality': 'low'}
+    });
+    final afterSettings = await admin.get('/api/comic/test_source/comic-1');
+    expect((afterSettings.body['cache'] as Map)['hit'], false);
+
+    final cleared =
+        await admin.post('/api/maintenance/cache/clear', {'scope': 'metadata'});
+    expect(cleared.status, 200);
+    expect(cleared.body['metadataRemoved'] as int, greaterThan(0));
+    final afterClear = await admin.get('/api/comic/test_source/comic-1');
+    expect((afterClear.body['cache'] as Map)['hit'], false);
+  });
+
+  test('cached payloads survive source failures and can be disabled', () async {
+    await admin.get('/api/comic/test_source/comic-1');
+    await admin.patch('/api/sources/test_source', {'enabled': false});
+
+    final cached = await admin.get('/api/comic/test_source/comic-1');
+    expect(cached.status, 200);
+    expect((cached.body['cache'] as Map)['hit'], true);
+
+    final stale = await admin.get('/api/comic/test_source/comic-1?refresh=1');
+    expect(stale.status, 200);
+    expect((stale.body['cache'] as Map)['stale'], true);
+    expect((stale.body['cache'] as Map)['error'], isNotNull);
+
+    await admin.patch('/api/settings', {'serverCacheOfflineFallback': false});
+    final failed = await admin.get('/api/comic/test_source/comic-1?refresh=1');
+    expect(failed.status, 400);
+
+    await admin.patch('/api/settings', {'serverCacheOfflineFallback': true});
+    await admin.patch('/api/sources/test_source', {'enabled': true});
   });
 
   test('cache retention and size limit', () async {
@@ -127,6 +263,17 @@ class PrefetchSource extends ComicSource {
     }
     expect(cacheBytes, greaterThan(0));
 
+    final cacheStats = await admin
+        .get('/api/maintenance/cache?source=prefetch_source&comic=1');
+    expect(cacheStats.status, 200);
+    final imageStats = cacheStats.body['images'] as Map;
+    expect(imageStats['entries'] as int, greaterThan(0));
+    expect(imageStats['bytes'] as int, greaterThan(0));
+    expect(
+      (imageStats['chapters'] as List).map((entry) => (entry as Map)['ep']),
+      contains('1'),
+    );
+
     final key = Uri.encodeComponent('$base/img/1');
     final image = await admin.rawRequest(
         'GET', '/api/image?source=prefetch_source&comic=1&ep=1&key=$key');
@@ -142,6 +289,8 @@ class PrefetchSource extends ComicSource {
     await Future.delayed(const Duration(milliseconds: 300));
     final size = await admin.get('/api/maintenance/cache-size');
     expect(size.body['bytes'], 0);
+    final clearedStats = await admin.get('/api/maintenance/cache');
+    expect(((clearedStats.body['images'] as Map)['entries'] as int), 0);
   });
 
   test('favorite snapshots store the description', () async {

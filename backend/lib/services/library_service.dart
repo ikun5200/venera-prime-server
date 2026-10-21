@@ -371,7 +371,7 @@ class FavoriteService {
           }
           try {
             final info = await comics
-                .comicInfo(userId, sourceKey, item.comicId)
+                .comicInfo(userId, sourceKey, item.comicId, refresh: true)
                 .timeout(const Duration(seconds: 30));
             favorites.updateFavoriteInfo(
               userId,
@@ -595,7 +595,8 @@ class HistoryService {
         }
         try {
           final info = await comics
-              .comicInfo(userId, sourceKey, (item['id'] ?? '').toString())
+              .comicInfo(userId, sourceKey, (item['id'] ?? '').toString(),
+                  refresh: true)
               .timeout(const Duration(seconds: 30));
           repository.updateMeta(
             userId,
@@ -826,7 +827,7 @@ class FollowUpdateService {
         if (sourceKey == null) continue;
         try {
           final info = await comics
-              .comicInfo(userId, sourceKey, item.comicId)
+              .comicInfo(userId, sourceKey, item.comicId, refresh: true)
               .timeout(const Duration(seconds: 30));
           final newUpdateTime = info['updateTime']?.toString();
           final chapters = _chapterIds(info['chapters']);

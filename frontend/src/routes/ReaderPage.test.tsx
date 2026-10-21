@@ -149,6 +149,44 @@ describe("ReaderPage", () => {
     );
   });
 
+  it("reads downloaded chapters from local files instead of the source", async () => {
+    const fetchMock = mockFetch({
+      "/api/comic/test_source/comic-1": details,
+      "/api/local-comics?q=comic-1": {
+        items: [
+          {
+            id: 7,
+            comicId: "comic-1",
+            sourceKey: "test_source",
+            downloadedChapters: ["1"],
+          },
+        ],
+      },
+      "/api/local-comics/7/chapter/1/images": {
+        images: ["0001.jpg", "0002.jpg"],
+        total: 2,
+      },
+      "/api/history": { ok: true },
+      "/api/statistics": { ok: true },
+    });
+    renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 2").length).toBeGreaterThan(0),
+    );
+    expect(
+      Array.from(document.querySelectorAll("img")).some((img) =>
+        img
+          .getAttribute("src")
+          ?.includes("/api/local-comics/7/image/1/0"),
+      ),
+    ).toBe(true);
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/comic/test_source/comic-1/chapter/1/images"),
+      ),
+    ).toBe(false);
+  });
+
   it("slides the whole page track in each reading direction", async () => {
     const { container, unmount } = renderReader();
     await waitFor(() =>

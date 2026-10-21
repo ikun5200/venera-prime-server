@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Plus, RefreshCw } from "lucide-react";
@@ -155,6 +155,7 @@ export default function ExplorePage() {
 
   const [sourceKey, setSourceKey] = useState("");
   const [page, setPage] = useState(1);
+  const refreshRequested = useRef(false);
 
   useEffect(() => {
     if (!sourceKey && ordered.length > 0) setSourceKey(ordered[0].key);
@@ -162,7 +163,11 @@ export default function ExplorePage() {
 
   const query = useQuery({
     queryKey: ["explore", sourceKey, page],
-    queryFn: () => api.explore(sourceKey, page),
+    queryFn: () => {
+      const refresh = refreshRequested.current;
+      refreshRequested.current = false;
+      return api.explore(sourceKey, page, refresh);
+    },
     enabled: Boolean(sourceKey),
   });
 
@@ -220,7 +225,13 @@ export default function ExplorePage() {
             }}
             className="flex-1"
           />
-          <IconButton label={t("Refresh")} onClick={() => query.refetch()}>
+          <IconButton
+            label={t("Refresh")}
+            onClick={() => {
+              refreshRequested.current = true;
+              void query.refetch();
+            }}
+          >
             <RefreshCw
               className={cn("h-4 w-4", query.isFetching && "animate-spin")}
             />
@@ -309,8 +320,11 @@ export default function ExplorePage() {
                           <ComicGrid
                             comics={section.comics}
                             scale={Number(settings.comicTileScale ?? 1)}
+                            fallbackSourceKey={sourceKey}
                             onOpen={(comic) =>
-                              navigate(comicPath(comic.sourceKey, comic.id))
+                              navigate(
+                                comicPath(comic.sourceKey || sourceKey, comic.id),
+                              )
                             }
                           />
                         </div>

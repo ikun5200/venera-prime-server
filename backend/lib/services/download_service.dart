@@ -208,7 +208,8 @@ class DownloadService {
                 try {
                   final result = await comics
                       .image(
-                          userId, sourceKey, comicId, chapterId, images[index])
+                          userId, sourceKey, comicId, chapterId, images[index],
+                          persistCache: false)
                       .timeout(const Duration(seconds: 40));
                   final ext = _extensionFor(result.mime);
                   final path = p.join(chapterDir.path,
@@ -245,7 +246,7 @@ class DownloadService {
             repository.updateChapter(jobId, chapterId,
                 status: 'error', downloadedPages: chapterDone);
             throw ApiException.sourceError(
-                'Failed to download ${failed.length} page(s) of $chapterName');
+                '$chapterName 有 ${failed.length} 页下载失败');
           }
         } catch (error) {
           repository.updateChapter(jobId, chapterId, status: 'error');
@@ -401,7 +402,8 @@ class DownloadService {
       for (var i = 0; i < images.length; i++) {
         final result = await comics
             .image(
-                userId, sourceKey, comicId, chapter['id'] as String, images[i])
+                userId, sourceKey, comicId, chapter['id'] as String, images[i],
+                persistCache: false)
             .timeout(const Duration(seconds: 40));
         final name = '${PathGuard.sanitizeName(chapter['name'] as String)}/'
             '${(i + 1).toString().padLeft(4, '0')}.${_extensionFor(result.mime)}';

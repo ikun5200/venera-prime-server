@@ -10,6 +10,7 @@ import '../repositories/user_repository.dart';
 import '../util/crypto.dart';
 import '../util/errors.dart';
 import '../util/log.dart';
+import 'content_cache_service.dart';
 import 'js_host_client.dart';
 
 class _KeyedLock {
@@ -38,6 +39,7 @@ class SourceService {
   final SettingsRepository settingsRepository;
   final AuditRepository audit;
   final JsHostClient js;
+  final ContentCacheService contentCache;
   final _lock = _KeyedLock();
 
   SourceService({
@@ -47,6 +49,7 @@ class SourceService {
     required this.settingsRepository,
     required this.audit,
     required this.js,
+    required this.contentCache,
   });
 
   List<SourceRecord> list(int userId) => repository.list(userId);
@@ -151,9 +154,8 @@ class SourceService {
     final error = response['error'];
     final code =
         error is Map ? (error['code'] ?? 'JS_ERROR').toString() : 'JS_ERROR';
-    final message = error is Map
-        ? (error['message'] ?? 'Source error').toString()
-        : 'Source error';
+    final message =
+        error is Map ? (error['message'] ?? '漫画源错误').toString() : '漫画源错误';
     if (code == 'TIMEOUT') throw ApiException.timeout(message);
     if (code == 'PARSE_ERROR') throw ApiException.sourceError(message);
     throw ApiException.sourceError(message);
@@ -178,8 +180,7 @@ class SourceService {
     final map = meta.map((k, v) => MapEntry(k.toString(), v));
     final minVersion = (map['minAppVersion'] ?? '').toString();
     if (minVersion.isNotEmpty && _versionGreater(minVersion, '2.6.3')) {
-      throw ApiException.sourceError(
-          'This source requires app version $minVersion or newer');
+      throw ApiException.sourceError('该源需要应用版本 $minVersion 或更高');
     }
     return map;
   }
@@ -232,6 +233,7 @@ class SourceService {
       capabilities: _capabilities(meta),
       preserveData: true,
     );
+    contentCache.invalidate(userId, sourceKey: key);
     if (libraryId != null) {
       repository.setProvenance(
         userId,
@@ -297,6 +299,7 @@ class SourceService {
       capabilities: _capabilities(meta),
       preserveData: true,
     );
+    contentCache.invalidate(userId, sourceKey: key);
     audit.log('source_update', userId: userId, ip: ip, detail: {'key': key});
     return repository.get(userId, key)!;
   }
@@ -444,6 +447,7 @@ class SourceService {
     settings.addAll(sanitized);
     data['settings'] = settings;
     repository.saveData(userId, key, data);
+    contentCache.invalidate(userId, sourceKey: key);
   }
 
   /// Source settings are defined by the script with optional defaults and a
@@ -508,14 +512,14 @@ class SourceService {
     final source = require(userId, key);
     final capabilities = source.capabilities;
     if (capabilities['passwordLogin'] != true) {
-      throw ApiException.badRequest(
-          'This source does not support password login');
+      throw ApiException.badRequest('该源不支持密码登录');
     }
     await callValue(userId, key, 'account.login', [username, password]);
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = [username, password];
     final encrypted = await _encryptAccount(data);
     repository.saveData(userId, key, encrypted);
+    contentCache.invalidate(userId, sourceKey: key);
     audit.log('source_login',
         userId: userId, detail: {'key': key, 'kind': 'password'});
   }
@@ -524,8 +528,7 @@ class SourceService {
       int userId, String key, Map<String, Object?> values) async {
     final source = require(userId, key);
     if (source.capabilities['cookieLogin'] != true) {
-      throw ApiException.badRequest(
-          'This source does not support cookie login');
+      throw ApiException.badRequest('该源不支持 Cookie 登录');
     }
     final result = await callValue(
         userId, key, 'account.loginWithCookies.validate', [values]);
@@ -535,6 +538,7 @@ class SourceService {
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = 'ok';
     repository.saveData(userId, key, data);
+    contentCache.invalidate(userId, sourceKey: key);
     audit.log('source_login',
         userId: userId, detail: {'key': key, 'kind': 'cookies'});
   }
@@ -566,6 +570,7 @@ class SourceService {
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = 'ok';
     repository.saveData(userId, key, data);
+    contentCache.invalidate(userId, sourceKey: key);
     audit.log('source_login',
         userId: userId, detail: {'key': key, 'kind': 'cookies'});
   }
@@ -582,6 +587,7 @@ class SourceService {
     final data = jsonDecode(jsonEncode(source.data)) as Map<String, Object?>;
     data['account'] = null;
     repository.saveData(userId, key, data);
+    contentCache.invalidate(userId, sourceKey: key);
     audit.log('source_logout', userId: userId, detail: {'key': key});
   }
 

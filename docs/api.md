@@ -99,28 +99,30 @@ Source object:
 
 | Method | Path | Query | Response |
 |---|---|---|---|
-| GET | `/api/search` | `source,q,page,options` | `{comics,maxPage,page}` |
+| GET | `/api/search` | `source,q,page,options,refresh=1` | `{comics,maxPage,page,cache}` |
 | GET | `/api/search/aggregated` | `q` | `{sections:[{source,comics,error,maxPage}]}` |
 | GET | `/api/search/suggestions` | `source,q` | `{items:[{type,label,value}]}` |
-| GET | `/api/explore` | `source,page` | source-defined page payload |
-| GET | `/api/explore/next` | `source,next` | |
-| GET | `/api/categories` | `source` | category descriptor |
-| GET | `/api/category-comics` | `source,category,param,page,options` | `{comics,maxPage}` |
-| GET | `/api/ranking` | `source,option,page` | `{comics,maxPage}` |
+| GET | `/api/explore` | `source,page,refresh=1` | normalized source pages + `cache`; every comic carries `sourceKey` |
+| GET | `/api/explore/next` | `source,next,refresh=1` | |
+| GET | `/api/categories` | `source,refresh=1` | category descriptor + `cache` |
+| GET | `/api/category-comics` | `source,category,param,page,options,refresh=1` | `{comics,maxPage,cache}` |
+| GET | `/api/ranking` | `source,option,page,refresh=1` | `{comics,maxPage,cache}` |
 
 Comic summary: `{id,title,subtitle,cover,tags,description,sourceKey,maxPage,language,stars}`.
+All list/detail responses include `cache:{hit,stale,fetchedAt,expiresAt,error?}`;
+`refresh=1` bypasses the persistent cache for that request.
 
 ## Comic
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/comic/:source/:id` | full `ComicDetails` + `favorite` + `progress` |
-| GET | `/api/comic/:source/:id/chapter/:ep/images` | `{images:[key],total}` |
+| GET | `/api/comic/:source/:id` | full `ComicDetails` + `favorite` + `progress` + `cache`; `refresh=1` bypasses |
+| GET | `/api/comic/:source/:id/chapter/:ep/images` | `{images:[key],total,localComicId?,cache}` |
 | POST | `/api/comic/:source/:id/chapter/:ep/prefetch` | `{from?,limit?}` → `{enabled,running,limit}`; warms the server disk cache in the background |
-| GET | `/api/comic/:source/:id/thumbnails` | `?next=` |
-| GET | `/api/comic/:source/:id/comments` | `?page=&subId=` |
-| POST | `/api/comic/:source/:id/comments` | `{content,subId?,replyTo?}` |
-| GET | `/api/comic/:source/:id/chapter/:ep/comments` | `?page=&replyTo=` |
+| GET | `/api/comic/:source/:id/thumbnails` | `?next=&refresh=1` |
+| GET | `/api/comic/:source/:id/comments` | `?page=&subId=&refresh=1` (2 min cache) |
+| POST | `/api/comic/:source/:id/comments` | `{content,subId?,replyTo?}`; invalidates comment caches for the comic |
+| GET | `/api/comic/:source/:id/chapter/:ep/comments` | `?page=&replyTo=&refresh=1` |
 | POST | `/api/comic/:source/:id/chapter/:ep/comments` | `{content,replyTo?}` |
 | POST | `/api/comic/:source/:id/like` | `{like:boolean}` |
 | POST | `/api/comic/:source/:id/rating` | `{rating:1..5}` (mapped to 0–10) |
@@ -134,7 +136,9 @@ Comic summary: `{id,title,subtitle,cover,tags,description,sourceKey,maxPage,lang
 The image proxy calls the source's `comic.onImageLoad`, applies returned
 headers/cookies, follows `onLoadFailed` up to 5 times, and caches per user
 (7 days, 2 GiB cap by default). Response includes `Content-Type`, `Cache-Control:
-private, max-age=86400`.
+private, max-age=86400`. If the chapter was downloaded to the local library,
+the reader uses `/api/local-comics/:id/image/:chapter/:page` instead and does
+not touch the source at all.
 
 `POST .../prefetch` is fire-and-forget: it returns immediately and downloads
 the chapter into the same per-user cache, starting at `from` (1-based image
@@ -232,6 +236,24 @@ this path.
 | POST | `/api/uploads/:id/complete` | `{import?:true,title?}` |
 | DELETE | `/api/uploads/:id` | cancel |
 | POST | `/api/local-comics/import` | multipart archive (cbz/zip/7z/cb7) |
+
+## Server cache
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/maintenance/cache` | `?source=&comic=` → `{bytes,images:{entries,bytes,bySource,chapters},metadata:{entries,bytes,byKind,bySource}}` |
+| POST | `/api/maintenance/cache/clear` | `{scope:"all"\|"images"\|"metadata",sourceKey?,kind?}` → removed counts + updated stats |
+| GET | `/api/maintenance/cache-size` | `{bytes}` image-cache bytes (legacy) |
+| POST | `/api/maintenance/clear-cache` | clears image cache (legacy) |
+
+Persistent metadata is stored in SQLite (`content_cache`). TTLs come from
+`serverCacheListMinutes` (10), `serverCacheComicMinutes` (60),
+`serverCacheChapterDays` (7), comments 2 minutes and categories 24 hours.
+Stale entries are served while one background refresh runs; when the source
+fails and `serverCacheOfflineFallback` is true (default), the last good
+payload is returned with `cache.stale=true`. Setting
+`serverCacheEnabled=false` bypasses the cache entirely. Source settings,
+script updates, login/logout and deletion invalidate that source's entries.
 
 ## WebDAV / backup
 

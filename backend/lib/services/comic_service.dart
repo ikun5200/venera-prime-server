@@ -17,6 +17,7 @@ import '../util/comic.dart';
 import '../util/errors.dart';
 import '../util/log.dart';
 import '../util/path_guard.dart';
+import 'content_cache_service.dart';
 import 'source_service.dart';
 
 class ComicService {
@@ -27,6 +28,7 @@ class ComicService {
   final FavoriteRepository favorites;
   final SettingsRepository settings;
   final PathGuard paths;
+  final ContentCacheService contentCache;
   final http.Client httpClient = http.Client();
 
   /// Image configs resolved by `comic.onImageLoad`, reused for on-demand
@@ -37,6 +39,10 @@ class ComicService {
   final Set<String> _prefetching = {};
   final Map<int, int> _lastCacheEnforce = {};
 
+  /// Identical source calls that arrive together share one JS-host round trip.
+  final Map<String, Future<Map<String, Object?>>> _inflight = {};
+  final Set<String> _refreshing = {};
+
   ComicService({
     required this.config,
     required this.sources,
@@ -45,6 +51,7 @@ class ComicService {
     required this.favorites,
     required this.settings,
     required this.paths,
+    required this.contentCache,
   });
 
   // ---- search / discovery ----------------------------------------------
@@ -126,21 +133,33 @@ class ComicService {
     String sourceKey,
     String keyword,
     List<String> options,
-    int page,
-  ) async {
-    final result = await sources.callValue(
-      userId,
-      sourceKey,
-      'search.load',
-      [keyword, options, page],
+    int page, {
+    bool refresh = false,
+  }) async {
+    final cacheKey = contentCache.compositeKey([keyword, options, page]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'search',
+      key: cacheKey,
+      scope: '',
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+          userId,
+          sourceKey,
+          'search.load',
+          [keyword, options, page],
+        );
+        final map = _map(result);
+        return {
+          'comics': _comics(map['comics'], sourceKey),
+          'maxPage': _int(map['maxPage']) ?? 1,
+          'next': map['next'],
+          'page': page,
+        };
+      },
     );
-    final map = _map(result);
-    return {
-      'comics': _comics(map['comics'], sourceKey),
-      'maxPage': _int(map['maxPage']) ?? 1,
-      'next': map['next'],
-      'page': page,
-    };
   }
 
   Future<Map<String, Object?>> aggregatedSearch(
@@ -178,34 +197,78 @@ class ComicService {
   }
 
   Future<Map<String, Object?>> explore(
-      int userId, String sourceKey, int page) async {
+    int userId,
+    String sourceKey,
+    int page, {
+    bool refresh = false,
+  }) async {
     final source = sources.require(userId, sourceKey);
     final meta = _list(source.capabilities['exploreData']);
-    final pages = <Map<String, Object?>>[];
-    for (var index = 0; index < meta.length; index++) {
-      final entry = _map(meta[index]);
-      final type = (entry['type'] ?? 'multiPartPage').toString();
-      try {
-        final data = await sources
-            .callValue(userId, sourceKey, 'explore.$index.load', [page]);
-        pages.add({
-          'index': index,
-          'title': entry['title'] ?? source.name,
-          'type': type,
-          'data': type == 'mixed' ? _mixedExplore(data, sourceKey) : data,
-          'error': null,
-        });
-      } catch (error) {
-        pages.add({
-          'index': index,
-          'title': entry['title'] ?? source.name,
-          'type': type,
-          'data': null,
-          'error': error.toString(),
-        });
-      }
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'explore',
+      key: 'page:$page',
+      scope: '',
+      refresh: refresh,
+      loader: () async {
+        final pages = <Map<String, Object?>>[];
+        for (var index = 0; index < meta.length; index++) {
+          final entry = _map(meta[index]);
+          final type = (entry['type'] ?? 'multiPartPage').toString();
+          try {
+            final data = await sources
+                .callValue(userId, sourceKey, 'explore.$index.load', [page]);
+            final normalized = _normalizeExploreData(data, sourceKey);
+            pages.add({
+              'index': index,
+              'title': entry['title'] ?? source.name,
+              'type': type,
+              'data': type == 'mixed'
+                  ? _mixedExplore(normalized, sourceKey)
+                  : normalized,
+              'error': null,
+            });
+          } catch (error) {
+            pages.add({
+              'index': index,
+              'title': entry['title'] ?? source.name,
+              'type': type,
+              'data': null,
+              'error': error.toString(),
+            });
+          }
+        }
+        return {'source': sourceKey, 'page': page, 'pages': pages};
+      },
+    );
+  }
+
+  /// Explore payloads differ by source type:
+  /// `singlePageWithMultiPart` returns `{part: Comic[]}`,
+  /// `multiPartPage` returns `[{title, comics, viewMore}]`,
+  /// `multiPageComicList` returns `{comics, maxPage}`, and `mixed` returns
+  /// `{data: [...], maxPage}`. Walk the JSON once and stamp every comic with
+  /// its source so the client never has to guess (BUG-17).
+  Object? _normalizeExploreData(Object? raw, String sourceKey) {
+    if (raw is List) {
+      return raw
+          .map((entry) => _normalizeExploreData(entry, sourceKey))
+          .toList();
     }
-    return {'source': sourceKey, 'page': page, 'pages': pages};
+    if (raw is Map) {
+      final map = <String, Object?>{};
+      for (final entry in raw.entries) {
+        map[entry.key.toString()] =
+            _normalizeExploreData(entry.value, sourceKey);
+      }
+      if (map['id'] != null && map['title'] != null) {
+        map.putIfAbsent('sourceKey', () => sourceKey);
+        map.putIfAbsent('comicType', () => comicTypeForSource(sourceKey));
+      }
+      return map;
+    }
+    return raw;
   }
 
   /// `mixed` explore loaders return `{data: [Comic[] | part], maxPage}`.
@@ -234,44 +297,56 @@ class ComicService {
     return {'items': items, 'maxPage': map['maxPage']};
   }
 
-  Future<Map<String, Object?>> categories(int userId, String sourceKey) async {
+  Future<Map<String, Object?>> categories(int userId, String sourceKey,
+      {bool refresh = false}) async {
     final source = sources.require(userId, sourceKey);
     final category = source.capabilities['categoryData'];
     if (category is! Map) {
       return {'source': sourceKey, 'title': source.name, 'parts': const []};
     }
-    final parts = <Map<String, Object?>>[];
-    final rawParts = _list(category['parts']);
-    for (var index = 0; index < rawParts.length; index++) {
-      final part = _map(rawParts[index]);
-      final type = (part['type'] ?? 'fixed').toString();
-      Object? categories = part['categories'];
-      if (type == 'dynamic' || type == 'random') {
-        try {
-          final loaded = await sources.callValue(
-              userId, sourceKey, 'category.parts.$index.loader', const []);
-          if (loaded != null) categories = loaded;
-        } catch (error) {
-          Log.warning('Dynamic category failed',
-              userId: userId, extra: {'source': sourceKey, 'error': '$error'});
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'categories',
+      key: 'categories',
+      scope: '',
+      refresh: refresh,
+      loader: () async {
+        final parts = <Map<String, Object?>>[];
+        final rawParts = _list(category['parts']);
+        for (var index = 0; index < rawParts.length; index++) {
+          final part = _map(rawParts[index]);
+          final type = (part['type'] ?? 'fixed').toString();
+          Object? categories = part['categories'];
+          if (type == 'dynamic' || type == 'random') {
+            try {
+              final loaded = await sources.callValue(
+                  userId, sourceKey, 'category.parts.$index.loader', const []);
+              if (loaded != null) categories = loaded;
+            } catch (error) {
+              Log.warning('Dynamic category failed',
+                  userId: userId,
+                  extra: {'source': sourceKey, 'error': '$error'});
+            }
+          }
+          parts.add({
+            'name': part['name'] ?? '',
+            'type': type,
+            'randomNumber': part['randomNumber'],
+            'itemType': part['itemType'] ?? 'category',
+            'categoryParams': part['categoryParams'],
+            'groupParam': part['groupParam'],
+            'categories': _categories(categories),
+          });
         }
-      }
-      parts.add({
-        'name': part['name'] ?? '',
-        'type': type,
-        'randomNumber': part['randomNumber'],
-        'itemType': part['itemType'] ?? 'category',
-        'categoryParams': part['categoryParams'],
-        'groupParam': part['groupParam'],
-        'categories': _categories(categories),
-      });
-    }
-    return {
-      'source': sourceKey,
-      'title': category['title'] ?? source.name,
-      'enableRankingPage': category['enableRankingPage'] == true,
-      'parts': parts,
-    };
+        return {
+          'source': sourceKey,
+          'title': category['title'] ?? source.name,
+          'enableRankingPage': category['enableRankingPage'] == true,
+          'parts': parts,
+        };
+      },
+    );
   }
 
   List<Map<String, Object?>> _categories(Object? raw) {
@@ -293,52 +368,90 @@ class ComicService {
     String category,
     Object? param,
     List<String> options,
-    int page,
-  ) async {
-    final result = await sources.callValue(
-      userId,
-      sourceKey,
-      'categoryComics.load',
-      [category, param, options, page],
+    int page, {
+    bool refresh = false,
+  }) async {
+    final cacheKey =
+        contentCache.compositeKey([category, param, options, page]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'category',
+      key: cacheKey,
+      scope: '',
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+          userId,
+          sourceKey,
+          'categoryComics.load',
+          [category, param, options, page],
+        );
+        final map = _map(result);
+        return {
+          'comics': _comics(map['comics'], sourceKey),
+          'maxPage': _int(map['maxPage']) ?? 1,
+          'next': map['next'],
+          'page': page,
+        };
+      },
     );
-    final map = _map(result);
-    return {
-      'comics': _comics(map['comics'], sourceKey),
-      'maxPage': _int(map['maxPage']) ?? 1,
-      'next': map['next'],
-      'page': page,
-    };
   }
 
   Future<Map<String, Object?>> ranking(
     int userId,
     String sourceKey,
     String option,
-    int page,
-  ) async {
-    final result = await sources.callValue(
-      userId,
-      sourceKey,
-      'categoryComics.ranking.load',
-      [option, page],
+    int page, {
+    bool refresh = false,
+  }) async {
+    final cacheKey = contentCache.compositeKey([option, page]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'ranking',
+      key: cacheKey,
+      scope: '',
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+          userId,
+          sourceKey,
+          'categoryComics.ranking.load',
+          [option, page],
+        );
+        final map = _map(result);
+        return {
+          'comics': _comics(map['comics'], sourceKey),
+          'maxPage': _int(map['maxPage']) ?? 1,
+          'next': map['next'],
+          'page': page,
+        };
+      },
     );
-    final map = _map(result);
-    return {
-      'comics': _comics(map['comics'], sourceKey),
-      'maxPage': _int(map['maxPage']) ?? 1,
-      'next': map['next'],
-      'page': page,
-    };
   }
 
   // ---- comic details ----------------------------------------------------
 
   Future<Map<String, Object?>> comicInfo(
-      int userId, String sourceKey, String comicId) async {
-    final result =
-        await sources.callValue(userId, sourceKey, 'comic.loadInfo', [comicId]);
-    final map = _map(result);
-    final details = _normalizeDetails(map, sourceKey, comicId);
+      int userId, String sourceKey, String comicId,
+      {bool refresh = false}) async {
+    final cached = await _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'comic',
+      key: comicId,
+      scope: comicId,
+      refresh: refresh,
+      loader: () async {
+        final result = await sources
+            .callValue(userId, sourceKey, 'comic.loadInfo', [comicId]);
+        return _normalizeDetails(_map(result), sourceKey, comicId);
+      },
+    );
+    // Per-user state is merged on every request and never cached with the
+    // source payload, so a progress/favorite change shows up immediately.
+    final details = Map<String, Object?>.from(cached);
     final progress =
         history.progress(userId, comicId, comicTypeForSource(sourceKey));
     details['progress'] = progress?.toJson();
@@ -492,20 +605,73 @@ class ComicService {
   }
 
   Future<Map<String, Object?>> chapterImages(
-      int userId, String sourceKey, String comicId, String epId) async {
-    final result = await sources
-        .callValue(userId, sourceKey, 'comic.loadEp', [comicId, epId]);
-    final map = _map(result);
-    final images = _list(map['images']).map((e) => e.toString()).toList();
-    return {'images': images, 'total': images.length};
+      int userId, String sourceKey, String comicId, String epId,
+      {bool refresh = false}) async {
+    final cacheKey = contentCache.compositeKey([comicId, epId]);
+    final cached = await _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'chapter',
+      key: cacheKey,
+      scope: comicId,
+      refresh: refresh,
+      loader: () async {
+        final result = await sources
+            .callValue(userId, sourceKey, 'comic.loadEp', [comicId, epId]);
+        final map = _map(result);
+        final images = _list(map['images']).map((e) => e.toString()).toList();
+        return {'images': images, 'total': images.length};
+      },
+    );
+    final images = _list(cached['images']).map((e) => e.toString()).toList();
+    final localComicId =
+        _localDownloadedComicId(userId, sourceKey, comicId, epId);
+    return {
+      ...cached,
+      'images': images,
+      'total': images.length,
+      if (localComicId != null) 'localComicId': localComicId,
+    };
+  }
+
+  int? _localDownloadedComicId(
+      int userId, String sourceKey, String comicId, String epId) {
+    final rows = sourceRepository.db.select(
+      'SELECT id,downloaded_chapters_json FROM local_comics '
+      'WHERE user_id=? AND source_key=? AND comic_id_ext=?',
+      [userId, sourceKey, comicId],
+    );
+    for (final row in rows) {
+      try {
+        final decoded =
+            jsonDecode((row['downloaded_chapters_json'] ?? '[]') as String);
+        if (decoded is List &&
+            decoded.any((value) => value.toString() == epId)) {
+          return row['id'] as int;
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   Future<Map<String, Object?>> thumbnails(
-      int userId, String sourceKey, String comicId, Object? next) async {
-    final result = await sources
-        .callValue(userId, sourceKey, 'comic.loadThumbnails', [comicId, next]);
-    final map = _map(result);
-    return {'thumbnails': map['thumbnails'], 'next': map['next']};
+      int userId, String sourceKey, String comicId, Object? next,
+      {bool refresh = false}) async {
+    final cacheKey = contentCache.compositeKey([comicId, next]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'thumbnails',
+      key: cacheKey,
+      scope: comicId,
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+            userId, sourceKey, 'comic.loadThumbnails', [comicId, next]);
+        final map = _map(result);
+        return {'thumbnails': map['thumbnails'], 'next': map['next']};
+      },
+    );
   }
 
   // ---- comments / interactions -----------------------------------------
@@ -517,19 +683,31 @@ class ComicService {
     String? subId,
     int page = 1,
     Object? replyTo,
+    bool refresh = false,
   }) async {
-    final result = await sources.callValue(
-      userId,
-      sourceKey,
-      'comic.loadComments',
-      [comicId, subId, page, replyTo],
+    final cacheKey = contentCache.compositeKey([comicId, subId, page, replyTo]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'comments',
+      key: cacheKey,
+      scope: comicId,
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+          userId,
+          sourceKey,
+          'comic.loadComments',
+          [comicId, subId, page, replyTo],
+        );
+        final map = _map(result);
+        return {
+          'comments': _comments(map['comments']),
+          'maxPage': _int(map['maxPage']) ?? 1,
+          'page': page,
+        };
+      },
     );
-    final map = _map(result);
-    return {
-      'comments': _comments(map['comments']),
-      'maxPage': _int(map['maxPage']) ?? 1,
-      'page': page,
-    };
   }
 
   Future<Map<String, Object?>> chapterComments(
@@ -539,19 +717,31 @@ class ComicService {
     String epId, {
     int page = 1,
     Object? replyTo,
+    bool refresh = false,
   }) async {
-    final result = await sources.callValue(
-      userId,
-      sourceKey,
-      'comic.loadChapterComments',
-      [comicId, epId, page, replyTo],
+    final cacheKey = contentCache.compositeKey([comicId, epId, page, replyTo]);
+    return _cachedJson(
+      userId: userId,
+      sourceKey: sourceKey,
+      kind: 'chapterComments',
+      key: cacheKey,
+      scope: comicId,
+      refresh: refresh,
+      loader: () async {
+        final result = await sources.callValue(
+          userId,
+          sourceKey,
+          'comic.loadChapterComments',
+          [comicId, epId, page, replyTo],
+        );
+        final map = _map(result);
+        return {
+          'comments': _comments(map['comments']),
+          'maxPage': _int(map['maxPage']) ?? 1,
+          'page': page,
+        };
+      },
     );
-    final map = _map(result);
-    return {
-      'comments': _comments(map['comments']),
-      'maxPage': _int(map['maxPage']) ?? 1,
-      'page': page,
-    };
   }
 
   Future<Object?> sendComment(
@@ -562,12 +752,14 @@ class ComicService {
     String? subId,
     Object? replyTo,
   }) async {
-    return sources.callValue(
+    final result = await sources.callValue(
       userId,
       sourceKey,
       'comic.sendComment',
       [comicId, subId, content, replyTo],
     );
+    _invalidateComments(userId, sourceKey, comicId);
+    return result;
   }
 
   Future<Object?> sendChapterComment(
@@ -578,12 +770,21 @@ class ComicService {
     String content, {
     Object? replyTo,
   }) async {
-    return sources.callValue(
+    final result = await sources.callValue(
       userId,
       sourceKey,
       'comic.sendChapterComment',
       [comicId, epId, content, replyTo],
     );
+    _invalidateComments(userId, sourceKey, comicId);
+    return result;
+  }
+
+  void _invalidateComments(int userId, String sourceKey, String comicId) {
+    contentCache.invalidate(userId,
+        sourceKey: sourceKey, kind: 'comments', scope: comicId);
+    contentCache.invalidate(userId,
+        sourceKey: sourceKey, kind: 'chapterComments', scope: comicId);
   }
 
   Future<Object?> like(
@@ -687,6 +888,7 @@ class ComicService {
     String epId,
     String imageKey, {
     bool thumbnail = false,
+    bool persistCache = true,
   }) async {
     final cacheKey =
         _imageCacheKey(userId, sourceKey, comicId, epId, imageKey, thumbnail);
@@ -695,7 +897,16 @@ class ComicService {
     final configs = await _imageConfigs(
         userId, sourceKey, comicId, epId, imageKey,
         thumbnail: thumbnail);
-    return _downloadImage(userId, cacheKey, configs, imageKey);
+    return _downloadImage(
+      userId,
+      cacheKey,
+      configs,
+      imageKey,
+      sourceKey: sourceKey,
+      comicId: comicId,
+      epId: thumbnail ? '$epId#thumb' : epId,
+      persistCache: persistCache,
+    );
   }
 
   String _imageCacheKey(int userId, String sourceKey, String comicId,
@@ -787,8 +998,12 @@ class ComicService {
     int userId,
     String cacheKey,
     List<Map<String, Object?>> configs,
-    String imageKey,
-  ) async {
+    String imageKey, {
+    String sourceKey = '',
+    String comicId = '',
+    String epId = '',
+    bool persistCache = true,
+  }) async {
     Object? lastError;
     for (final config in configs) {
       try {
@@ -820,7 +1035,13 @@ class ComicService {
             bytes.isNotEmpty) {
           final mime = response.headers['content-type']?.split(';').first ??
               _guessMime(url);
-          _writeCache(userId, cacheKey, bytes, mime);
+          if (persistCache) {
+            _writeCache(userId, cacheKey, bytes, mime,
+                sourceKey: sourceKey,
+                comicId: comicId,
+                epId: epId,
+                imageKey: imageKey);
+          }
           return (bytes: bytes, mime: mime);
         }
         lastError = 'HTTP ${response.statusCode}';
@@ -958,6 +1179,9 @@ class ComicService {
           _imageCacheKey(userId, sourceKey, comicId, epId, keys[index], false),
           list,
           keys[index],
+          sourceKey: sourceKey,
+          comicId: comicId,
+          epId: epId,
         );
         completed++;
       } catch (error) {
@@ -1020,12 +1244,15 @@ class ComicService {
         .get(Uri.parse(url), headers: headers)
         .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException.sourceError(
-          'Cover load failed: ${response.statusCode}');
+      throw ApiException.sourceError('封面加载失败：${response.statusCode}');
     }
     final mime =
         response.headers['content-type']?.split(';').first ?? _guessMime(url);
-    _writeCache(userId, cacheKey, response.bodyBytes, mime);
+    _writeCache(userId, cacheKey, response.bodyBytes, mime,
+        sourceKey: sourceKey ?? '',
+        comicId: comicId ?? '',
+        epId: '@cover',
+        imageKey: url);
     return (bytes: response.bodyBytes, mime: mime);
   }
 
@@ -1115,6 +1342,7 @@ class ComicService {
         if (age > Duration(days: policy.retentionDays)) {
           file.deleteSync();
           meta.deleteSync();
+          contentCache.removeImage(userId, key);
           return false;
         }
       }
@@ -1137,6 +1365,7 @@ class ComicService {
           age > Duration(days: policy.retentionDays)) {
         file.deleteSync();
         meta.deleteSync();
+        contentCache.removeImage(userId, key);
         return null;
       }
       final result =
@@ -1149,11 +1378,25 @@ class ComicService {
     }
   }
 
-  void _writeCache(int userId, String key, Uint8List bytes, String mime) {
+  void _writeCache(int userId, String key, Uint8List bytes, String mime,
+      {String sourceKey = '',
+      String comicId = '',
+      String epId = '',
+      String imageKey = ''}) {
     try {
       final dir = _cacheDir(userId);
       File(p.join(dir.path, '$key.bin')).writeAsBytesSync(bytes);
       File(p.join(dir.path, '$key.type')).writeAsStringSync(mime);
+      contentCache.indexImage(
+        userId: userId,
+        cacheKey: key,
+        sourceKey: sourceKey,
+        comicId: comicId,
+        epId: epId,
+        imageKey: imageKey,
+        mime: mime,
+        size: bytes.length,
+      );
       _enforceCacheLimit(userId);
     } catch (_) {}
   }
@@ -1186,10 +1429,11 @@ class ComicService {
       for (final entry in stats) {
         if (total <= policy.limitBytes) break;
         entry.file.deleteSync();
-        final meta = File(entry.file.path
-                .substring(0, entry.file.path.length - '.bin'.length) +
-            '.type');
+        final meta = File(
+            '${entry.file.path.substring(0, entry.file.path.length - '.bin'.length)}.type');
         if (meta.existsSync()) meta.deleteSync();
+        contentCache.removeImage(
+            userId, p.basenameWithoutExtension(entry.file.path));
         total -= entry.size;
       }
     } catch (_) {}
@@ -1216,6 +1460,51 @@ class ComicService {
     if (dir.existsSync()) {
       await dir.delete(recursive: true);
     }
+    contentCache.clearImages(userId);
+  }
+
+  /// Removes cached image files and their index rows, optionally only for one
+  /// source. Returns the number of index entries removed.
+  Future<int> clearImageCache(int userId, {String? sourceKey}) async {
+    if (sourceKey == null || sourceKey.isEmpty) {
+      final entries = (contentCache.imageStats(userId)['entries'] as int?) ?? 0;
+      await clearCache(userId);
+      return entries;
+    }
+    final keys = contentCache.imageKeys(userId, sourceKey: sourceKey);
+    final dir = _cacheDir(userId);
+    for (final key in keys) {
+      for (final suffix in const ['.bin', '.type']) {
+        final file = File(p.join(dir.path, '$key$suffix'));
+        if (file.existsSync()) file.deleteSync();
+      }
+    }
+    contentCache.clearImages(userId, sourceKey: sourceKey);
+    return keys.length;
+  }
+
+  /// Combined image + metadata cache report used by the settings page.
+  Map<String, Object?> cacheStats(
+    int userId, {
+    String? sourceKey,
+    String? comicId,
+  }) {
+    final imageBytes = cacheBytes(userId);
+    final images = contentCache.imageStats(
+      userId,
+      sourceKey: sourceKey,
+      comicId: comicId,
+    );
+    final metadata = contentCache.stats(userId);
+    return {
+      'images': {...images, 'bytes': imageBytes},
+      'metadata': metadata,
+      'bytes': imageBytes + (metadata['bytes'] as int? ?? 0),
+    };
+  }
+
+  int clearMetadataCache(int userId, {String? sourceKey, String? kind}) {
+    return contentCache.invalidate(userId, sourceKey: sourceKey, kind: kind);
   }
 
   // ---- link handling ----------------------------------------------------
@@ -1239,6 +1528,164 @@ class ComicService {
   }
 
   // ---- helpers ----------------------------------------------------------
+
+  /// Serves a cached JSON payload immediately. Fresh entries never touch the
+  /// source; stale entries are returned while one background refresh runs;
+  /// a failed refresh keeps the last good payload alive (offline fallback).
+  Future<Map<String, Object?>> _cachedJson({
+    required int userId,
+    required String sourceKey,
+    required String kind,
+    required String key,
+    required String scope,
+    required bool refresh,
+    required Future<Map<String, Object?>> Function() loader,
+  }) async {
+    if (!contentCache.enabled(userId)) return loader();
+    final entry = contentCache.read(userId, sourceKey, kind, key);
+    if (entry != null && !refresh) {
+      if (!entry.stale) {
+        return _withCacheInfo(
+          entry.payload,
+          hit: true,
+          stale: false,
+          fetchedAt: entry.fetchedAt,
+          expiresAt: entry.expiresAt,
+        );
+      }
+      _refreshInBackground(
+        userId: userId,
+        sourceKey: sourceKey,
+        kind: kind,
+        key: key,
+        scope: scope,
+        loader: loader,
+      );
+      return _withCacheInfo(
+        entry.payload,
+        hit: true,
+        stale: true,
+        fetchedAt: entry.fetchedAt,
+        expiresAt: entry.expiresAt,
+      );
+    }
+
+    try {
+      final value =
+          await _singleFlight('$userId|$sourceKey|$kind|$key', loader);
+      final writtenAt = DateTime.now().millisecondsSinceEpoch;
+      final ttl = contentCache.ttlMs(userId, kind);
+      contentCache.write(
+        userId: userId,
+        sourceKey: sourceKey,
+        kind: kind,
+        key: key,
+        scope: scope,
+        payload: value,
+        ttlMs: ttl,
+      );
+      return _withCacheInfo(
+        value,
+        hit: false,
+        stale: false,
+        fetchedAt: writtenAt,
+        expiresAt: writtenAt + ttl,
+      );
+    } catch (error) {
+      if (entry != null && _offlineFallback(userId)) {
+        Log.warning('Serving stale cache after source error',
+            userId: userId,
+            extra: {
+              'source': sourceKey,
+              'kind': kind,
+              'scope': scope,
+              'error': '$error',
+            });
+        return _withCacheInfo(
+          entry.payload,
+          hit: true,
+          stale: true,
+          fetchedAt: entry.fetchedAt,
+          expiresAt: entry.expiresAt,
+          error: '$error',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  bool _offlineFallback(int userId) {
+    final value = settings.get(userId, 'serverCacheOfflineFallback');
+    return value is bool ? value : true;
+  }
+
+  void _refreshInBackground({
+    required int userId,
+    required String sourceKey,
+    required String kind,
+    required String key,
+    required String scope,
+    required Future<Map<String, Object?>> Function() loader,
+  }) {
+    final source = sources.get(userId, sourceKey);
+    if (source == null || !source.enabled) return;
+    final token = '$userId|$sourceKey|$kind|$key';
+    if (_refreshing.contains(token)) return;
+    _refreshing.add(token);
+    unawaited(
+      _singleFlight(token, loader).then<void>((value) {
+        contentCache.write(
+          userId: userId,
+          sourceKey: sourceKey,
+          kind: kind,
+          key: key,
+          scope: scope,
+          payload: value,
+          ttlMs: contentCache.ttlMs(userId, kind),
+        );
+      }).catchError((Object error) {
+        Log.warning('Background cache refresh failed', userId: userId, extra: {
+          'source': sourceKey,
+          'kind': kind,
+          'scope': scope,
+          'error': '$error',
+        });
+      }).whenComplete(() => _refreshing.remove(token)),
+    );
+  }
+
+  Future<Map<String, Object?>> _singleFlight(
+    String key,
+    Future<Map<String, Object?>> Function() loader,
+  ) {
+    final existing = _inflight[key];
+    if (existing != null) return existing;
+    late Future<Map<String, Object?>> tracked;
+    tracked = loader().whenComplete(() {
+      if (identical(_inflight[key], tracked)) _inflight.remove(key);
+    });
+    _inflight[key] = tracked;
+    return tracked;
+  }
+
+  Map<String, Object?> _withCacheInfo(
+    Map<String, Object?> payload, {
+    required bool hit,
+    required bool stale,
+    required int fetchedAt,
+    required int expiresAt,
+    String? error,
+  }) {
+    final result = Map<String, Object?>.from(payload);
+    result['cache'] = {
+      'hit': hit,
+      'stale': stale,
+      'fetchedAt': fetchedAt,
+      'expiresAt': expiresAt,
+      if (error != null) 'error': error,
+    };
+    return result;
+  }
 
   Map<String, Object?> _map(Object? value) {
     if (value is Map) {

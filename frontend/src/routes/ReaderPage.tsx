@@ -227,18 +227,29 @@ export default function ReaderPage() {
     queryFn: () => api.localComics({ q: comicId }),
     enabled: !isLocal,
   });
-  useEffect(() => {
-    const match = (localByComicQuery.data?.items ?? []).find(
+  const localMatch = useMemo(() => {
+    if (isLocal) return undefined;
+    return (localByComicQuery.data?.items ?? []).find(
       (item) => item.comicId === comicId && item.sourceKey === sourceKey,
     );
-    if (!match) return;
+  }, [comicId, isLocal, localByComicQuery.data, sourceKey]);
+  const localChapterAvailable = Boolean(
+    localMatch &&
+      chapterId &&
+      (localMatch.downloadedChapters ?? []).some(
+        (id) => String(id) === String(chapterId),
+      ),
+  );
+  const localLookupPending = !isLocal && localByComicQuery.isLoading;
+  useEffect(() => {
+    if (!localMatch) return;
     setDownloadedEpisodes((previous) => {
       const next = new Set(previous);
-      for (const chapter of match.downloadedChapters ?? [])
+      for (const chapter of localMatch.downloadedChapters ?? [])
         next.add(String(chapter));
       return next;
     });
-  }, [comicId, localByComicQuery.data, sourceKey]);
+  }, [localMatch]);
 
   const cycleRotation = () => setRotation((value) => (value + 90) % 360);
 
@@ -294,24 +305,62 @@ export default function ReaderPage() {
     setChapterId(chapters[index]?.id ?? chapters[0].id);
   }, [chapterId, chapters, comicQuery.data?.progress, searchParams]);
 
-  const imagesQuery = useQuery({
+  const localImagesQuery = useQuery({
+    queryKey: ["reader-local-images", localMatch?.id, chapterId],
+    queryFn: () => api.localChapterImages(localMatch!.id, chapterId),
+    enabled: localChapterAvailable,
+    retry: 1,
+  });
+  const sourceImagesQuery = useQuery({
     queryKey: ["reader-images", sourceKey, comicId, chapterId],
     queryFn: () =>
       isLocal
         ? api.localChapterImages(localId, chapterId)
         : api.chapterImages(sourceKey, comicId, chapterId),
-    enabled: Boolean(chapterId),
+    enabled:
+      Boolean(chapterId) &&
+      !localLookupPending &&
+      (!localChapterAvailable || localImagesQuery.isError),
   });
-
-  const imageKeys = imagesQuery.data?.images ?? [];
+  const usingLocalImages = Boolean(
+    localChapterAvailable && localImagesQuery.data,
+  );
+  const imagesData = usingLocalImages
+    ? localImagesQuery.data
+    : sourceImagesQuery.data;
+  const imagesLoading =
+    localLookupPending ||
+    (localChapterAvailable
+      ? !usingLocalImages &&
+        (localImagesQuery.isLoading || sourceImagesQuery.isLoading)
+      : sourceImagesQuery.isLoading);
+  const imagesError = localChapterAvailable && localImagesQuery.isError
+    ? (sourceImagesQuery.error ?? localImagesQuery.error)
+    : sourceImagesQuery.error;
+  const refetchImages = () => {
+    void localImagesQuery.refetch();
+    void sourceImagesQuery.refetch();
+  };
+  const imageKeys = imagesData?.images ?? [];
   const imageUrls = useMemo(
     () =>
       imageKeys.map((key, index) =>
         isLocal
           ? localImageUrl(localId, chapterId, index)
-          : imageUrl(sourceKey, comicId, chapterId, key),
+          : usingLocalImages && localMatch
+            ? localImageUrl(localMatch.id, chapterId, index)
+            : imageUrl(sourceKey, comicId, chapterId, key),
       ),
-    [chapterId, comicId, imageKeys, isLocal, localId, sourceKey],
+    [
+      chapterId,
+      comicId,
+      imageKeys,
+      isLocal,
+      localId,
+      localMatch,
+      sourceKey,
+      usingLocalImages,
+    ],
   );
 
   const mode = String(readerSettings.readerMode ?? "galleryLeftToRight");
@@ -374,7 +423,7 @@ export default function ReaderPage() {
   const onCommentsPage = commentsAtEnd && currentPage >= pages.length;
 
   useEffect(() => {
-    if (imagesQuery.data && pages.length > 0) {
+    if (imagesData && pages.length > 0) {
       if (pendingLastPage) {
         setCurrentPage(pages.length - 1);
         setPendingLastPage(false);
@@ -385,7 +434,7 @@ export default function ReaderPage() {
     }
     // Only react to a new chapter's images.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imagesQuery.data, chapterId]);
+  }, [imagesData, chapterId]);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -714,7 +763,8 @@ export default function ReaderPage() {
   // fire-and-forget; repeated calls are deduplicated by the backend.
   const prefetchBucket = useRef("");
   useEffect(() => {
-    if (isLocal || !chapterId || imageKeys.length === 0) return;
+    if (isLocal || usingLocalImages || !chapterId || imageKeys.length === 0)
+      return;
     const bucket = Math.floor(currentPage / 8);
     const limit = Number(readerSettings.serverPrefetchImageCount ?? -1);
     const token = `${chapterId}:${bucket}:${limit}`;
@@ -729,6 +779,7 @@ export default function ReaderPage() {
     currentPage,
     imageKeys.length,
     isLocal,
+    usingLocalImages,
     readerSettings.serverPrefetchImageCount,
     sourceKey,
   ]);
@@ -1462,21 +1513,21 @@ export default function ReaderPage() {
   const closeContextMenu = () => setContextMenu(null);
 
   const loading =
-    comicQuery.isLoading || localQuery.isLoading || imagesQuery.isLoading;
+    comicQuery.isLoading || localQuery.isLoading || imagesLoading;
 
-  if (!loading && imagesQuery.isError) {
+  if (!loading && imagesError) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-black p-6 text-white">
         <EmptyState
           title={t("Error")}
           description={
-            imagesQuery.error
-              ? friendlyError(imagesQuery.error)
+            imagesError
+              ? friendlyError(imagesError)
               : t("Failed to load this chapter")
           }
           action={
             <>
-              <Button onClick={() => imagesQuery.refetch()}>
+              <Button onClick={refetchImages}>
                 {t("Retry")}
               </Button>
               <Button variant="secondary" onClick={() => navigate(-1)}>
@@ -1497,7 +1548,7 @@ export default function ReaderPage() {
           description={t("The chapter does not exist or has no images.")}
           action={
             <>
-              <Button onClick={() => imagesQuery.refetch()}>
+              <Button onClick={refetchImages}>
                 {t("Retry")}
               </Button>
               <Button variant="secondary" onClick={() => navigate(-1)}>

@@ -357,4 +357,39 @@ ALTER TABLE follow_update_config ADD COLUMN updated_at INTEGER;
   '''
 ALTER TABLE favorites ADD COLUMN description TEXT NOT NULL DEFAULT '';
 ''',
+  // 5 — persistent source metadata cache and image cache index
+  '''
+CREATE TABLE content_cache (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  cache_key TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT '',
+  payload_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, source_key, kind, cache_key)
+);
+CREATE INDEX idx_content_cache_expiry ON content_cache(expires_at);
+CREATE INDEX idx_content_cache_scope
+  ON content_cache(user_id, source_key, kind, scope);
+CREATE INDEX idx_content_cache_created ON content_cache(user_id, created_at);
+
+CREATE TABLE image_cache (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  cache_key TEXT NOT NULL,
+  source_key TEXT NOT NULL DEFAULT '',
+  comic_id TEXT NOT NULL DEFAULT '',
+  ep_id TEXT NOT NULL DEFAULT '',
+  image_key TEXT NOT NULL DEFAULT '',
+  mime TEXT NOT NULL DEFAULT '',
+  size INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  accessed_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, cache_key)
+);
+CREATE INDEX idx_image_cache_comic
+  ON image_cache(user_id, source_key, comic_id, ep_id);
+CREATE INDEX idx_image_cache_source ON image_cache(user_id, source_key);
+''',
 ];

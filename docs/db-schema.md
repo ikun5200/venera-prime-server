@@ -7,7 +7,8 @@ with `ON DELETE CASCADE` when the user is removed.
 
 Migrations are ordered SQL scripts applied in a transaction; the applied
 version is stored in `PRAGMA user_version`. Migration 1 creates the schema
-below. New migrations are append-only and never edit earlier files.
+below. New migrations are append-only and never edit earlier files. Migration
+5 adds the persistent content cache and image-cache index.
 
 ## Tables
 
@@ -152,6 +153,24 @@ Actions: `init`, `login`, `login_failed`, `logout`, `user_create`,
 ### request_logs
 `id INTEGER PK`, `ts`, `level`, `request_id`, `user_id`, `route`, `method`,
 `status`, `duration_ms`, `message`. Index `(ts)`. Retention 7 days.
+
+### content_cache (migration 5)
+Persistent source-metadata cache. One row per user/source/kind/key.
+`(user_id, source_key, kind, cache_key)` PK, `scope` (comic id for details,
+chapters and comments; empty for list caches), `payload_json`, `created_at`,
+`expires_at`. Indexes `(expires_at)`, `(user_id, source_key, kind, scope)` and
+`(user_id, created_at)`. Kinds: `comic`, `chapter`, `explore`, `search`,
+`category`, `ranking`, `categories`, `thumbnails`, `comments`,
+`chapterComments`. Rows are pruned hourly after 30 days and capped at 6000 per
+user.
+
+### image_cache (migration 5)
+Index for the per-user image files under `data/users/<id>/cache/images`.
+`(user_id, cache_key)` PK, `source_key`, `comic_id`, `ep_id`, `image_key`,
+`mime`, `size`, `created_at`, `accessed_at`. Indexes
+`(user_id, source_key, comic_id, ep_id)` and `(user_id, source_key)`. Used for
+cache statistics, per-source clearing and chapter-level cache counts; the
+`.bin`/`.type` files remain the source of truth.
 
 ## Argon2id parameters
 

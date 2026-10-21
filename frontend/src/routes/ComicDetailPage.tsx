@@ -512,6 +512,11 @@ export default function ComicDetailPage() {
               <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">
                 {data.title}
               </h1>
+              {data.cache?.stale ? (
+                <span title={data.cache.error ?? undefined}>
+                  <Badge tone="warning">{t("Cached")}</Badge>
+                </span>
+              ) : null}
               {data.subtitle ? (
                 <button
                   className="mt-1 text-[13px] text-accent hover:underline"

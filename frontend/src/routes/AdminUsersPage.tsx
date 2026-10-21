@@ -133,7 +133,7 @@ export default function AdminUsersPage() {
                       {user.username}
                     </p>
                     <Badge tone={user.role === "admin" ? "accent" : "neutral"}>
-                      {user.role}
+                      {t(user.role === "admin" ? "Administrator" : "User")}
                     </Badge>
                     {user.disabled ? (
                       <Badge tone="warning">{t("Disabled")}</Badge>

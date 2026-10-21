@@ -76,10 +76,16 @@ class StorageSource extends ComicSource {
     });
 
     final first = await admin.get('/api/search?source=storage_source&q=x');
+    // The second read comes from the persistent metadata cache; a forced
+    // refresh must still hit the source and observe the stored counter.
     final second = await admin.get('/api/search?source=storage_source&q=x');
+    final refreshed =
+        await admin.get('/api/search?source=storage_source&q=x&refresh=1');
     expect(((first.body['comics'] as List).first as Map)['title'],
         'count=1;setting=custom');
     expect(((second.body['comics'] as List).first as Map)['title'],
+        'count=1;setting=custom');
+    expect(((refreshed.body['comics'] as List).first as Map)['title'],
         'count=2;setting=custom');
   }, skip: !binary.existsSync());
 
@@ -128,8 +134,8 @@ class UrlSource extends ComicSource {
     final images =
         await admin.get('/api/comic/url_source/$comicId/chapter/$epId/images');
     expect(images.status, 200, reason: '${images.body}');
-    expect((images.body['images'] as List).first,
-        'https://example.com/ch/1.jpg');
+    expect(
+        (images.body['images'] as List).first, 'https://example.com/ch/1.jpg');
   }, skip: !binary.existsSync());
 
   test('real MangaDex source parses with full capabilities', () async {
