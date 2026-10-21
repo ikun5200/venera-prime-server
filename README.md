@@ -14,6 +14,16 @@ isolated per account.
   installed from a source library catalog.
 - **Search & discovery** — single-source and aggregated search, explore pages,
   categories, ranking, source tags and options.
+- **Server-side cache** — comic details, chapter lists, explore/search/
+  categories/ranking/thumbnails/comments are persisted in SQLite with
+  per-kind TTLs, single-flight coalescing and stale-while-revalidate. Cached
+  pages and images survive restarts; if a source is temporarily unavailable
+  the last good payload is served and marked as cached. Settings → APP
+  reports image/metadata cache size and can clear one source, metadata only,
+  or everything.
+- **Local-first reading** — downloaded chapters are read from the server's
+  local library without contacting the comic source; the reader falls back to
+  the source automatically if local files are missing.
 - **Comic details** — metadata, tags, chapters (flat or grouped), star rating,
   like, comments, related comics, downloads and cover viewer.
 - **Reader** — gallery LTR/RTL/TTB and continuous LTR/RTL/TTB, two-page spread,

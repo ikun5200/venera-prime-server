@@ -724,8 +724,9 @@ Every acceptance item is backed by a reproducible command, output summary and
   proxy `system`.
 - Note: the NAS image was redeployed during the test window (E-22 reader,
   then E-24 usability fixes); reader and fixed-feature checks passed before
-  and after each redeploy. Remaining open: BUG-17 (explore `sourceKey`) and
-  BUG-18 (capability/role labels).
+  and after each redeploy. BUG-17 (explore `sourceKey`) and BUG-18
+  (capability/role labels) remained open at this point; both were fixed in
+  E-25.
 - Time: 2026-10-21T14:45:00Z
 
 ## E-24 — Usability report fixes (BUG-01…BUG-16) (2026-10-21) — PASS
@@ -814,3 +815,70 @@ Every acceptance item is backed by a reproducible command, output summary and
 - NAS: image recreated, `Up (healthy)`, `/api/health` ok, served bundle
   `index-BQUtyec5.js`. Screenshots `docs/screenshots/22-*.png`.
 - Time: 2026-10-21T19:10:00Z
+
+## E-25 — Persistent server cache, local-first reader and BUG-17/18 (2026-10-21) — PASS
+
+- Scope: turn the server into the content cache instead of re-querying the
+  comic sources for every view.
+- Backend:
+  - Migration 5 adds `content_cache` (user/source/kind/key, scope, JSON,
+    created/expires) and `image_cache` (user, cache key, source, comic,
+    chapter, image key, mime, size, timestamps).
+  - `ContentCacheService` implements per-kind TTLs, single-flight coalescing,
+    stale-while-revalidate, offline fallback, invalidation, pruning and cache
+    statistics.
+  - `ComicService` now serves details, chapter image lists, explore, search,
+    categories, category comics, ranking, thumbnails, comments and chapter
+    comments cache-first. `refresh=1` bypasses the cache.
+  - Source settings/script updates, login/logout and deletion invalidate that
+    source; sending a comment invalidates the comic's comment caches.
+  - `explore()` recursively normalizes every renderer type and stamps
+    `sourceKey`/`comicType` on each comic (BUG-17 root cause).
+  - Image cache rows are indexed for stats; downloads use
+    `persistCache:false` so local-library files are not duplicated in the
+    image cache.
+- Frontend:
+  - Explore falls back to the active tab's source when a payload lacks
+    `sourceKey`; `ComicCard` uses the same fallback for cover proxying.
+  - Reader uses downloaded local chapter images first (`local-comics/...`)
+    and falls back to the source if the local query fails; source prefetch is
+    skipped for local chapters.
+  - Settings → APP shows server-cache toggles/TTLs, image + metadata cache
+    size, and “clear cache”/“clear metadata cache”.
+  - Source capability chips render 搜索/发现/分类/收藏/评论/图片加载/登录 and
+    roles render 管理员/普通用户 (BUG-18); remaining backend user-facing
+    messages were localized.
+- Automated regression:
+  - `backend: dart analyze && dart test` → 0 errors, **54/54 passed**
+    (new tests: explore all four renderer types carry `sourceKey`; cache
+    hit/refresh/invalidation/offline fallback; image cache index/stats).
+  - `frontend: npm run typecheck && npm test && npm run build` → clean,
+    **24/24 passed**, production build succeeds (new tests: ExplorePage
+    missing-sourceKey fallback; reader local-first image selection).
+- Real-browser verification (local server, 1280×720):
+  - Explore page rendered all four page types; clicking P1 navigated to
+    `/comic/explore_source/p1` (not `/comic/undefined/...`).
+  - `/sources` showed “explore_source · 发现”; `/admin/users` showed
+    “管理员”.
+  - After downloading chapter 1, the reader requested only
+    `/api/local-comics/1/image/1/{0,1,2}`; local images loaded
+    (`naturalWidth > 0`).
+  - Settings → APP showed “服务端缓存”, “图片缓存 0 B · 元数据缓存 1.5 KB”.
+  - API: first detail response `cache.hit=false`, second `true`; cache stats
+    listed `explore` and `comic` entries.
+- Migration:
+  - Existing database copy migrated to `user_version=5` with both tables.
+  - NAS database also reports `user_version=5` and both tables after deploy.
+- Container:
+  - `docker build -t venera-prime-server:local .` succeeds (215 MB).
+  - Container smoke test: init/login/import source/explore/detail twice →
+    explore comic `sourceKey=s`, detail `cache.hit:false → true`, stats
+    `['explore','comic']`.
+- CI: run `39624849976` (commit `e454b06`) succeeded (backend-test,
+  frontend-test, Docker build/push).
+- NAS: pulled `ghcr.io/ikun5200/venera-prime-server:latest` (digest
+  `sha256:7dcf8df…acaf09fd`), recreated `venera-prime-server` with the same
+  `/data` and `/config` mounts, `Up (healthy)`, `/api/health` ok, served
+  bundle `index-BBI1Rup3.js` containing “无可用功能”, “服务端缓存”,
+  “已缓存”, `reader-local-images` and `fallbackSourceKey`.
+- Time: 2026-10-21T15:25:00Z
