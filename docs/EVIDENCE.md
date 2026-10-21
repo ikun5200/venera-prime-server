@@ -874,11 +874,13 @@ Every acceptance item is backed by a reproducible command, output summary and
   - Container smoke test: init/login/import source/explore/detail twice →
     explore comic `sourceKey=s`, detail `cache.hit:false → true`, stats
     `['explore','comic']`.
-- CI: run `39624849976` (commit `e454b06`) succeeded (backend-test,
-  frontend-test, Docker build/push).
-- NAS: pulled `ghcr.io/ikun5200/venera-prime-server:latest` (digest
-  `sha256:7dcf8df…acaf09fd`), recreated `venera-prime-server` with the same
+- CI: run `39624849976` (feature commit `e454b06`) and `39625960466`
+  (final commit `88c16a5`) succeeded (backend-test, frontend-test, Docker
+  build/push).
+- NAS: pulled `ghcr.io/ikun5200/venera-prime-server:latest` (final digest
+  `sha256:8cdc1a7f…fc9b179b`), recreated `venera-prime-server` with the same
   `/data` and `/config` mounts, `Up (healthy)`, `/api/health` ok, served
-  bundle `index-BBI1Rup3.js` containing “无可用功能”, “服务端缓存”,
-  “已缓存”, `reader-local-images` and `fallbackSourceKey`.
-- Time: 2026-10-21T15:25:00Z
+  bundle `index-DvK_dDch.js` containing “无可用功能”, “服务端缓存”,
+  `fallbackSourceKey` and `reader-local-images`; database
+  `user_version=5`.
+- Time: 2026-10-21T15:30:00Z
