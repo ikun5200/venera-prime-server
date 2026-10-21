@@ -16,7 +16,7 @@ import 'util/log.dart';
 Handler buildServerHandler(AppContext ctx) {
   final api = buildApiRouter(ctx);
   final staticHandler = StaticSpaHandler(ctx.config);
-  final router = (Request request) async {
+  Future<Response> router(Request request) async {
     if (request.url.path.startsWith('api')) {
       final response = await api(request);
       if (response.statusCode == 404) {
@@ -25,7 +25,7 @@ Handler buildServerHandler(AppContext ctx) {
       return response;
     }
     return staticHandler.handle(request);
-  };
+  }
 
   final rateLimiter = RateLimiter();
   final authLimiter = RateLimiter();
