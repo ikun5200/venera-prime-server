@@ -225,7 +225,7 @@ Middleware rateLimitMiddleware(
               ? 'u:${auth.user.id}'
               : 'ip:${clientIp(request) ?? 'unknown'}';
           final path = request.url.path;
-          final isAuthPath = path == '/api/auth/login' || path == '/api/init';
+          final isAuthPath = path == 'api/auth/login' || path == 'api/init';
           if (isAuthPath) {
             if (!authLimiter.allow(key, 10)) {
               throw ApiException.rateLimited();

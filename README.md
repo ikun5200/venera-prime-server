@@ -102,7 +102,7 @@ docker run -d --name venera -p 8080:8080 \
 | `JS_HOST_BIN` | `rust/js_host/target/release/venera_js_host` (image: `/app/venera_js_host`) | QuickJS sidecar binary |
 | `JS_TIMEOUT_MS` | `30000` | Per source call timeout |
 | `JS_CONCURRENCY` | `8` | Concurrent sidecar calls |
-| `RATE_LIMIT_PER_MINUTE` | `120` | API limit per user/IP |
+| `RATE_LIMIT_PER_MINUTE` | `300` | General API limit per user/IP; image proxies and polling endpoints use separate, larger buckets |
 | `MAX_UPLOAD_BYTES` | `536870912` | Upload cap (512 MiB) |
 | `APP_VERSION` | `1.0.0` | Reported by `/api/health` |
 

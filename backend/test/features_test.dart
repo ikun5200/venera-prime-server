@@ -217,11 +217,30 @@ void main() {
     }
     expect(limitedResponse, true, reason: 'general limit must still apply');
 
+    // Login/init use the dedicated 10/minute auth bucket.
+    var authLimited = false;
+    for (var i = 0; i < 15; i++) {
+      final result = await client
+          .post('/api/auth/login', {'username': 'admin', 'password': 'wrong'});
+      if (result.status == 429) {
+        authLimited = true;
+        break;
+      }
+      expect(result.status, 401);
+    }
+    expect(authLimited, true, reason: 'login must be limited to 10/minute');
+
     final logs = limited.ctx.db.select(
         'SELECT route,status,message FROM request_logs WHERE status=429');
     expect(logs, isNotEmpty, reason: '429 responses must be logged');
-    expect(logs.first['route'], 'api/sources');
-    expect(logs.first['message'], 'RATE_LIMITED');
+    expect(
+      logs.map((row) => row['route']),
+      containsAll(['api/sources', 'api/auth/login']),
+    );
+    expect(
+      logs.every((row) => row['message'] == 'RATE_LIMITED'),
+      true,
+    );
   });
 
   test('cache retention and size limit', () async {

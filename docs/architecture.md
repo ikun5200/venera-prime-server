@@ -223,8 +223,14 @@ Responsive contract:
   favorite/folder mutations; `?refresh=1` bypasses.
 - Startup: the server runs due follow-up checks 8 seconds after boot and then
   hourly, so the metadata cache and unread badges are current.
-- Rate limit: 120 requests/minute per session/IP for API routes, 10/minute for
-  login and init.
+- Rate limit: separate sliding-window buckets per session/IP. General API
+  actions use `RATE_LIMIT_PER_MINUTE` (default 300); image proxy/local-image
+  requests use `max(1200, limit × 4)` and polling endpoints (`/api/tasks`,
+  `/api/downloads`, `/api/health`, `/api/init/status`, `/api/auth/me`) use
+  `max(300, limit × 2)`, so loading a chapter or an idle tab cannot exhaust
+  the API budget. Login/init remain at 10/minute. A rejected request returns
+  `429` with `Retry-After: 30` and is written to `request_logs` with status
+  `429` and message `RATE_LIMITED`.
 
 ## 9. Security
 
