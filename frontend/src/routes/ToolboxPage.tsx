@@ -95,8 +95,9 @@ export default function ToolboxPage() {
         </div>
 
         <p className="mt-6 text-[12px] text-muted">
-          The in-app webview is not available in the server build. Links open in
-          a new browser tab.
+          {t(
+            "The in-app webview is not available in the server build. Links open in a new browser tab.",
+          )}
         </p>
       </PageBody>
     </>

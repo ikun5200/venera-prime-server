@@ -134,7 +134,7 @@ export default function LocalComicsPage() {
     <>
       <PageHeader
         title={t("Local")}
-        subtitle={`${items.length} comics`}
+        subtitle={t("@count comics", { count: items.length })}
         actions={
           <>
             <IconButton label={t("Import")} onClick={() => setImportOpen(true)}>

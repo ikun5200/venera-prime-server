@@ -39,11 +39,22 @@ export default function AdminUsersPage() {
 
   const create = useMutation({
     mutationFn: () => api.adminCreateUser(username, password, role),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(t("User created"));
       setCreateOpen(false);
       setUsername("");
       setPassword("");
+      queryClient.setQueryData<{ items: User[] } | undefined>(
+        ["admin-users"],
+        (old) =>
+          old
+            ? {
+                items: old.items.some((item) => item.id === result.user.id)
+                  ? old.items
+                  : [...old.items, result.user],
+              }
+            : old,
+      );
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
@@ -57,9 +68,20 @@ export default function AdminUsersPage() {
       id: number;
       body: { password?: string; disabled?: boolean; role?: string };
     }) => api.adminUpdateUser(id, body),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(t("Updated"));
       setResetUser(null);
+      queryClient.setQueryData<{ items: User[] } | undefined>(
+        ["admin-users"],
+        (old) =>
+          old
+            ? {
+                items: old.items.map((item) =>
+                  item.id === result.user.id ? result.user : item,
+                ),
+              }
+            : old,
+      );
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
@@ -67,9 +89,14 @@ export default function AdminUsersPage() {
 
   const remove = useMutation({
     mutationFn: (id: number) => api.adminDeleteUser(id),
-    onSuccess: () => {
+    onSuccess: (_result, id) => {
       toast.success(t("Deleted"));
       setDeleteUser(null);
+      queryClient.setQueryData<{ items: User[] } | undefined>(
+        ["admin-users"],
+        (old) =>
+          old ? { items: old.items.filter((item) => item.id !== id) } : old,
+      );
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(error.message),
@@ -81,7 +108,7 @@ export default function AdminUsersPage() {
     <>
       <PageHeader
         title={t("Admin")}
-        subtitle={`${users.length} users`}
+        subtitle={t("@count users", { count: users.length })}
         actions={
           <IconButton label={t("Add")} onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -116,7 +143,9 @@ export default function AdminUsersPage() {
                     ) : null}
                   </div>
                   <p className="text-[11px] text-muted">
-                    Created {formatDate(user.createdAt)}
+                    {t("Created @time", {
+                      time: formatDate(user.createdAt),
+                    })}
                   </p>
                 </div>
                 <Menu
@@ -232,8 +261,12 @@ export default function AdminUsersPage() {
       <ConfirmDialog
         open={deleteUser !== null}
         onClose={() => setDeleteUser(null)}
-        title={`Delete user '${deleteUser?.username ?? ""}' ?`}
-        message="All favorites, history, sources, uploads and sessions for this user are deleted."
+        title={t("Delete user @name?", {
+          name: deleteUser?.username ?? "",
+        })}
+        message={t(
+          "All favorites, history, sources, uploads and sessions for this user are deleted.",
+        )}
         confirmLabel={t("Delete")}
         danger
         onConfirm={() => deleteUser && remove.mutate(deleteUser.id)}

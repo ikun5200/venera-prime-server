@@ -4,7 +4,7 @@ import { Copy, Download, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAppStore, toast } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { copyText } from "../lib/utils";
+import { copyText, formatDate } from "../lib/utils";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import {
   Button,
@@ -168,7 +168,9 @@ export default function LogsPage() {
                   >
                     {String(item.level)}
                   </span>
-                  <span className="text-muted">{String(item.ts ?? "")}</span>
+                  <span className="text-muted">
+                    {formatDate(String(item.ts ?? ""))}
+                  </span>
                   {item.route ? <span>{String(item.route)}</span> : null}
                   {item.status ? <span>{String(item.status)}</span> : null}
                   {item.durationMs !== undefined ? (

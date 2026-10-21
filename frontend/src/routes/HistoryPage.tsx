@@ -106,7 +106,7 @@ export default function HistoryPage() {
     <>
       <PageHeader
         title={t("History")}
-        subtitle={`${query.data?.total ?? 0} comics`}
+        subtitle={t("@count comics", { count: query.data?.total ?? 0 })}
         actions={
           <>
             <IconButton
@@ -121,7 +121,9 @@ export default function HistoryPage() {
               />
             </IconButton>
             <IconButton
-              label={selectMode ? "Exit Multi-Select" : "Multi-Select"}
+              label={
+                selectMode ? t("Exit Multi-Select") : t("Multi-Select")
+              }
               onClick={() => {
                 setSelectMode((value) => !value);
                 setSelected(new Set());
@@ -174,7 +176,7 @@ export default function HistoryPage() {
         {selectMode && selected.size > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
             <span className="px-1 text-[12px] font-medium">
-              {selected.size} selected
+              {t("@count selected", { count: selected.size })}
             </span>
             <Button
               size="sm"

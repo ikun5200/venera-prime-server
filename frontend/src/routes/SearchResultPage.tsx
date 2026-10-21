@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Settings2 } from "lucide-react";
@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { useAppStore, toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { Comic } from "../lib/types";
-import { copyText, parseOption } from "../lib/utils";
+import { copyText, friendlyError, parseOption } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import {
@@ -63,6 +63,10 @@ export default function SearchResultPage() {
       api.search(sourceKey, keyword, options ? options.split(",") : [], page),
     enabled: Boolean(sourceKey && keyword),
   });
+  const lastMaxPage = useRef(1);
+  useEffect(() => {
+    if (result.data?.maxPage) lastMaxPage.current = result.data.maxPage;
+  }, [result.data?.maxPage]);
 
   useEffect(() => {
     if (!sources.data || sourceKey) return;
@@ -194,9 +198,7 @@ export default function SearchResultPage() {
           <EmptyState
             title={t("Error")}
             description={
-              result.error instanceof Error
-                ? result.error.message
-                : String(result.error)
+              result.error ? friendlyError(result.error) : t("Unknown error")
             }
             action={
               <Button onClick={() => result.refetch()}>{t("Retry")}</Button>
@@ -245,11 +247,11 @@ export default function SearchResultPage() {
             {t("Previous")}
           </Button>
           <span className="text-[13px] tabular text-muted">
-            {t("Page")} {page} / {result.data?.maxPage ?? 1}
+            {t("Page")} {page} / {result.data?.maxPage ?? lastMaxPage.current}
           </span>
           <Button
             size="sm"
-            disabled={page >= (result.data?.maxPage ?? 1)}
+            disabled={page >= (result.data?.maxPage ?? lastMaxPage.current)}
             onClick={() => setPage((value) => value + 1)}
           >
             {t("Next")}

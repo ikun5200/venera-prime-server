@@ -354,10 +354,10 @@ export default function SettingsCategoryPage() {
                     onClick={() => runAction(item.action)}
                   >
                     {item.action === "export"
-                      ? "Export"
+                      ? t("Export")
                       : item.action === "import"
-                        ? "Import"
-                        : "Run"}
+                        ? t("Import")
+                        : t("Run")}
                   </Button>
                 </Row>
               ) : item.kind === "custom" &&

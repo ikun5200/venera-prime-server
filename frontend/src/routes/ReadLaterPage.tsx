@@ -120,11 +120,13 @@ export default function ReadLaterPage() {
     <>
       <PageHeader
         title={t("Read later")}
-        subtitle={`${query.data?.count ?? 0} comics`}
+        subtitle={t("@count comics", { count: query.data?.count ?? 0 })}
         actions={
           <>
             <IconButton
-              label={selectMode ? "Exit Multi-Select" : "Multi-Select"}
+              label={
+                selectMode ? t("Exit Multi-Select") : t("Multi-Select")
+              }
               onClick={() => {
                 setSelectMode((value) => !value);
                 setSelected(new Set());
@@ -157,7 +159,7 @@ export default function ReadLaterPage() {
         {selectMode && selected.size > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
             <span className="px-1 text-[12px] font-medium">
-              {selected.size} selected
+              {t("@count selected", { count: selected.size })}
             </span>
             <Button
               size="sm"

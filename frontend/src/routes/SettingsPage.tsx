@@ -94,7 +94,7 @@ export default function SettingsPage() {
           {
             to: "/admin/users",
             title: t("Admin"),
-            description: "Create, disable and delete users",
+            description: t("Create, disable and delete users"),
             icon: Users,
           },
         ]

@@ -382,8 +382,8 @@ export default function SourceDetailPage() {
                   <h2 className="text-[15px] font-semibold">{t("Log in")}</h2>
                   <p className="text-[12px] text-muted">
                     {source.account.loggedIn
-                      ? "This source is logged in."
-                      : "This source is not logged in."}
+                      ? t("This source is logged in.")
+                      : t("This source is not logged in.")}
                   </p>
                 </div>
                 {source.account.loggedIn ? (
@@ -548,8 +548,9 @@ export default function SourceDetailPage() {
                   {t("Check readability")}
                 </h2>
                 <p className="text-[12px] text-muted">
-                  Runs catalog, details, pages and image stages against the live
-                  source.
+                  {t(
+                    "Runs catalog, details, pages and image stages against the live source.",
+                  )}
                 </p>
               </div>
               <Button

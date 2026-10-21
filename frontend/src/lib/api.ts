@@ -88,7 +88,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-const get = <T>(path: string) => request<T>(path);
+const get = <T>(path: string, init?: RequestInit) => request<T>(path, init);
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, {
     method: "POST",
@@ -260,11 +260,18 @@ export const api = {
     entry: { url?: string; entryId?: string },
   ) => post<{ source: Source }>(`/source-libraries/${enc(id)}/install`, entry),
 
-  search: (source: string, q: string, options: string[], page: number) => {
+  search: (
+    source: string,
+    q: string,
+    options: string[],
+    page: number,
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ source, q, page: String(page) });
     if (options.length) params.set("options", options.join(","));
     return get<{ comics: Comic[]; maxPage: number; page: number }>(
       `/search?${params}`,
+      signal ? { signal } : undefined,
     );
   },
   aggregatedSearch: (q: string) =>

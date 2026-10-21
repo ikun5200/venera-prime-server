@@ -127,6 +127,10 @@ export default function FavoritesPage() {
   const currentFolder = folders.data?.items.find(
     (folder) => folder.id === localFolderId,
   );
+  const networkSourceName =
+    (sources.data?.items ?? []).find(
+      (source) => source.key === networkSource,
+    )?.name ?? networkSource;
   const items = localFavorites.data?.items ?? [];
 
   const selectedItems = items.filter((item) =>
@@ -344,13 +348,15 @@ export default function FavoritesPage() {
               ? (currentFolder?.name ?? t("Local"))
               : networkFolder
                 ? networkFolder
-                : networkSource
+                : networkSourceName
         }
         subtitle={
           view === "overview"
-            ? `${folders.data?.items.length ?? 0} folders`
+            ? t("@count folders", { count: folders.data?.items.length ?? 0 })
             : view === "local"
-              ? `${localFavorites.data?.total ?? 0} comics`
+              ? t("@count comics", {
+                  count: localFavorites.data?.total ?? 0,
+                })
               : undefined
         }
         back={view !== "overview"}
@@ -374,7 +380,9 @@ export default function FavoritesPage() {
             ) : view === "local" ? (
               <>
                 <IconButton
-                  label={selectMode ? "Exit Multi-Select" : "Multi-Select"}
+                  label={
+                    selectMode ? t("Exit Multi-Select") : t("Multi-Select")
+                  }
                   onClick={() => {
                     setSelectMode((value) => !value);
                     setSelected(new Set());
@@ -485,14 +493,6 @@ export default function FavoritesPage() {
                   active={networkSource === source.key}
                 />
               ))}
-              {networkSources.map((source) => (
-                <FolderLink
-                  key={source.key}
-                  to={`/favorites/network/${source.key}`}
-                  label={source.name}
-                  active={networkSource === source.key}
-                />
-              ))}
               {networkSources.length === 0 ? (
                 <p className="px-2 py-1 text-[11px] text-muted">
                   {t("No folders available")}
@@ -587,7 +587,7 @@ export default function FavoritesPage() {
                 {selectMode && selected.size > 0 ? (
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
                     <span className="px-1 text-[12px] font-medium">
-                      {selected.size} selected
+                      {t("@count selected", { count: selected.size })}
                     </span>
                     {localFolderId !== 0 ? (
                       <>

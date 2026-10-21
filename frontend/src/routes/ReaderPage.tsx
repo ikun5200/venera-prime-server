@@ -41,7 +41,13 @@ import {
   withoutDeviceSpecificSettings,
 } from "../lib/readerSettings";
 import type { Chapter, Comment } from "../lib/types";
-import { clamp, cn, copyText, flattenChapters } from "../lib/utils";
+import {
+  clamp,
+  cn,
+  copyText,
+  flattenChapters,
+  friendlyError,
+} from "../lib/utils";
 import {
   Button,
   Drawer,
@@ -1464,10 +1470,31 @@ export default function ReaderPage() {
         <EmptyState
           title={t("Error")}
           description={
-            imagesQuery.error instanceof Error
-              ? imagesQuery.error.message
-              : String(imagesQuery.error)
+            imagesQuery.error
+              ? friendlyError(imagesQuery.error)
+              : t("Failed to load this chapter")
           }
+          action={
+            <>
+              <Button onClick={() => imagesQuery.refetch()}>
+                {t("Retry")}
+              </Button>
+              <Button variant="secondary" onClick={() => navigate(-1)}>
+                {t("Back")}
+              </Button>
+            </>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!loading && imageUrls.length === 0) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-black p-6 text-white">
+        <EmptyState
+          title={t("Failed to load this chapter")}
+          description={t("The chapter does not exist or has no images.")}
           action={
             <>
               <Button onClick={() => imagesQuery.refetch()}>
@@ -1500,8 +1527,11 @@ export default function ReaderPage() {
       style={{ background }}
     >
       {loading ? (
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <Spinner className="h-7 w-7 text-white" />
+          <p className="text-[12px] text-white/70">
+            {t("Loading chapter…")}
+          </p>
         </div>
       ) : isContinuous ? (
         <div

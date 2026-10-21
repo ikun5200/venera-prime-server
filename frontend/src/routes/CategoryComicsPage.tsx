@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { parseOption } from "../lib/utils";
+import { parseOption, friendlyError } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, EmptyState, Field, Select, Skeleton } from "../components/ui";
@@ -15,6 +15,8 @@ interface OptionDef {
   type?: string;
   options?: string[];
   default?: string;
+  showWhen?: string[] | null;
+  notShowWhen?: string[] | null;
 }
 
 export default function CategoryComicsPage() {
@@ -42,6 +44,29 @@ export default function CategoryComicsPage() {
     return Array.isArray(list) ? (list as OptionDef[]) : [];
   }, [source]);
 
+  const categoryLabel = decodeURIComponent(category);
+  const visibleOptionDefs = useMemo(
+    () =>
+      optionDefs.filter((option) => {
+        if (
+          option.showWhen &&
+          option.showWhen.length > 0 &&
+          !option.showWhen.includes(categoryLabel)
+        ) {
+          return false;
+        }
+        if (
+          option.notShowWhen &&
+          option.notShowWhen.length > 0 &&
+          option.notShowWhen.includes(categoryLabel)
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [categoryLabel, optionDefs],
+  );
+
   const [optionValues, setOptionValues] = useState<Record<string, string[]>>(
     {},
   );
@@ -49,7 +74,7 @@ export default function CategoryComicsPage() {
 
   useEffect(() => {
     const next: Record<string, string[]> = {};
-    for (const option of optionDefs) {
+    for (const option of visibleOptionDefs) {
       const label = option.label ?? "";
       if (option.type === "multi-select") {
         next[label] = option.default ? option.default.split("|") : [];
@@ -62,9 +87,9 @@ export default function CategoryComicsPage() {
       }
     }
     setOptionValues(next);
-  }, [optionDefs]);
+  }, [visibleOptionDefs]);
 
-  const options = optionDefs
+  const options = visibleOptionDefs
     .map((option) => (optionValues[option.label ?? ""] ?? []).join("|"))
     .filter(Boolean);
 
@@ -80,6 +105,10 @@ export default function CategoryComicsPage() {
     queryFn: () => api.categoryComics(key, category, param, options, page),
     enabled: Boolean(key && category),
   });
+  const lastMaxPage = useRef(1);
+  useEffect(() => {
+    if (query.data?.maxPage) lastMaxPage.current = query.data.maxPage;
+  }, [query.data?.maxPage]);
 
   return (
     <>
@@ -88,9 +117,9 @@ export default function CategoryComicsPage() {
         subtitle={source?.name}
       />
       <PageBody>
-        {optionDefs.length > 0 ? (
+        {visibleOptionDefs.length > 0 ? (
           <div className="mb-5 flex flex-wrap items-end gap-3 rounded-card border border-border bg-surface p-4">
-            {optionDefs.map((option) => {
+            {visibleOptionDefs.map((option) => {
               const label = option.label ?? t("Option");
               const values = optionValues[label] ?? [];
               if (
@@ -183,9 +212,7 @@ export default function CategoryComicsPage() {
           <EmptyState
             title={t("Error")}
             description={
-              query.error instanceof Error
-                ? query.error.message
-                : String(query.error)
+              query.error ? friendlyError(query.error) : t("Unknown error")
             }
             action={
               <Button onClick={() => query.refetch()}>{t("Retry")}</Button>
@@ -212,11 +239,11 @@ export default function CategoryComicsPage() {
             {t("Previous")}
           </Button>
           <span className="text-[13px] tabular text-muted">
-            {t("Page")} {page} / {query.data?.maxPage ?? 1}
+            {t("Page")} {page} / {query.data?.maxPage ?? lastMaxPage.current}
           </span>
           <Button
             size="sm"
-            disabled={page >= (query.data?.maxPage ?? 1)}
+            disabled={page >= (query.data?.maxPage ?? lastMaxPage.current)}
             onClick={() => setPage((value) => value + 1)}
           >
             {t("Next")}

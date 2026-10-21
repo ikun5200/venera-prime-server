@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { parseOption } from "../lib/utils";
+import { friendlyError, parseOption } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Button, EmptyState, Skeleton } from "../components/ui";
@@ -25,8 +25,49 @@ export default function RankingPage() {
     return Array.isArray(ranking) ? (ranking as string[]) : [];
   }, [source]);
 
+  // Some sources expose ranking as a category ("排行" with the "ranking"
+  // parameter) instead of `rankingOptions`. Follow that category instead of
+  // rendering an empty page.
+  const rankingCategory = useMemo(() => {
+    const raw = source?.capabilities.categoryData;
+    if (!raw || typeof raw !== "object") return null;
+    const parts = (raw as { parts?: unknown }).parts;
+    if (!Array.isArray(parts)) return null;
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue;
+      const entry = part as Record<string, unknown>;
+      const categories = entry.categories;
+      if (!Array.isArray(categories)) continue;
+      const params = entry.categoryParams;
+      for (let index = 0; index < categories.length; index += 1) {
+        const item = categories[index];
+        const label =
+          typeof item === "string"
+            ? item
+            : item && typeof item === "object"
+              ? String(
+                  (item as Record<string, unknown>).label ??
+                    (item as Record<string, unknown>).target ??
+                    "",
+                )
+              : "";
+        if (label === "排行" || label.toLowerCase() === "ranking") {
+          return {
+            label,
+            param:
+              Array.isArray(params) && params.length > 0
+                ? (params[index] ?? params[0] ?? null)
+                : null,
+          };
+        }
+      }
+    }
+    return null;
+  }, [source]);
+
   const [option, setOption] = useState("");
   const [page, setPage] = useState(1);
+  const lastMaxPage = useRef(1);
   useEffect(() => {
     if (!option && options.length > 0) setOption(parseOption(options[0]).value);
   }, [option, options]);
@@ -36,6 +77,37 @@ export default function RankingPage() {
     queryFn: () => api.ranking(key, option, page),
     enabled: Boolean(key && option),
   });
+  useEffect(() => {
+    if (query.data?.maxPage) lastMaxPage.current = query.data.maxPage;
+  }, [query.data?.maxPage]);
+
+  if (options.length === 0 && rankingCategory) {
+    const query = new URLSearchParams();
+    if (rankingCategory.param !== null) {
+      query.set("param", JSON.stringify(rankingCategory.param));
+    }
+    const suffix = query.toString();
+    return (
+      <Navigate
+        to={`/categories/${encodeURIComponent(key)}/${encodeURIComponent(rankingCategory.label)}${suffix ? `?${suffix}` : ""}`}
+        replace
+      />
+    );
+  }
+
+  if (options.length === 0) {
+    return (
+      <>
+        <PageHeader title={t("Ranking")} subtitle={source?.name} />
+        <PageBody>
+          <EmptyState
+            title={t("Ranking")}
+            description={t("This source does not support ranking.")}
+          />
+        </PageBody>
+      </>
+    );
+  }
 
   return (
     <>
@@ -73,9 +145,7 @@ export default function RankingPage() {
           <EmptyState
             title={t("Error")}
             description={
-              query.error instanceof Error
-                ? query.error.message
-                : String(query.error)
+              query.error ? friendlyError(query.error) : t("Unknown error")
             }
             action={
               <Button onClick={() => query.refetch()}>{t("Retry")}</Button>
@@ -100,11 +170,11 @@ export default function RankingPage() {
             {t("Previous")}
           </Button>
           <span className="text-[13px] tabular text-muted">
-            {t("Page")} {page} / {query.data?.maxPage ?? 1}
+            {t("Page")} {page} / {query.data?.maxPage ?? lastMaxPage.current}
           </span>
           <Button
             size="sm"
-            disabled={page >= (query.data?.maxPage ?? 1)}
+            disabled={page >= (query.data?.maxPage ?? lastMaxPage.current)}
             onClick={() => setPage((value) => value + 1)}
           >
             {t("Next")}

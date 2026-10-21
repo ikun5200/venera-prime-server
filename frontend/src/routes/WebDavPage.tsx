@@ -169,9 +169,9 @@ export default function WebDavPage() {
             <Card className="flex flex-col gap-3 p-4">
               <h2 className="text-[15px] font-semibold">{t("Sync Data")}</h2>
               <p className="text-[12px] text-muted">
-                Upload creates a versioned backup on the WebDAV server and keeps
-                the ten newest. Download restores the newest backup for this
-                account.
+                {t(
+                  "Upload creates a versioned backup on the WebDAV server and keeps the ten newest. Download restores the newest backup for this account.",
+                )}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button

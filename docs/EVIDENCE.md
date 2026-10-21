@@ -683,3 +683,36 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Screenshots: `docs/screenshots/21-reader-rtl-1280.png`,
   `docs/screenshots/21-reader-comments-1280.png`.
 - Time: 2026-10-21T14:30:00Z
+
+## E-23 — NAS end-to-end usability test (2026-10-21)
+
+- Target: `http://192.168.31.88:8082` (server `1.0.0`, `initialized:true`),
+  account `admin`; real browser interactions at 1280×720 plus 375/768 widths.
+- Coverage: auth, home modules and layout, search (single/aggregated/options/
+  history), explore, categories, comic details, reader, favorites, history,
+  read later, follow updates, local/downloads, sources (settings/login/edit/
+  check/libraries), all settings pages, admin users, toolbox, tasks, 404 and
+  invalid routes.
+- Report: `docs/usage-test-report-2026-10-21.md` (16 findings with repro).
+- Key findings:
+  - Saving source settings with the rendered-empty `API地址` persisted
+    `base_url:""`, breaking `copy_manga` (DNS `api`). Restored
+    `api.copy2000.online`; search returned 30 results again.
+  - Favorite-folder removal and admin user creation did not refresh the open
+    view until reload; server state was correct.
+  - Rankings failed for `copy_manga` (`Invalid status code: 210`) and
+    `zaimanhua` (`at load (eval_script:215:30)`).
+  - Aggregated search `恋爱` took ~38.9 s across 33 sources.
+  - Invalid chapter renders `0 / 0` with no error; bootstrap during a 429
+    briefly showed the `/init` create-admin page.
+  - i18n gaps: English plurals (`1 comics`/`2 folders`/`1 users`), `Run`,
+    `Export`, `Multi-Select`, `completed`, `Every N hours`, About/WebDAV/
+    Toolbox English paragraphs, en-US/ISO dates.
+- Screenshots: `docs/screenshots/usage-2026-10-21-home-375.png`,
+  `docs/screenshots/usage-2026-10-21-home-1280.png`.
+- Test data restored: base_url, image quality 800, RTL reading, double-page
+  off, language/theme system, random module off, follow updates disabled,
+  test folder/user/image-favorite/read-later removed, proxy `system`.
+- Note: the NAS image was redeployed during the test window (new reader build,
+  E-22); reader checks before and after the redeploy passed.
+- Time: 2026-10-21T14:45:00Z

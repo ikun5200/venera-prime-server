@@ -23,12 +23,18 @@ import {
 import { api, coverUrl, downloadUrl } from "../lib/api";
 import { useAppStore, toast } from "../lib/store";
 import { useT } from "../lib/i18n";
-import type { Chapter, Comment, FavoriteFolder } from "../lib/types";
+import type {
+  Chapter,
+  ComicDetails,
+  Comment,
+  FavoriteFolder,
+} from "../lib/types";
 import {
   chapterGroups,
   cn,
   copyText,
   flattenChapters,
+  friendlyError,
   sortChapters,
   type ChapterOrder,
 } from "../lib/utils";
@@ -279,10 +285,34 @@ export default function ComicDetailPage() {
     onError: (error) => toast.error(error.message),
   });
 
+  const applyFavoriteFolder = (folderId: number, add: boolean) => {
+    queryClient.setQueryData<ComicDetails | undefined>(
+      ["comic", source, id],
+      (old) => {
+        if (!old) return old;
+        const current = old.favoriteFolders ?? [];
+        const next = add
+          ? current.includes(folderId)
+            ? current
+            : [...current, folderId]
+          : current.filter((value) => value !== folderId);
+        return {
+          ...old,
+          favoriteFolders: next,
+          isFavorite: next.length > 0,
+        };
+      },
+    );
+  };
+
   const addToFolder = useMutation({
     mutationFn: (folder: FavoriteFolder) =>
       api.addFavorite(folder.id, data!, settings.newFavoriteAddTo === "start"),
-    onSuccess: () => {
+    onSuccess: (_result, folder) => {
+      // The comic details refetch hits the source again; when that request
+      // fails (rate limits are common) the drawer would keep showing stale
+      // membership, so apply the known change to the cache first.
+      applyFavoriteFolder(folder.id, true);
       queryClient.invalidateQueries({ queryKey: ["comic", source, id] });
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
@@ -294,7 +324,8 @@ export default function ComicDetailPage() {
   const removeFromFolder = useMutation({
     mutationFn: (folder: FavoriteFolder) =>
       api.removeFavorite(folder.id, data?.comicType ?? 0, id),
-    onSuccess: () => {
+    onSuccess: (_result, folder) => {
+      applyFavoriteFolder(folder.id, false);
       queryClient.invalidateQueries({ queryKey: ["comic", source, id] });
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
@@ -308,8 +339,10 @@ export default function ComicDetailPage() {
       const created = await api.createFavoriteFolder(name);
       const folder = created.items.find((item) => item.name === name);
       if (folder && data) await api.addFavorite(folder.id, data);
+      return folder?.id ?? null;
     },
-    onSuccess: () => {
+    onSuccess: (folderId) => {
+      if (folderId !== null) applyFavoriteFolder(folderId, true);
       queryClient.invalidateQueries({ queryKey: ["favorite-folders"] });
       queryClient.invalidateQueries({ queryKey: ["comic", source, id] });
     },
@@ -331,11 +364,14 @@ export default function ComicDetailPage() {
     }
   };
 
-  if (comic.isLoading) {
+  if (comic.isLoading || comic.isPending) {
     return (
       <>
         <PageHeader title={t("Comic details")} />
         <PageBody>
+          <p className="mb-4 text-[12px] text-muted">
+            {t("Loading comic details…")}
+          </p>
           <div className="flex flex-col gap-6 md:flex-row">
             <Skeleton className="aspect-[2/3] w-[180px] shrink-0 rounded-card md:w-[220px]" />
             <div className="flex-1 space-y-3">
@@ -343,14 +379,20 @@ export default function ComicDetailPage() {
               <Skeleton className="h-4 w-1/3" />
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-10 w-64" />
+              <Skeleton className="h-4 w-1/2" />
             </div>
+          </div>
+          <div className="mt-6 flex flex-col gap-2">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 w-full" />
+            ))}
           </div>
         </PageBody>
       </>
     );
   }
 
-  if (comic.isError || !data) {
+  if (!data) {
     return (
       <>
         <PageHeader title={t("Comic details")} />
@@ -358,24 +400,10 @@ export default function ComicDetailPage() {
           <EmptyState
             title={t("Error")}
             description={
-              comic.error instanceof Error
-                ? comic.error.message
-                : String(comic.error)
+              comic.error ? friendlyError(comic.error) : t("Unknown error")
             }
             action={
-              <>
-                <Button onClick={() => comic.refetch()}>{t("Retry")}</Button>
-                {data?.localComicId ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      navigate(`/reader/local/${data.localComicId}`)
-                    }
-                  >
-                    {t("Read local copy")}
-                  </Button>
-                ) : null}
-              </>
+              <Button onClick={() => comic.refetch()}>{t("Retry")}</Button>
             }
           />
         </PageBody>
@@ -656,14 +684,22 @@ export default function ComicDetailPage() {
                 ))}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-muted sm:grid-cols-4">
-                {data.uploader ? <span>Uploader: {data.uploader}</span> : null}
+                {data.uploader ? (
+                  <span>{t("Uploader: @name", { name: data.uploader })}</span>
+                ) : null}
                 {data.uploadTime ? (
-                  <span>Uploaded: {data.uploadTime}</span>
+                  <span>
+                    {t("Uploaded: @time", { time: data.uploadTime })}
+                  </span>
                 ) : null}
                 {data.updateTime ? (
-                  <span>Updated: {data.updateTime}</span>
+                  <span>{t("Updated: @time", { time: data.updateTime })}</span>
                 ) : null}
-                <span>Pages: {data.maxPage ?? data.chapterCount}</span>
+                <span>
+                  {t("Pages: @count", {
+                    count: data.maxPage ?? data.chapterCount,
+                  })}
+                </span>
               </div>
             </section>
 
@@ -1141,7 +1177,18 @@ function NetworkFavoriteSection({
   const toggle = useMutation({
     mutationFn: ({ folderId, add }: { folderId: unknown; add: boolean }) =>
       api.toggleNetworkFavorite(source, comicId, folderId, add),
-    onSuccess: () => {
+    onSuccess: (_result, { folderId, add }) => {
+      queryClient.setQueryData<{
+        folders: Record<string, string>;
+        favorited: string[];
+      } | undefined>(["network-favorites", source, comicId], (old) => {
+        if (!old) return old;
+        const id = String(folderId);
+        const next = new Set(old.favorited);
+        if (add) next.add(id);
+        else next.delete(id);
+        return { ...old, favorited: [...next] };
+      });
       queryClient.invalidateQueries({
         queryKey: ["network-favorites", source, comicId],
       });

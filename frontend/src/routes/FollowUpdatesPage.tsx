@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { FavoriteItem } from "../lib/types";
+import { formatDate } from "../lib/utils";
 import { ComicGrid } from "../components/ComicCard";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import {
@@ -169,7 +170,7 @@ export default function FollowUpdatesPage() {
               >
                 {intervals.map((hours) => (
                   <option key={hours} value={hours}>
-                    Every {hours} hours
+                    {t("Every @hours hours", { hours })}
                   </option>
                 ))}
               </Select>
@@ -230,7 +231,9 @@ export default function FollowUpdatesPage() {
         </Card>
 
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">Updates ({data.count})</h2>
+          <h2 className="text-[15px] font-semibold">
+            {t("Updates (@count)", { count: data.count })}
+          </h2>
           <Button
             size="sm"
             variant="ghost"
@@ -259,7 +262,7 @@ export default function FollowUpdatesPage() {
                     {item.title}
                   </p>
                   <p className="truncate text-[11px] text-muted">
-                    {item.lastUpdateTime ?? item.favoritedAt}
+                    {formatDate(item.lastUpdateTime ?? item.favoritedAt)}
                   </p>
                 </button>
                 <Button

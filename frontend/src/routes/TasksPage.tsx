@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { TaskItem } from "../lib/types";
-import { cn } from "../lib/utils";
+import { cn, formatDate } from "../lib/utils";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge, Button, Card, EmptyState, Spinner } from "../components/ui";
 
@@ -33,7 +33,9 @@ export default function TasksPage() {
     <>
       <PageHeader
         title={t("Tasks")}
-        subtitle={`${tasks.filter((task) => task.status === "running").length} running`}
+        subtitle={t("@count running", {
+          count: tasks.filter((task) => task.status === "running").length,
+        })}
         actions={
           <Button size="sm" variant="ghost" onClick={() => clear.mutate()}>
             {t("Clear finished tasks")}
@@ -70,6 +72,7 @@ function TaskCard({
   task: TaskItem;
   onCancel: () => void;
 }) {
+  const t = useT();
   const tone =
     task.status === "completed"
       ? "success"
@@ -84,7 +87,7 @@ function TaskCard({
         <p className="min-w-0 flex-1 truncate text-[14px] font-medium">
           {task.title}
         </p>
-        <Badge tone={tone}>{task.status}</Badge>
+        <Badge tone={tone}>{t(task.status)}</Badge>
         {task.status === "running" ? (
           <Button size="sm" variant="ghost" onClick={onCancel}>
             <X className="h-3.5 w-3.5" />
@@ -119,7 +122,7 @@ function TaskCard({
         </pre>
       ) : null}
       <p className="mt-1 text-[10px] text-muted">
-        {new Date(task.updatedAt).toLocaleString()}
+        {formatDate(task.updatedAt)}
       </p>
     </Card>
   );

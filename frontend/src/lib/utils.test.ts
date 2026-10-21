@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   chapterGroups,
   flattenChapters,
+  formatDate,
+  friendlyError,
   parseOption,
   sortChapters,
 } from "./utils";
@@ -52,5 +54,27 @@ describe("chapter helpers", () => {
       text: "Display Text",
     });
     expect(parseOption("plain")).toEqual({ value: "plain", text: "plain" });
+  });
+});
+
+describe("display helpers", () => {
+  it("formats dates with the Chinese locale", () => {
+    const text = formatDate("2026-10-21T06:20:00Z");
+    expect(text).toContain("2026");
+    expect(text).toContain("年");
+    expect(text).not.toMatch(/AM|PM/);
+  });
+
+  it("turns source errors into short Chinese messages", () => {
+    expect(
+      friendlyError(new Error("SOURCE_ERROR(502): Invalid status code: 210")),
+    ).toContain("HTTP 210");
+    expect(friendlyError(new Error("at load (eval_script:215:30)"))).toBe(
+      "漫画源暂时不可用，请稍后重试",
+    );
+    expect(friendlyError(new Error("429 RATE_LIMITED"))).toBe(
+      "请求过于频繁，请稍后重试",
+    );
+    expect(friendlyError(new Error("章节不存在"))).toBe("章节不存在");
   });
 });

@@ -157,11 +157,13 @@ export default function ImageFavoritesPage() {
     <>
       <PageHeader
         title={t("Image Favorites")}
-        subtitle={`${query.data?.total ?? 0} comics`}
+        subtitle={t("@count comics", { count: query.data?.total ?? 0 })}
         actions={
           <>
             <IconButton
-              label={selectMode ? "Exit Multi-Select" : "Multi-Select"}
+              label={
+                selectMode ? t("Exit Multi-Select") : t("Multi-Select")
+              }
               onClick={() => {
                 setSelectMode((value) => !value);
                 setSelected(new Set());
@@ -195,7 +197,7 @@ export default function ImageFavoritesPage() {
         {selectMode && selected.size > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/30 bg-accent/5 p-2">
             <span className="px-1 text-[12px] font-medium">
-              {selected.size} selected
+              {t("@count selected", { count: selected.size })}
             </span>
             <Button
               size="sm"
@@ -279,7 +281,7 @@ export default function ImageFavoritesPage() {
                         {comic.subtitle}
                       </p>
                       <p className="mt-1 text-[11px] text-muted">
-                        {comic.count} images
+                        {t("@count images", { count: comic.count })}
                       </p>
                       <div className="-mx-1 mt-2 flex gap-1 overflow-x-auto px-1">
                         {comic.chapters.flatMap((chapter) =>
@@ -487,7 +489,9 @@ export default function ImageFavoritesPage() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title={t("Delete")}
-        message={`Delete ${selected.size} image favorites?`}
+        message={t("Delete @count image favorites?", {
+          count: selected.size,
+        })}
         confirmLabel={t("Delete")}
         danger
         onConfirm={() => batchDelete.mutate()}

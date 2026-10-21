@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { api } from "./lib/api";
+import { ApiError, api } from "./lib/api";
 import { applyTheme, useAppStore } from "./lib/store";
-import { ToastHost, Spinner } from "./components/ui";
+import { useT } from "./lib/i18n";
+import { friendlyError } from "./lib/utils";
+import { Button, EmptyState, ToastHost, Spinner } from "./components/ui";
 import { AppShell } from "./components/AppShell";
 import InitPage from "./routes/InitPage";
 import LoginPage from "./routes/LoginPage";
@@ -66,6 +68,7 @@ function InitialRoute() {
 }
 
 export default function App() {
+  const t = useT();
   const bootstrapped = useAppStore((state) => state.bootstrapped);
   const initialized = useAppStore((state) => state.initialized);
   const user = useAppStore((state) => state.user);
@@ -74,9 +77,12 @@ export default function App() {
   const setInitialized = useAppStore((state) => state.setInitialized);
   const setUser = useAppStore((state) => state.setUser);
   const setSettings = useAppStore((state) => state.setSettings);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootAttempt, setBootAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setBootError(null);
     (async () => {
       try {
         const status = await api.initStatus();
@@ -89,12 +95,16 @@ export default function App() {
             setUser(me.user);
             const loaded = await api.settings();
             if (!cancelled) setSettings(loaded);
-          } catch {
-            // Not logged in yet.
+          } catch (error) {
+            // Only a 401 means "not logged in"; rate limits and network
+            // failures must not be mistaken for an uninitialized server.
+            if (!(error instanceof ApiError && error.status === 401)) {
+              if (!cancelled) setBootError(friendlyError(error));
+            }
           }
         }
-      } catch {
-        // The server is unreachable; show the init screen with an error.
+      } catch (error) {
+        if (!cancelled) setBootError(friendlyError(error));
       } finally {
         if (!cancelled) setBootstrapped(true);
       }
@@ -102,7 +112,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [setBootstrapped, setInitialized, setSettings, setUser]);
+  }, [bootAttempt, setBootstrapped, setInitialized, setSettings, setUser]);
 
   useEffect(() => {
     applyTheme(settings);
@@ -123,6 +133,28 @@ export default function App() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-bg">
         <Spinner className="h-6 w-6" />
+      </div>
+    );
+  }
+
+  if (bootError) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-bg p-6">
+        <EmptyState
+          title={t("Unable to connect to the server")}
+          description={bootError}
+          action={
+            <Button
+              onClick={() => {
+                setBootError(null);
+                setBootstrapped(false);
+                setBootAttempt((value) => value + 1);
+              }}
+            >
+              {t("Retry")}
+            </Button>
+          }
+        />
       </div>
     );
   }

@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Github, RefreshCw, Send } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "../lib/store";
-import { useT } from "../lib/i18n";
+import { useT, formatDuration } from "../lib/i18n";
+import { formatDate, friendlyError } from "../lib/utils";
 import { PageBody, PageHeader } from "../components/PageHeader";
 import { Badge, Button, Card, Modal, Spinner } from "../components/ui";
 
@@ -40,8 +41,14 @@ export default function AboutPage() {
         "https://api.github.com/repos/ikun5200/venera-prime-server/releases/latest",
         { headers: { Accept: "application/vnd.github+json" } },
       );
+      if (response.status === 404) {
+        throw new Error(t("No published release found"));
+      }
+      if (response.status === 403) {
+        throw new Error(t("Update service is busy; try again later"));
+      }
       if (!response.ok) {
-        throw new Error(`GitHub API returned ${response.status}`);
+        throw new Error(t("Unable to check for updates"));
       }
       const data = (await response.json()) as Release;
       if (!data?.tag_name) throw new Error(t("No release found"));
@@ -51,7 +58,7 @@ export default function AboutPage() {
         setRelease(data);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      toast.error(friendlyError(error));
     } finally {
       setChecking(false);
     }
@@ -70,11 +77,17 @@ export default function AboutPage() {
               {t("Venera Prime Server")}
             </h1>
             <p className="text-[12px] text-muted">
-              Multi-user web comic reader · server {currentVersion}
+              {t("Multi-user web comic reader · server @version", {
+                version: currentVersion,
+              })}
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               <Badge tone="success">{t("Online")}</Badge>
-              <Badge>Uptime {health.data?.uptime ?? 0}s</Badge>
+              <Badge>
+                {t("Uptime @duration", {
+                  duration: formatDuration(health.data?.uptime ?? 0),
+                })}
+              </Badge>
               <Badge>
                 {health.data?.initialized
                   ? t("Initialized")
@@ -87,14 +100,14 @@ export default function AboutPage() {
         <Card className="mb-4 p-4">
           <h2 className="mb-2 text-[15px] font-semibold">{t("Features")}</h2>
           <ul className="grid grid-cols-1 gap-1 text-[13px] text-muted sm:grid-cols-2">
-            <li>• Multi-user accounts and isolation</li>
-            <li>• JavaScript comic sources (QuickJS)</li>
-            <li>• Search, explore, categories and ranking</li>
-            <li>• Favorites, history, read later, statistics</li>
-            <li>• Server-side downloads and local library</li>
-            <li>• Upload, CBZ/PDF/EPUB export</li>
-            <li>• WebDAV backup and restore</li>
-            <li>• Reader: gallery and continuous modes</li>
+            <li>• {t("Multi-user accounts and isolation")}</li>
+            <li>• {t("JavaScript comic sources (QuickJS)")}</li>
+            <li>• {t("Search, explore, categories and ranking")}</li>
+            <li>• {t("Favorites, history, read later, statistics")}</li>
+            <li>• {t("Server-side downloads and local library")}</li>
+            <li>• {t("Upload, CBZ/PDF/EPUB export")}</li>
+            <li>• {t("WebDAV backup and restore")}</li>
+            <li>• {t("Reader: gallery and continuous modes")}</li>
           </ul>
         </Card>
 
@@ -138,15 +151,18 @@ export default function AboutPage() {
         </Card>
 
         <p className="mt-6 text-center text-[11px] text-muted">
-          Original app © venera-app contributors. This server port keeps the
-          original labels and behavior; see README for deployment details.
+          {t(
+            "Original app © venera-app contributors. This server port keeps the original labels and behavior; see README for deployment details.",
+          )}
         </p>
       </PageBody>
 
       <Modal
         open={release !== null}
         onClose={() => setRelease(null)}
-        title={`New version ${release?.tag_name ?? ""} available`}
+        title={t("New version @version available", {
+          version: release?.tag_name ?? "",
+        })}
         footer={
           <>
             <Button variant="ghost" onClick={() => setRelease(null)}>
@@ -171,12 +187,13 @@ export default function AboutPage() {
         {release ? (
           <div className="flex flex-col gap-2">
             <p className="text-[12px] text-muted">
-              {t("Released")}{" "}
-              {new Date(release.published_at).toLocaleDateString("zh-CN")} ·
-              current {currentVersion}
+              {t("Released @date · current @version", {
+                date: formatDate(release.published_at),
+                version: currentVersion,
+              })}
             </p>
             <pre className="max-h-[300px] overflow-y-auto whitespace-pre-wrap rounded bg-surface2 p-3 text-[12px]">
-              {release.body || "No release notes."}
+              {release.body || t("No release notes.")}
             </pre>
           </div>
         ) : (
