@@ -623,3 +623,63 @@ Every acceptance item is backed by a reproducible command, output summary and
   [39549541934](https://github.com/ikun5200/venera-prime-server/actions/runs/39549541934)
   (post-update list refresh) succeeded.
 - Time: 2026-10-21T13:20:00Z
+
+## E-22 — Reference-style full-page slide and drag-follow reader (2026-10-21) — PASS
+
+- User report: the page-turn effect felt wrong; the original app's full-page
+  slide should be reproduced.
+- Reference behaviour: `reference/venera-prime/lib/pages/reader/images.dart`
+  uses `PhotoViewGallery.builder` (`PageView`) with every image page in one
+  scrollable track; `reverse: reader.mode == galleryRightToLeft` and
+  `Axis.vertical` for top-to-bottom. The page follows the finger, snaps with
+  PageScrollPhysics, and the comments page is the last item in the same track.
+- Implemented in `frontend/src/routes/ReaderPage.tsx`:
+  - One flex track holds all pages (`flex-row`, `flex-row-reverse` for RTL,
+    `flex-col` for TTB) and translates by `page * 100%`.
+  - Pointer drag writes the translation directly to the track (no per-move
+    React render of every page), follows the finger 1:1, applies 0.35 edge
+    resistance, and snaps with `220ms cubic-bezier(0.215,0.61,0.355,1)`;
+    `enablePageAnimation = false` snaps instantly.
+  - RTL advances on a rightward drag and TTB on an upward drag, matching
+    Flutter's `reverse` sign handling (`ScrollDragController._reversed`).
+  - The comments page is reachable by swiping and can be swiped back; taps on
+    it do not open the toolbar or select images.
+  - Interactive controls (`input/textarea/select/button/a`) never start a
+    page drag.
+  - Tap-to-turn disabled now opens the toolbar for side taps, as in the
+    reference `onTap`; the URL `page` parameter is applied on first render and
+    no longer reset by the empty-image clamp.
+- Local Playwright (1280×800, local comic, 2 pages):
+  - LTR drag left 240 px → `2 / 2`, transform `-1280 px`; drag right → `1 / 2`.
+  - 40 px short drag snaps back to `1 / 2`.
+  - RTL drag right → `2 / 2`, transform `+1280 px`; drag left → `1 / 2`.
+  - TTB drag up → `2 / 2`, transform `-800 px`; drag down → `1 / 2`.
+  - Mid-drag: LTR finger 160 px → transform `-160 px` with `transition: none`;
+    RTL finger +160 px → `+160 px`.
+  - 375×812: drag turns 1→2; side tap with tap-to-turn off keeps the page and
+    opens the bottom toolbar (`translate-y-full` → `translate-y-0`).
+  - MangaDex chapter (`Yuru Yuri`, 12 pages): opening `?page=12` shows
+    `12 / 12`; `End` opens the Chinese comments page at `-15360 px`; swiping
+    back returns to `-14080 px`; swiping forward returns to the comments page.
+- NAS (`http://192.168.31.88:8082`, image recreated, `Up (healthy)`):
+  - `copy_manga / 徹夜之歌 樂園篇 / 第01話` (22 pages), RTL (the account's
+    saved mode): drag right → `2 / 22` (`+1280 px`), drag left → `1 / 22`.
+  - `End` → comments page `22 / 22` at `+28160 px` with “章节评论” rendered;
+    drag left → last image at `+26880 px`. Settings restored afterwards.
+  - Served bundle `index-B23Bj4dD.js` contains
+    `transform 220ms cubic-bezier(0.215, 0.61, 0.355, 1)` and the track
+    `translate3d` strings.
+- Tests:
+  - `frontend/src/routes/ReaderPage.test.tsx` adds “opens at the page requested
+    in the URL” and “slides the whole page track in each reading direction”
+    (LTR `-100%`, RTL `+100%`, TTB `translate3d(0, -100%, 0)`), and cleans up
+    between tests.
+  - `cd frontend && npm run typecheck && npm test && npm run build` → clean,
+    **20/20**, production build succeeds.
+  - `cd backend && dart analyze && dart test` → 0 errors (2 pre-existing
+    info-level lints), **49/49**.
+- CI: [39555010119](https://github.com/ikun5200/venera-prime-server/actions/runs/39555010119)
+  succeeded (backend-test + frontend-test + image build/push).
+- Screenshots: `docs/screenshots/21-reader-rtl-1280.png`,
+  `docs/screenshots/21-reader-comments-1280.png`.
+- Time: 2026-10-21T14:30:00Z

@@ -110,8 +110,8 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   images were 0.5–1.4 s; prefetched images serve in 0.03–0.04 s.
 - Aligned reader interactions with the reference: toolbar starts hidden and
   closes on tap, TTB top/bottom tap zones, direction-aware keys, continuous
-  tap scrolling and mouse speed, backward preloading, slide transitions,
-  long-press panning, and panel-first Escape handling.
+  tap scrolling and mouse speed, backward preloading, long-press panning, and
+  panel-first Escape handling.
 - Tests now 45 backend / 18 frontend; Playwright verified the NAS reader flow
   at 1280×800 and the 375 px layout (zero horizontal overflow).
 - Cached source-backed favorite folders/pages for 5 minutes with mutation
@@ -120,6 +120,14 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   (migration 4). NAS: favorite list 0.043 s, prewarmed cover 1.0 s, changed
   signed URL served in 0.029 s. Chapter lists remain uncached. Tests now
   49 backend / 18 frontend.
+- Replaced the per-page fade/slide with a full-page track that follows the
+  finger and snaps like the reference `PageView`: 220 ms ease-out, RTL
+  advances on a rightward drag, TTB on an upward drag, edge resistance, and
+  the comments page participates in the same track and swipes both ways.
+  Fixed `?page=` being reset before images loaded and side taps with
+  tap-to-turn disabled not opening the toolbar. Playwright covered LTR, RTL,
+  TTB, 375 px, and a 22-page NAS chapter (RTL + comments). Tests now
+  49 backend / 20 frontend.
 
 ## Next
 

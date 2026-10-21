@@ -216,3 +216,19 @@
 - Impact: favorites render from snapshots/disk immediately; mutations
   invalidate the list cache, and `refresh=1` provides an explicit bypass.
   Covers are re-fetched after `update-info` clears the identity entry.
+
+## D-022 — Full-page sliding track instead of per-page CSS animations
+- Choice: keep every image page in one flex track and translate the track by
+  `page * 100%`; drive pointer drags directly on the track's `transform`
+  (`transition: none`) and snap with a 220 ms ease-out curve. Use
+  `flex-row-reverse` for RTL and `flex-col` for TTB, with the drag sign
+  matched to Flutter `PageView(reverse: true)`.
+- Reason: the reference reader is a `PhotoViewGallery`/`PageView`; each page
+  is a full viewport in one scrollable axis and follows the finger. The
+  previous implementation animated individual pages with a short fade/slide,
+  which produced the disjointed effect the user reported. Direct DOM writes
+  also avoid re-rendering every page item on each pointer move.
+- Impact: page turns now match the original's continuous slide, edge
+  resistance and one-page-per-fling behaviour. The comments page participates
+  in the same track and can be swiped back. `enablePageAnimation = false`
+  keeps the instant-jump path for e-ink users.
