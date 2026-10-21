@@ -930,3 +930,54 @@ Every acceptance item is backed by a reproducible command, output summary and
     `api/auth/login 429 RATE_LIMITED`, confirming both the auth bucket and
     the new rejection logging.
 - Time: 2026-10-21T16:05:00Z
+
+## E-27 — Baozi source compatibility (settings, login, chapters) (2026-10-21) — PASS
+
+- Symptom: `/sources/baozi?tab=settings` showed blank select options, login
+  did not work, and “check readability” failed.
+- Diagnosis:
+  - `baozi` defines select options as `{value}` without `text`; the UI
+    rendered `option.text` directly, so every domain option was blank.
+  - The default main domain `bzmgcn.com` (and `baozimhcn.com`) now redirects
+    to an anti-bot challenge (`403 {"error":"challenge_required"}`). Four
+    mirror domains (`webmota.com`, `kukuc.co`, `twmanga.com`,
+    `dinnerku.com`) return 200.
+  - `loadEp` hardcoded `appcn.baozimh.com`, which is behind Cloudflare
+    (“Just a moment…”); the main site serves the same chapter at
+    `/comic/chapter/<id>/0_<ep>.html`.
+  - The signin endpoint returns `200 {"result":false}` for wrong credentials;
+    the source ignored `result`, set an empty `TSID` cookie and returned
+    “ok”, so the UI showed a false successful login.
+  - “Check readability” marked `pages` as `ok` even when `loadEp` returned
+    zero images, producing a green result for an unreadable chapter.
+  - `registerWebsite` serialized as `undefined/user/signup` and was rendered
+    as a broken link.
+- Fixes:
+  - Select labels fall back to the option value (or “Default”); unknown
+    current values are preserved.
+  - New runtime `SourcePatches` layer (no stored-script rewrite):
+    - default `baozi` main domain becomes `webmota.com` when the stored
+      default is blocked;
+    - chapter URL uses `${this.baseUrl}` instead of the app host;
+    - the image selector matches both `.comic-contain__item` layouts;
+    - signin throws “用户名或密码错误” when `result` is false.
+  - Readability check fails at `pages` with “章节没有图片” when the chapter
+    has no images.
+  - Backend only exposes `http(s)` register/webview URLs; the UI also hides
+    invalid ones. Source login/check errors use `friendlyError`.
+- Verification (local server, fresh database, real site):
+  - Settings selects show `bzmgcn.com`, `baozimhcn.com`, `webmota.com`,
+    `kukuc.co`, `twmanga.com`, `dinnerku.com`; default is `webmota.com`.
+  - `GET /api/sources/baozi/check` → `readable`, stages
+    `catalog=ok, details=ok, pages=ok, image=skipped`.
+  - `GET /api/comic/baozi/<id>/chapter/0/images` → **50** image URLs;
+    `/api/image?...` → `200 image/webp` 145,592 bytes.
+  - Dummy credentials → `SOURCE_ERROR: 用户名或密码错误` (no false login).
+  - Account tab no longer renders the `undefined/user/signup` link.
+  - Browser verified the option labels and readable result.
+- Tests: backend `dart analyze` 0 issues, **57/57 passed** (new
+  `source_patches_test.dart`); frontend typecheck/build clean, **25/25**.
+- CI: run `39687930271` succeeded.
+- NAS: compose container `Up (healthy)`, `/api/health` ok, bundle
+  `index-dJWBX6_R.js`, digest `sha256:d87c5f48…ebcfff3`.
+- Time: 2026-10-21T22:45:00Z

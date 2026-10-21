@@ -407,3 +407,14 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | RATE-04 | server | Login/init limit applies | `/api/auth/login`, `/api/init` | 10/minute per user/IP (path comparison fixed) | DONE | E-26 |
 | RATE-05 | web | 4xx is not retried; bootstrap auto-recovers | client | no 429 retry storm, “请求过于频繁” title, 5 s auto-retry | DONE | E-26 |
 | RATE-06 | web | Idle polling is slow | tasks/downloads | 60 s/15 s idle, 5 s/2 s while running | DONE | E-26 |
+
+## Source compatibility follow-up (E-27)
+
+| ID | Source | Item | Route/API | Behavior | Status | Evidence |
+|---|---|---|---|---|---|---|
+| SRC-01 | server | Source select options without text | `/sources/:key?tab=settings` | show option value instead of blank | DONE | E-27 |
+| SRC-02 | server | Baozi main-domain fallback | source runtime | blocked default replaced by `webmota.com` | DONE | E-27 |
+| SRC-03 | server | Baozi chapter source | source runtime | main site URL + both image layouts | DONE | E-27 |
+| SRC-04 | server | Source login validation | source runtime | false `result` → “用户名或密码错误” | DONE | E-27 |
+| SRC-05 | server | Readability check with zero images | `/api/sources/:key/check` | fails at `pages` instead of false green | DONE | E-27 |
+| SRC-06 | server | Invalid register/webview URL | capabilities/UI | null in API, hidden in UI | DONE | E-27 |

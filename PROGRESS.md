@@ -1,8 +1,14 @@
 # Progress
 
-Updated: 2026-10-21T16:00Z
+Updated: 2026-10-21T22:45Z
 
 ## Current phase
+
+Baozi compatibility round (E-27) completed: source select options without a
+`text` field now show their value, `baozi` defaults to the reachable
+`webmota.com` mirror, chapters load from the main site instead of the
+Cloudflare-challenged app host, false signin results are rejected, readability
+checks fail on zero images, and invalid register links are hidden.
 
 Rate-limit fix (E-26) completed: chapter image bursts and idle polling no
 longer consume the general API budget, 429 responses now carry `Retry-After`
@@ -177,6 +183,15 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   to 60 s/15 s. Regression test loads 20 images and polls 20 times with a
   6/min general limit, then confirms the API 429, header and log row. Tests:
   55 backend / 25 frontend.
+
+- Baozi compatibility (E-27): fixed blank select labels (options with only
+  `value`), added a runtime `SourcePatches` layer (reachable default domain,
+  main-site chapter URLs, both image layouts, signin result validation),
+  made readability checks fail on zero images, and hid invalid
+  register/webview URLs. Verified against the live site: settings show all
+  domain values, check is `readable`, chapter 0 returns 50 images, image proxy
+  returns a WebP, and wrong credentials show “用户名或密码错误”.
+  Tests: 57 backend / 25 frontend.
 
 ## Next
 
