@@ -981,3 +981,79 @@ Every acceptance item is backed by a reproducible command, output summary and
 - NAS: compose container `Up (healthy)`, `/api/health` ok, bundle
   `index-dJWBX6_R.js`, digest `sha256:d87c5f48…ebcfff3`.
 - Time: 2026-10-21T22:45:00Z
+
+## E-28 — Suwayomi-inspired P0/P1 server features (2026-10-22) — PASS (local)
+
+- Scope: every P0 and P1 item from `docs/suwayomi-comparison.md`-style review.
+- Implementation:
+  - **P0-1 durable downloads**: migration 6 `download_jobs.queue_order`;
+    `DownloadService.restorePending()` resets interrupted jobs and pumps each
+    user's queue; one active job per user; completed chapters/pages are skipped
+    on resume; `up/down/first/last` reorder endpoints; per-chapter retry
+    (`POST /api/downloads/:id/chapters/:chapterId/retry`); append-to-queued-job
+    when auto-download finds more chapters.
+  - **P0-2 auto-download**: after a non-initial follow update, new chapter IDs
+    are downloaded subject to `autoDownloadNewChapters`,
+    `autoDownloadNewChaptersLimit` (0 = unlimited),
+    `autoDownloadIgnoreReUploads` (compares local chapter names) and
+    `excludeEntryWithUnreadChapters`.
+  - **P0-3 scheduled backups**: `backupIntervalDays`, `backupTime`,
+    `backupRetention`, include-history/statistics/settings flags;
+    `WebDavService.runScheduledBackups()` runs hourly and 20 s after boot,
+    records `webdav_config.last_auto_backup_at`, and prunes to retention.
+  - **P1-4 update policies**: `excludeUnreadChapters`, `excludeNotStarted`,
+    `excludeCompleted` (comic `status` now normalized), per-comic
+    `favorites.update_strategy` (`always|unread|never`) and
+    `maxSourcesInParallel` worker pool; task result includes skipped/downloaded.
+  - **P1-5 SSE**: `EventBusService`, `GET /api/events` (heartbeat, retry hint,
+    `access_token` query for EventSource), task/download/cache events;
+    `useServerEvents()` invalidates React Query caches. Removed 2 s/5 s/15 s
+    polling from Tasks, Downloads and AppShell.
+  - **P1-6 Rust HTTP**: per-host spacing (`HTTP_RATE_LIMIT_PER_SECOND`),
+    429 `Retry-After` retries (`HTTP_429_RETRIES`), and FlareSolverr
+    (`FLARESOLVERR_URL`) fallback on 403/429/503/Cloudflare interstitial with
+    returned cookies merged into the JS cookie jar.
+  - **P1-7 OPDS/OPDS-PSE**: root/favorites/local/history/comic feeds, PSE page
+    streaming, ZIP acquisition; Basic auth with an API token; 401 challenge.
+  - **P1-8 WebP**: `ImageService` converts on demand in an isolate, caches
+    under `<DATA_DIR>/image-conversions` (1 GiB / 20k files, hourly prune),
+    honors `imageQuality`/`imageMaxWidth`, and streams image responses with
+    `Content-Length`.
+  - **P1-9 tokens/permissions**: `api_tokens` table, SHA-256 hashes, expiry and
+    last-used tracking, Bearer/Basic auth; permissions
+    `download/manage_sources/clear_cache/nsfw` enforced on routes; NSFW-tagged
+    comics filtered from lists/details for accounts without `nsfw`; admin UI
+    for permissions and a personal token page (OPDS credentials).
+- Verification (local):
+  - `dart analyze` 0 issues; `dart test` **67/67 passed**.
+  - New `test/p0_p1_test.dart` covers Bearer/Basic token auth and revocation,
+    permission 403→200 after admin update, queue reorder/restart recovery,
+    OPDS 401 + Atom feed, SSE headers/initial retry, per-comic strategy and
+    NSFW list filtering, an end-to-end follow-up + auto-download of a chapter
+    added by a live source, scheduled WebDAV upload/retention/second-run
+    suppression, WebP payload/caching, and backup content selection.
+  - `cargo check` in `rust/js_host` passes.
+  - Frontend `npm run typecheck` and `npm run build` pass; `npm test` 26/26.
+- Container smoke (production image `venera-prime-server:p0p1`, id
+  `sha256:ebb5d1ba8211…efffe4`, healthy):
+  - `/api/tokens` Bearer auth returns the account; Basic with
+    `admin:<token>` also authenticates and is accepted by OPDS.
+  - `/opds` → 200 Atom; anonymous → 401 + Basic challenge. Favorites,
+    local, history and remote chapter feeds render.
+  - OPDS-PSE local/remote page → `200 image/webp` 4060 bytes; local ZIP
+    acquisition → 8229-byte ZIP containing `Chapter 1/0001.png`.
+  - Image proxy with `imageFormat=webp` converts an 8090-byte PNG from a live
+    source into a 4060-byte WebP (`RIFF…WEBP`), streamed with `Content-Length`.
+  - A real queued download for the probe source completed
+    (`Download completed`, local comic 1), and the local library then appears
+    in `/opds/local`.
+  - `GET /api/events` streams `retry: 3000` immediately (the shelf
+    `buffer_output` fix), and the downloads page order changed live after
+    pressing “移到最前” without a refetch interval.
+- Browser checks (375/768/1280): token creation modal, follow-up automation
+  and filter cards, WebDAV scheduled-backup card, admin permission modal, and
+  the download card with localized state, second-row action icons, chapter
+  expansion and per-chapter retry. A 375 px layout pass found and fixed the
+  title being squeezed by five action icons; the title now gets its own row.
+- Pending for this evidence: CI run and NAS deploy (will be appended after
+  commit).

@@ -4,6 +4,7 @@ export interface User {
   role: "admin" | "user";
   createdAt: number;
   disabled: boolean;
+  permissions?: string[];
 }
 
 export type ChapterMap = Record<string, string | Record<string, string>>;
@@ -53,6 +54,8 @@ export interface ComicDetails extends Omit<Comic, "tags"> {
   subId?: string | null;
   uploader?: string | null;
   updateTime?: string | null;
+  status?: string | null;
+  updateStrategy?: string;
   uploadTime?: string | null;
   url?: string | null;
   progress?: Progress | null;
@@ -221,6 +224,7 @@ export interface DownloadJob {
   progress: number;
   total: number;
   error?: string | null;
+  queueOrder?: number;
   createdAt: number;
   updatedAt: number;
   payload: Record<string, unknown>;
@@ -318,6 +322,7 @@ export interface WebDavConfig {
   autoSync: boolean;
   dataVersion: number;
   lastBackupName?: string | null;
+  lastAutoBackupAt?: number | null;
   updatedAt?: number | null;
 }
 
@@ -338,3 +343,12 @@ export interface FollowUpdateOverview {
 }
 
 export type Settings = Record<string, unknown>;
+
+export interface ApiTokenInfo {
+  id: number;
+  name: string;
+  createdAt: number;
+  lastUsedAt?: number | null;
+  expiresAt?: number | null;
+  token?: string;
+}

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -171,6 +172,29 @@ Handler buildApiRouter(AppContext ctx) {
     return _json({'user': userJson(auth.user)});
   });
 
+  router.get('/api/tokens', (Request request) {
+    final auth = requireAuth(request);
+    return _json({'items': ctx.auth.listTokens(auth.user)});
+  });
+
+  router.post('/api/tokens', (Request request) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final token = ctx.auth.createToken(
+      auth.user,
+      name: (body['name'] ?? '').toString(),
+      expiresInDays: (body['expiresInDays'] as num?)?.toInt(),
+    );
+    return _json({'token': token});
+  });
+
+  router.delete('/api/tokens/<id>', (Request request, String id) {
+    final auth = requireAuth(request);
+    final deleted = ctx.auth.deleteToken(auth.user, int.tryParse(id) ?? 0);
+    if (!deleted) throw ApiException.notFound('未找到令牌');
+    return _json({'ok': true});
+  });
+
   // ---- admin -----------------------------------------------------------
   router.get('/api/admin/users', (Request request) {
     requireAdmin(request);
@@ -185,6 +209,12 @@ Handler buildApiRouter(AppContext ctx) {
       username: (body['username'] ?? '').toString(),
       password: (body['password'] ?? '').toString(),
       role: (body['role'] ?? 'user').toString(),
+      permissions: body['permissions'] is List
+          ? (body['permissions'] as List)
+              .map((value) => value.toString())
+              .where(assignablePermissions.contains)
+              .toList()
+          : null,
       actorId: auth.user.id,
       ip: clientIp(request),
     );
@@ -200,6 +230,12 @@ Handler buildApiRouter(AppContext ctx) {
       password: body['password']?.toString(),
       role: body['role']?.toString(),
       disabled: body['disabled'] is bool ? body['disabled'] as bool : null,
+      permissions: body['permissions'] is List
+          ? (body['permissions'] as List)
+              .map((value) => value.toString())
+              .where(assignablePermissions.contains)
+              .toList()
+          : null,
       actorId: auth.user.id,
       ip: clientIp(request),
     );
@@ -285,6 +321,43 @@ Handler buildApiRouter(AppContext ctx) {
     return _json({'items': ctx.tasks.list(auth.user.id)});
   });
 
+  router.get('/api/events', (Request request) {
+    final auth = requireAuth(request);
+    final events = ctx.events.subscribe(auth.user.id);
+    late StreamController<List<int>> output;
+    StreamSubscription<Map<String, Object?>>? subscription;
+    Timer? heartbeat;
+    output = StreamController<List<int>>(
+      onListen: () {
+        output.add(utf8.encode('retry: 3000\n\n'));
+        subscription = events.stream.listen((event) {
+          if (!output.isClosed) {
+            output.add(utf8.encode('data: ${jsonEncode(event)}\n\n'));
+          }
+        });
+        heartbeat = Timer.periodic(const Duration(seconds: 20), (_) {
+          if (!output.isClosed) output.add(utf8.encode(': keepalive\n\n'));
+        });
+      },
+      onCancel: () async {
+        heartbeat?.cancel();
+        await subscription?.cancel();
+        await events.close();
+      },
+    );
+    return Response.ok(
+      output.stream,
+      context: const {'shelf.io.buffer_output': false},
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        'content-encoding': 'identity',
+        'connection': 'keep-alive',
+        'x-accel-buffering': 'no',
+      },
+    );
+  });
+
   router.get('/api/logs', (Request request) {
     requireAdmin(request);
     final rows = ctx.db.select(
@@ -333,6 +406,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/maintenance/cache/clear', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'clear_cache');
     final body = await readJsonBody(request);
     final scope = (body['scope'] ?? 'all').toString();
     final sourceKey = body['sourceKey']?.toString();
@@ -349,6 +423,7 @@ Handler buildApiRouter(AppContext ctx) {
       imagesRemoved =
           await ctx.comics.clearImageCache(auth.user.id, sourceKey: sourceKey);
     }
+    ctx.events.publish(auth.user.id, 'cache');
     return _json({
       'ok': true,
       'metadataRemoved': metadataRemoved,
@@ -364,7 +439,9 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/maintenance/clear-cache', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'clear_cache');
     await ctx.comics.clearCache(auth.user.id);
+    ctx.events.publish(auth.user.id, 'cache');
     return _json({'ok': true});
   });
 
@@ -378,6 +455,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final script = (body['script'] ?? '').toString();
     if (script.isEmpty) throw ApiException.badRequest('缺少脚本');
@@ -388,6 +466,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/import', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final contentType = request.headers['content-type'] ?? '';
     String script;
     if (contentType.contains('application/json')) {
@@ -404,6 +483,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/url', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final url = (body['url'] ?? '').toString();
     if (url.isEmpty) throw ApiException.badRequest('缺少地址');
@@ -421,6 +501,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/reorder', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final keys = body['keys'];
     if (keys is! List) throw ApiException.badRequest('keys 必须是数组');
@@ -442,6 +523,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.put('/api/sources/<key>', (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final script = (body['script'] ?? '').toString();
     if (script.isEmpty) throw ApiException.badRequest('缺少脚本');
@@ -452,6 +534,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.patch('/api/sources/<key>', (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     if (body['enabled'] is bool) {
       ctx.sourceRepository
@@ -462,6 +545,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.delete('/api/sources/<key>', (Request request, String key) {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     ctx.sourceRepository.delete(auth.user.id, key);
     ctx.contentCache.invalidate(auth.user.id, sourceKey: key);
     ctx.audit.log('source_delete', userId: auth.user.id, detail: {'key': key});
@@ -470,6 +554,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/<key>/update', (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final source = ctx.sources.require(auth.user.id, key);
     if (source.url.isEmpty) throw ApiException.badRequest('源没有更新地址');
     final updated = await ctx.sources
@@ -485,6 +570,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.put('/api/sources/<key>/settings',
       (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final values = body['values'];
     if (values is! Map) throw ApiException.badRequest('values 必须是对象');
@@ -499,6 +585,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/settings/<setting>/callback',
       (Request request, String key, String setting) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final result = await ctx.sources
         .callValue(auth.user.id, key, 'settings.$setting.callback', const []);
     return _json({'result': result});
@@ -506,6 +593,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/<key>/login', (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     await ctx.sources.loginPassword(
       auth.user.id,
@@ -519,6 +607,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/login-cookies',
       (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final values = body['values'];
     if (values is! Map) throw ApiException.badRequest('values 必须是对象');
@@ -533,6 +622,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.post('/api/sources/<key>/cookies',
       (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     final body = await readJsonBody(request);
     final cookies = body['cookies'];
     if (cookies is! List) throw ApiException.badRequest('cookies 必须是数组');
@@ -549,6 +639,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/sources/<key>/logout', (Request request, String key) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'manage_sources');
     await ctx.sources.logout(auth.user.id, key);
     return _json({'source': ctx.sources.require(auth.user.id, key).toJson()});
   });
@@ -680,9 +771,11 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.search(
-        auth.user.id, source, keyword, _options(request), _page(request),
-        refresh: _refresh(request)));
+    return _json(_contentFor(
+        auth,
+        await ctx.comics.search(
+            auth.user.id, source, keyword, _options(request), _page(request),
+            refresh: _refresh(request))));
   });
 
   router.get('/api/search/aggregated', (Request request) async {
@@ -691,7 +784,8 @@ Handler buildApiRouter(AppContext ctx) {
     if (keyword.trim().isEmpty) {
       throw ApiException.badRequest('缺少搜索关键词');
     }
-    return _json(await ctx.comics.aggregatedSearch(auth.user.id, keyword));
+    return _json(_contentFor(
+        auth, await ctx.comics.aggregatedSearch(auth.user.id, keyword)));
   });
 
   router.get('/api/search/suggestions', (Request request) {
@@ -721,8 +815,10 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.explore(auth.user.id, source, _page(request),
-        refresh: _refresh(request)));
+    return _json(_contentFor(
+        auth,
+        await ctx.comics.explore(auth.user.id, source, _page(request),
+            refresh: _refresh(request))));
   });
 
   router.get('/api/explore/next', (Request request) async {
@@ -731,9 +827,10 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.explore(
-        auth.user.id, source, _qi(request, 'next', 1),
-        refresh: _refresh(request)));
+    return _json(_contentFor(
+        auth,
+        await ctx.comics.explore(auth.user.id, source, _qi(request, 'next', 1),
+            refresh: _refresh(request))));
   });
 
   router.get('/api/categories', (Request request) async {
@@ -752,15 +849,17 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.categoryComics(
-      auth.user.id,
-      source,
-      _q(request, 'category') ?? '',
-      _decodeParam(_q(request, 'param')),
-      _options(request),
-      _page(request),
-      refresh: _refresh(request),
-    ));
+    return _json(_contentFor(
+        auth,
+        await ctx.comics.categoryComics(
+          auth.user.id,
+          source,
+          _q(request, 'category') ?? '',
+          _decodeParam(_q(request, 'param')),
+          _options(request),
+          _page(request),
+          refresh: _refresh(request),
+        )));
   });
 
   router.get('/api/ranking', (Request request) async {
@@ -769,26 +868,36 @@ Handler buildApiRouter(AppContext ctx) {
     if (source == null || source.isEmpty) {
       throw ApiException.badRequest('缺少源');
     }
-    return _json(await ctx.comics.ranking(
-      auth.user.id,
-      source,
-      _q(request, 'option') ?? '',
-      _page(request),
-      refresh: _refresh(request),
-    ));
+    return _json(_contentFor(
+        auth,
+        await ctx.comics.ranking(
+          auth.user.id,
+          source,
+          _q(request, 'option') ?? '',
+          _page(request),
+          refresh: _refresh(request),
+        )));
   });
 
   // ---- comic -----------------------------------------------------------
   router.get('/api/comic/<source>/<id>',
       (Request request, String source, String id) async {
     final auth = requireAuth(request);
-    return _json(await ctx.comics
-        .comicInfo(auth.user.id, source, id, refresh: _refresh(request)));
+    final info = await ctx.comics
+        .comicInfo(auth.user.id, source, id, refresh: _refresh(request));
+    if (!auth.user.hasPermission('nsfw') && _isNsfwTags(info['tags'])) {
+      throw ApiException.forbidden('没有权限查看此内容');
+    }
+    return _json(info);
   });
 
   router.get('/api/comic/<source>/<id>/chapter/<ep>/images',
       (Request request, String source, String id, String ep) async {
     final auth = requireAuth(request);
+    final info = await ctx.comics.comicInfo(auth.user.id, source, id);
+    if (!auth.user.hasPermission('nsfw') && _isNsfwTags(info['tags'])) {
+      throw ApiException.forbidden('没有权限查看此内容');
+    }
     return _json(await ctx.comics.chapterImages(auth.user.id, source, id, ep,
         refresh: _refresh(request)));
   });
@@ -971,41 +1080,57 @@ Handler buildApiRouter(AppContext ctx) {
     if (source.isEmpty) {
       if (key.isEmpty) throw ApiException.badRequest('缺少 key');
       final result = await ctx.comics.cover(auth.user.id, key);
-      return Response.ok(result.bytes, headers: {
-        'content-type': result.mime,
-        'cache-control': 'private, max-age=86400',
-      });
+      return _imageResponse(
+        ctx,
+        auth.user.id,
+        cacheKey: 'cover|${auth.user.id}|$key',
+        bytes: result.bytes,
+        mime: result.mime,
+      );
     }
+    final thumbnail = _q(request, 'thumb') == 'true';
+    final comicId = _q(request, 'comic') ?? '';
+    final ep = _q(request, 'ep') ?? '';
     final result = await ctx.comics.image(
       auth.user.id,
       source,
-      _q(request, 'comic') ?? '',
-      _q(request, 'ep') ?? '',
+      comicId,
+      ep,
       key,
-      thumbnail: _q(request, 'thumb') == 'true',
+      thumbnail: thumbnail,
     );
-    return Response.ok(result.bytes, headers: {
-      'content-type': result.mime,
-      'cache-control': 'private, max-age=86400',
-    });
+    return _imageResponse(
+      ctx,
+      auth.user.id,
+      cacheKey: 'image|${auth.user.id}|$source|$comicId|$ep|$key|$thumbnail',
+      bytes: result.bytes,
+      mime: result.mime,
+      thumbnail: thumbnail,
+    );
   });
 
   router.get('/api/image/thumb', (Request request) async {
     final auth = requireAuth(request);
     final source = _q(request, 'source') ?? '';
     final key = _q(request, 'key') ?? '';
+    final comicId = _q(request, 'comic') ?? '';
+    final ep = _q(request, 'ep') ?? '';
     final result = await ctx.comics.image(
       auth.user.id,
       source,
-      _q(request, 'comic') ?? '',
-      _q(request, 'ep') ?? '',
+      comicId,
+      ep,
       key,
       thumbnail: true,
     );
-    return Response.ok(result.bytes, headers: {
-      'content-type': result.mime,
-      'cache-control': 'private, max-age=86400',
-    });
+    return _imageResponse(
+      ctx,
+      auth.user.id,
+      cacheKey: 'image|${auth.user.id}|$source|$comicId|$ep|$key|true',
+      bytes: result.bytes,
+      mime: result.mime,
+      thumbnail: true,
+    );
   });
 
   router.get('/api/image/cover', (Request request) async {
@@ -1018,10 +1143,14 @@ Handler buildApiRouter(AppContext ctx) {
       sourceKey: _q(request, 'source'),
       comicId: _q(request, 'comic'),
     );
-    return Response.ok(result.bytes, headers: {
-      'content-type': result.mime,
-      'cache-control': 'private, max-age=86400',
-    });
+    return _imageResponse(
+      ctx,
+      auth.user.id,
+      cacheKey:
+          'cover|${auth.user.id}|${_q(request, 'source')}|${_q(request, 'comic')}|$url',
+      bytes: result.bytes,
+      mime: result.mime,
+    );
   });
 
   // ---- favorites -------------------------------------------------------
@@ -1103,14 +1232,16 @@ Handler buildApiRouter(AppContext ctx) {
   router.get('/api/favorites', (Request request) {
     final auth = requireAuth(request);
     final folderId = int.tryParse(_q(request, 'folderId') ?? '');
-    return _json(ctx.favorites.list(
-      auth.user.id,
-      folderId: folderId,
-      query: _q(request, 'q'),
-      status: _q(request, 'status'),
-      page: _page(request),
-      pageSize: _pageSize(request),
-    ));
+    return _json(_contentFor(
+        auth,
+        ctx.favorites.list(
+          auth.user.id,
+          folderId: folderId,
+          query: _q(request, 'q'),
+          status: _q(request, 'status'),
+          page: _page(request),
+          pageSize: _pageSize(request),
+        )));
   });
 
   router.post('/api/favorites', (Request request) async {
@@ -1135,6 +1266,20 @@ Handler buildApiRouter(AppContext ctx) {
       int.tryParse(folderId) ?? 0,
       comicId,
       int.tryParse(comicType) ?? 0,
+    );
+    return _json({'ok': true});
+  });
+
+  router.post('/api/favorites/update-strategy', (Request request) async {
+    final auth = requireAuth(request);
+    final body = await readJsonBody(request);
+    final comicId = (body['comicId'] ?? body['id'] ?? '').toString();
+    if (comicId.isEmpty) throw ApiException.badRequest('缺少漫画 ID');
+    ctx.favorites.setUpdateStrategy(
+      auth.user.id,
+      comicId,
+      (body['comicType'] as num?)?.toInt() ?? 0,
+      (body['strategy'] ?? 'always').toString(),
     );
     return _json({'ok': true});
   });
@@ -1401,6 +1546,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.post('/api/downloads', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'download');
     final body = await readJsonBody(request);
     final source = (body['source'] ?? '').toString();
     final comicId = (body['comicId'] ?? '').toString();
@@ -1410,6 +1556,10 @@ Handler buildApiRouter(AppContext ctx) {
     final chapters = body['chapters'] is List
         ? (body['chapters'] as List).map((e) => e.toString()).toList()
         : null;
+    final info = await ctx.comics.comicInfo(auth.user.id, source, comicId);
+    if (!auth.user.hasPermission('nsfw') && _isNsfwTags(info['tags'])) {
+      throw ApiException.forbidden('没有权限查看此内容');
+    }
     final job = await ctx.downloads.create(
       auth.user.id,
       source,
@@ -1422,6 +1572,7 @@ Handler buildApiRouter(AppContext ctx) {
 
   router.get('/api/downloads/browser', (Request request) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'download');
     final source = _q(request, 'source') ?? '';
     final comicId = _q(request, 'comicId') ?? '';
     if (source.isEmpty || comicId.isEmpty) {
@@ -1431,6 +1582,10 @@ Handler buildApiRouter(AppContext ctx) {
         .split(',')
         .where((e) => e.isNotEmpty)
         .toList();
+    final info = await ctx.comics.comicInfo(auth.user.id, source, comicId);
+    if (!auth.user.hasPermission('nsfw') && _isNsfwTags(info['tags'])) {
+      throw ApiException.forbidden('没有权限查看此内容');
+    }
     final result = await ctx.downloads.browserArchive(
       auth.user.id,
       source,
@@ -1448,6 +1603,7 @@ Handler buildApiRouter(AppContext ctx) {
   router.post('/api/downloads/<id>/<action>',
       (Request request, String id, String action) {
     final auth = requireAuth(request);
+    requirePermission(request, 'download');
     switch (action) {
       case 'pause':
         ctx.downloads.pause(auth.user.id, id);
@@ -1459,14 +1615,29 @@ Handler buildApiRouter(AppContext ctx) {
         ctx.downloads.cancel(auth.user.id, id);
       case 'first':
         ctx.downloads.moveToFirst(auth.user.id, id);
+      case 'up':
+        ctx.downloads.moveInQueue(auth.user.id, id, 'up');
+      case 'down':
+        ctx.downloads.moveInQueue(auth.user.id, id, 'down');
+      case 'last':
+        ctx.downloads.moveInQueue(auth.user.id, id, 'last');
       default:
         throw ApiException.badRequest('未知操作');
     }
     return _json({'job': ctx.downloads.get(auth.user.id, id)});
   });
 
+  router.post('/api/downloads/<id>/chapters/<chapterId>/retry',
+      (Request request, String id, String chapterId) {
+    final auth = requireAuth(request);
+    requirePermission(request, 'download');
+    ctx.downloads.retryChapter(auth.user.id, id, chapterId);
+    return _json({'job': ctx.downloads.get(auth.user.id, id)});
+  });
+
   router.get('/api/downloads/<id>/archive', (Request request, String id) async {
     final auth = requireAuth(request);
+    requirePermission(request, 'download');
     final job = ctx.downloads.get(auth.user.id, id);
     final localComic = ctx.localRepository.findByExt(
       auth.user.id,
@@ -1772,6 +1943,85 @@ Handler buildApiRouter(AppContext ctx) {
   });
 
   return router.call;
+}
+
+const Object _nsfwDrop = Object();
+
+bool _isNsfwTags(Object? tags) {
+  final values = <String>[];
+  void collect(Object? value) {
+    if (value is String) {
+      values.add(value);
+    } else if (value is Iterable) {
+      for (final item in value) {
+        collect(item);
+      }
+    } else if (value is Map) {
+      for (final item in value.values) {
+        collect(item);
+      }
+    }
+  }
+
+  collect(tags);
+  final text = values.join(' ').toLowerCase();
+  return const ['nsfw', 'r-18', 'r18', '18+', 'adult', '成人', '里番', 'エロ', '18禁']
+      .any(text.contains);
+}
+
+Object? _withoutNsfw(Object? value) {
+  if (value is Map) {
+    if (value.containsKey('id') &&
+        value.containsKey('title') &&
+        _isNsfwTags(value['tags'])) {
+      return _nsfwDrop;
+    }
+    final result = <String, Object?>{};
+    for (final entry in value.entries) {
+      final filtered = _withoutNsfw(entry.value);
+      if (!identical(filtered, _nsfwDrop)) {
+        result[entry.key.toString()] = filtered;
+      }
+    }
+    return result;
+  }
+  if (value is List) {
+    final result = <Object?>[];
+    for (final item in value) {
+      final filtered = _withoutNsfw(item);
+      if (!identical(filtered, _nsfwDrop)) result.add(filtered);
+    }
+    return result;
+  }
+  return value;
+}
+
+Object? _contentFor(AuthContext auth, Object? value) =>
+    auth.user.hasPermission('nsfw') ? value : _withoutNsfw(value);
+
+Future<Response> _imageResponse(
+  AppContext ctx,
+  int userId, {
+  required String cacheKey,
+  required Uint8List bytes,
+  required String mime,
+  bool thumbnail = false,
+}) async {
+  final result = await ctx.images.convert(
+    userId: userId,
+    cacheKey: cacheKey,
+    bytes: bytes,
+    mime: mime,
+    thumbnail: thumbnail,
+  );
+  return Response.ok(
+    Stream<List<int>>.value(result.bytes),
+    headers: {
+      'content-type': result.mime,
+      'content-length': '${result.bytes.length}',
+      'cache-control': 'private, max-age=86400',
+    },
+  );
 }
 
 List<Map<String, Object?>> _mapList(Object? value) {

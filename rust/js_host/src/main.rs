@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
@@ -918,6 +918,141 @@ fn host_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
 // HTTP + cookies
 // ---------------------------------------------------------------------------
 
+fn env_usize(key: &str, fallback: usize) -> usize {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .unwrap_or(fallback)
+}
+
+static HOST_LAST_REQUEST: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+
+fn host_of(url: &str) -> String {
+    UrlParts::parse(url)
+        .map(|parts| parts.host.to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+/// Spaces requests to the same host. Comic sources often fan out to a handful
+/// of image hosts and would otherwise trigger their rate limits.
+fn throttle_host(url: &str) {
+    let per_second = env_usize("VENERA_HTTP_RATE_LIMIT", 10);
+    if per_second == 0 {
+        return;
+    }
+    let host = host_of(url);
+    if host.is_empty() {
+        return;
+    }
+    let interval = Duration::from_millis((1000 / per_second.max(1)) as u64);
+    let registry = HOST_LAST_REQUEST.get_or_init(|| Mutex::new(HashMap::new()));
+    let now = Instant::now();
+    let scheduled = {
+        let mut guard = registry.lock().unwrap();
+        let last = guard.get(&host).copied().unwrap_or(now);
+        let start = if last > now { last + interval } else { now };
+        guard.insert(host, start);
+        start
+    };
+    if scheduled > now {
+        std::thread::sleep(scheduled.duration_since(now));
+    }
+}
+
+fn flare_solverr(
+    url: &str,
+    method: &str,
+    body: Option<&[u8]>,
+) -> Option<(Vec<u8>, Vec<CookieRec>)> {
+    let base = std::env::var("VENERA_FLARESOLVERR_URL").ok()?;
+    if base.trim().is_empty() {
+        return None;
+    }
+    let endpoint = format!("{}/v1", base.trim_end_matches('/'));
+    let payload = if method.eq_ignore_ascii_case("GET") {
+        json!({"cmd": "request.get", "url": url, "maxTimeout": 60_000})
+    } else {
+        let data = body
+            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
+            .unwrap_or_default();
+        json!({
+            "cmd": "request.post",
+            "url": url,
+            "postData": data,
+            "maxTimeout": 60_000,
+        })
+    };
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(10))
+        .timeout_read(Duration::from_secs(90))
+        .build();
+    let response = agent
+        .post(&endpoint)
+        .set("Content-Type", "application/json")
+        .send_string(&payload.to_string())
+        .ok()?;
+    let value: Value = serde_json::from_str(&response.into_string().ok()?).ok()?;
+    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        return None;
+    }
+    let solution = value.get("solution")?;
+    let content = solution.get("response")?.as_str()?.to_string();
+    let mut cookies = Vec::new();
+    if let Some(list) = solution.get("cookies").and_then(|v| v.as_array()) {
+        for item in list {
+            let name = item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let domain = item
+                .get("domain")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let host_only = domain.is_empty();
+            let domain = if host_only { host_of(url) } else { domain };
+            let path = item
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("/")
+                .to_string();
+            let expires = item
+                .get("expiry")
+                .and_then(|v| v.as_i64())
+                .map(|seconds| seconds * 1000);
+            cookies.push(CookieRec {
+                name,
+                value: item
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                domain,
+                path,
+                expires,
+                secure: item.get("secure").and_then(|v| v.as_bool()).unwrap_or(false),
+                http_only: item
+                    .get("httpOnly")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                host_only,
+            });
+        }
+    }
+    Some((content.into_bytes(), cookies))
+}
+
+fn retry_after_secs(response: &ureq::Response) -> u64 {
+    response
+        .header("retry-after")
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(0)
+}
+
 fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, String> {
     let url = msg
         .get("url")
@@ -964,29 +1099,55 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
         .timeout_write(Duration::from_millis(25_000))
         .redirects(10)
         .build();
+    let retries = env_usize("VENERA_HTTP_RETRIES", 2).min(5);
 
-    let mut request = agent.request(&method, url);
-    for (k, v) in &headers {
-        request = request.set(k, v);
+    let mut status = 0i64;
+    let mut response: Option<ureq::Response> = None;
+    let mut transport_error: Option<String> = None;
+    for attempt in 0..=retries {
+        throttle_host(url);
+        let mut request = agent.request(&method, url);
+        for (k, v) in &headers {
+            request = request.set(k, v);
+        }
+        let outcome = if let Some(bytes) = body.as_ref() {
+            request.send_bytes(bytes)
+        } else {
+            request.call()
+        };
+        match outcome {
+            Ok(resp) => {
+                status = resp.status() as i64;
+                response = Some(resp);
+            }
+            Err(ureq::Error::Status(code, resp)) => {
+                status = code as i64;
+                response = Some(resp);
+            }
+            Err(ureq::Error::Transport(error)) => {
+                transport_error = Some(error.to_string());
+                break;
+            }
+        }
+        if status == 429 && attempt < retries {
+            let wait = response
+                .as_ref()
+                .map(retry_after_secs)
+                .unwrap_or(0)
+                .clamp(1, 10);
+            std::thread::sleep(Duration::from_secs(wait));
+            continue;
+        }
+        break;
     }
 
-    let response = if let Some(bytes) = body {
-        request.send_bytes(&bytes)
-    } else {
-        request.call()
-    };
-
-    let (status, resp) = match response {
-        Ok(resp) => (resp.status() as i64, resp),
-        Err(ureq::Error::Status(code, resp)) => (code as i64, resp),
-        Err(ureq::Error::Transport(error)) => {
-            return Ok(json!({
-                "status": Value::Null,
-                "headers": {},
-                "body": Value::Null,
-                "error": error.to_string(),
-            }));
-        }
+    let Some(resp) = response else {
+        return Ok(json!({
+            "status": Value::Null,
+            "headers": {},
+            "body": Value::Null,
+            "error": transport_error.unwrap_or_else(|| "request failed".to_string()),
+        }));
     };
 
     let mut response_headers = serde_json::Map::new();
@@ -1003,6 +1164,55 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
     let mut reader = resp.into_reader();
     use std::io::Read;
     let _ = reader.read_to_end(&mut buffer);
+
+    // A Cloudflare challenge often answers with 200 and an interstitial page.
+    let content_type = response_headers
+        .get("content-type")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let text_body = if content_type.contains("text") || content_type.contains("json") {
+        Some(String::from_utf8_lossy(&buffer).to_ascii_lowercase())
+    } else {
+        None
+    };
+    let challenge = status == 403
+        || status == 503
+        || status == 429
+        || text_body
+            .as_deref()
+            .map(|text| {
+                text.contains("just a moment")
+                    || text.contains("cf-challenge")
+                    || text.contains("attention required")
+                    || text.contains("checking your browser")
+            })
+            .unwrap_or(false);
+    let mut solved = false;
+    if challenge {
+        if let Some((content, cookies)) = flare_solverr(url, &method, body.as_deref()) {
+            buffer = content;
+            status = 200;
+            response_headers.clear();
+            response_headers.insert(
+                "content-type".to_string(),
+                json!("text/html; charset=utf-8"),
+            );
+            set_cookies.clear();
+            let mut st = state.borrow_mut();
+            for cookie in cookies {
+                if let Some(existing) = st.cookies.iter_mut().find(|current| {
+                    current.name == cookie.name
+                        && current.domain.eq_ignore_ascii_case(&cookie.domain)
+                        && current.path == cookie.path
+                }) {
+                    *existing = cookie;
+                } else {
+                    st.cookies.push(cookie);
+                }
+            }
+            solved = true;
+        }
+    }
 
     {
         let mut st = state.borrow_mut();
@@ -1022,6 +1232,7 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
         "headers": response_headers,
         "body": body_value,
         "error": Value::Null,
+        "flaresolverr": solved,
     }))
 }
 

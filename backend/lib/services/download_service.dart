@@ -14,6 +14,7 @@ import '../util/errors.dart';
 import '../util/log.dart';
 import '../util/path_guard.dart';
 import 'comic_service.dart';
+import 'event_bus.dart';
 import 'local_service.dart';
 import 'source_service.dart';
 
@@ -31,8 +32,12 @@ class DownloadService {
   final ComicService comics;
   final LocalService local;
   final PathGuard paths;
+  final EventBusService? events;
   final Map<String, _Control> _controls = {};
   final Set<String> _running = {};
+  final Map<int, String> _activeByUser = {};
+  final Set<int> _pumping = {};
+  final Map<String, int> _lastEmit = {};
 
   DownloadService({
     required this.config,
@@ -43,7 +48,56 @@ class DownloadService {
     required this.comics,
     required this.local,
     required this.paths,
+    this.events,
   });
+
+  void _emit(int userId, String jobId, {bool force = false}) {
+    final bus = events;
+    if (bus == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && now - (_lastEmit[jobId] ?? 0) < 600) return;
+    _lastEmit[jobId] = now;
+    final job = repository.jobSummary(userId, jobId);
+    if (job != null) {
+      bus.publish(userId, 'download', data: {
+        'job': job,
+        'refresh': force,
+      });
+    }
+  }
+
+  /// Restores the durable queue after a restart and starts the next job of
+  /// every user that still has pending work.
+  void restorePending() {
+    repository.resetInterruptedJobs();
+    for (final userId in repository.usersWithQueuedJobs()) {
+      _pump(userId);
+    }
+  }
+
+  /// Starts the next queued job for a user when no job is active. Only one
+  /// download runs per user so chapter/image requests cannot starve each
+  /// other.
+  void _pump(int userId) {
+    if (_pumping.contains(userId) || _activeByUser.containsKey(userId)) return;
+    _pumping.add(userId);
+    try {
+      final next = repository.nextQueuedJob(userId);
+      if (next == null) return;
+      _activeByUser[userId] = next;
+      unawaited(
+        _run(userId, next).whenComplete(() {
+          _activeByUser.remove(userId);
+          _running.remove(next);
+          _controls.remove(next);
+          _lastEmit.remove(next);
+          _pump(userId);
+        }),
+      );
+    } finally {
+      _pumping.remove(userId);
+    }
+  }
 
   List<Map<String, Object?>> list(int userId) => repository.jobs(userId);
 
@@ -74,12 +128,13 @@ class DownloadService {
         .where((j) =>
             j['comicId'] == comicId &&
             j['sourceKey'] == sourceKey &&
-            (j['state'] == 'queued' ||
-                j['state'] == 'running' ||
-                j['state'] == 'paused'))
+            (j['state'] == 'queued' || j['state'] == 'paused'))
         .toList();
     if (existing.isNotEmpty) {
-      return existing.first;
+      final jobId = existing.first['id'] as String;
+      repository.appendJobChapters(userId, jobId, selected);
+      _pump(userId);
+      return repository.job(userId, jobId)!;
     }
     final jobId = repository.createJob(
       userId: userId,
@@ -103,8 +158,8 @@ class DownloadService {
       chapters: selected,
       total: selected.length,
     );
-    _controls[jobId] = _Control();
-    unawaited(_run(userId, jobId));
+    _controls.putIfAbsent(jobId, () => _Control());
+    _pump(userId);
     return repository.job(userId, jobId)!;
   }
 
@@ -137,8 +192,21 @@ class DownloadService {
       _running.remove(jobId);
       return;
     }
+    if (control.cancelled) {
+      repository.updateJob(jobId, state: 'cancelled');
+      _emit(userId, jobId, force: true);
+      _running.remove(jobId);
+      _controls.remove(jobId);
+      return;
+    }
+    if (control.paused) {
+      _running.remove(jobId);
+      _controls.remove(jobId);
+      return;
+    }
     try {
       repository.updateJob(jobId, state: 'running', error: '');
+      _emit(userId, jobId, force: true);
       final payload = job['payload'] as Map<String, Object?>;
       final sourceKey = job['sourceKey'] as String;
       final comicId = job['comicId'] as String;
@@ -154,23 +222,38 @@ class DownloadService {
           .whereType<Map>()
           .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
           .toList();
+      final storedStatus = <String, Map<String, Object?>>{};
+      for (final raw in (job['chapters'] as List?) ?? const []) {
+        if (raw is Map) {
+          final map = raw.map((k, v) => MapEntry(k.toString(), v));
+          storedStatus[map['id'].toString()] = map;
+        }
+      }
       final chapterMap = <String, Object?>{};
       final downloaded = <String>[];
       final threads =
           ((settings.get(userId, 'downloadThreads') as int?) ?? 5).clamp(1, 16);
       var totalPages = 0;
       var donePages = 0;
+      for (final chapter in chapters) {
+        final status = storedStatus[chapter['id'].toString()];
+        if (status?['status'] == 'completed') {
+          final pages = (status?['totalPages'] as int?) ?? 0;
+          totalPages += pages;
+          donePages += pages;
+          chapterMap[chapter['id'].toString()] =
+              chapter['name'] ?? chapter['id'].toString();
+          downloaded.add(chapter['id'].toString());
+        }
+      }
 
       for (var chapterIndex = 0;
           chapterIndex < chapters.length;
           chapterIndex++) {
-        if (control.cancelled) break;
-        while (control.paused && !control.cancelled) {
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
-        if (control.cancelled) break;
+        if (control.cancelled || control.paused) break;
         final chapter = chapters[chapterIndex];
         final chapterId = chapter['id'].toString();
+        if (storedStatus[chapterId]?['status'] == 'completed') continue;
         final chapterName =
             PathGuard.sanitizeName(chapter['name']?.toString() ?? chapterId);
         final chapterDir = Directory(p.join(comicDir.path, chapterName));
@@ -181,20 +264,18 @@ class DownloadService {
           final images = (imagesResult['images'] as List)
               .map((e) => e.toString())
               .toList();
+          if (control.cancelled || control.paused) break;
           repository.updateChapter(jobId, chapterId,
               status: 'running', totalPages: images.length);
           totalPages += images.length;
           repository.updateJob(jobId, total: totalPages);
+          _emit(userId, jobId);
           var chapterDone = 0;
           final failed = <int>[];
           final queue = List<int>.generate(images.length, (i) => i);
           Future<void> worker() async {
             while (queue.isNotEmpty) {
-              if (control.cancelled) return;
-              while (control.paused && !control.cancelled) {
-                await Future.delayed(const Duration(milliseconds: 300));
-              }
-              if (control.cancelled) return;
+              if (control.cancelled || control.paused) return;
               final index = queue.removeAt(0);
               final target = File(p.join(chapterDir.path,
                   '${(index + 1).toString().padLeft(4, '0')}.jpg'));
@@ -224,6 +305,7 @@ class DownloadService {
                   await Future.delayed(Duration(seconds: attempt + 1));
                 }
               }
+              if (control.cancelled || control.paused) return;
               if (lastError != null) {
                 failed.add(index);
               }
@@ -231,35 +313,58 @@ class DownloadService {
                   downloadedPages: chapterDone);
               repository.updateJob(jobId,
                   progress: totalPages == 0 ? 0 : donePages / totalPages);
+              _emit(userId, jobId);
             }
           }
 
           await Future.wait(
               List.generate(threads.clamp(1, 8), (_) => worker()));
           if (control.cancelled) break;
+          if (control.paused) {
+            repository.updateChapter(jobId, chapterId,
+                status: 'pending', downloadedPages: chapterDone);
+            _emit(userId, jobId, force: true);
+            break;
+          }
           if (failed.isEmpty) {
             chapterMap[chapterId] = chapter['name'] ?? chapterId;
             downloaded.add(chapterId);
             repository.updateChapter(jobId, chapterId,
                 status: 'completed', downloadedPages: chapterDone);
+            _emit(userId, jobId);
           } else {
             repository.updateChapter(jobId, chapterId,
                 status: 'error', downloadedPages: chapterDone);
+            _emit(userId, jobId, force: true);
             throw ApiException.sourceError(
                 '$chapterName 有 ${failed.length} 页下载失败');
           }
         } catch (error) {
+          if (control.cancelled || control.paused) break;
           repository.updateChapter(jobId, chapterId, status: 'error');
           repository.updateJob(jobId, state: 'error', error: error.toString());
+          _emit(userId, jobId, force: true);
           return;
         }
       }
 
       if (control.cancelled) {
         repository.updateJob(jobId, state: 'cancelled');
+        _emit(userId, jobId, force: true);
         try {
           await PathGuard.deleteInside(root, comicDir.path);
         } catch (_) {}
+        return;
+      }
+      if (control.paused) {
+        repository.updateJob(
+          jobId,
+          state: 'paused',
+          progress: totalPages == 0 ? 0 : donePages / totalPages,
+          error: '',
+        );
+        _emit(userId, jobId, force: true);
+        Log.info('Download paused', userId: userId, extra: {'job': jobId});
         return;
       }
 
@@ -288,10 +393,12 @@ class DownloadService {
         downloadedChapters: downloaded,
       );
       repository.updateJob(jobId, state: 'completed', progress: 1, error: '');
+      _emit(userId, jobId, force: true);
       Log.info('Download completed',
           userId: userId, extra: {'job': jobId, 'localComic': localId});
     } catch (error, stack) {
       repository.updateJob(jobId, state: 'error', error: error.toString());
+      _emit(userId, jobId, force: true);
       Log.error('Download failed',
           userId: userId, error: error, stack: stack, extra: {'job': jobId});
     } finally {
@@ -310,42 +417,90 @@ class DownloadService {
   }
 
   void pause(int userId, String id) {
-    get(userId, id);
+    final job = get(userId, id);
+    if (job['state'] == 'completed' || job['state'] == 'cancelled') {
+      throw ApiException.badRequest('任务已结束，无法暂停');
+    }
     final control = _controls.putIfAbsent(id, () => _Control());
     control.paused = true;
     repository.updateJob(id, state: 'paused');
+    _emit(userId, id, force: true);
   }
 
   void resume(int userId, String id) {
-    get(userId, id);
-    final control = _controls.putIfAbsent(id, () => _Control());
-    control.paused = false;
-    repository.updateJob(id, state: 'queued');
-    unawaited(_run(userId, id));
-  }
-
-  void retry(int userId, String id) {
-    get(userId, id);
+    final job = get(userId, id);
+    if (job['state'] == 'completed') {
+      throw ApiException.badRequest('任务已完成');
+    }
     final control = _controls.putIfAbsent(id, () => _Control());
     control.paused = false;
     control.cancelled = false;
     repository.updateJob(id, state: 'queued', error: '');
-    unawaited(_run(userId, id));
+    _emit(userId, id, force: true);
+    _pump(userId);
+  }
+
+  void retry(int userId, String id) {
+    final job = get(userId, id);
+    if (job['state'] == 'running') {
+      throw ApiException.badRequest('任务正在运行');
+    }
+    repository.resetFailedChapters(id);
+    final control = _controls.putIfAbsent(id, () => _Control());
+    control.paused = false;
+    control.cancelled = false;
+    repository.updateJob(id, state: 'queued', error: '');
+    _emit(userId, id, force: true);
+    _pump(userId);
   }
 
   void cancel(int userId, String id) {
-    get(userId, id);
+    final job = get(userId, id);
+    if (job['state'] == 'completed') {
+      throw ApiException.badRequest('任务已完成');
+    }
     final control = _controls.putIfAbsent(id, () => _Control());
     control.cancelled = true;
     repository.updateJob(id, state: 'cancelled');
+    _emit(userId, id, force: true);
+    if (!_activeByUser.containsValue(id)) {
+      _controls.remove(id);
+      _lastEmit.remove(id);
+      _pump(userId);
+    }
   }
 
   void moveToFirst(int userId, String id) {
     get(userId, id);
-    repository.db.execute(
-      'UPDATE download_jobs SET created_at = ? WHERE user_id=? AND id=?',
-      [0, userId, id],
-    );
+    repository.moveInQueue(userId, id, 'first');
+    _emit(userId, id, force: true);
+  }
+
+  void moveInQueue(int userId, String id, String direction) {
+    get(userId, id);
+    repository.moveInQueue(userId, id, direction);
+    _emit(userId, id, force: true);
+  }
+
+  /// Re-queues a single failed chapter without touching finished chapters.
+  void retryChapter(int userId, String jobId, String chapterId) {
+    final job = get(userId, jobId);
+    final chapters = (job['chapters'] as List?) ?? const [];
+    final chapter = chapters
+        .whereType<Map>()
+        .where((row) => row['id'].toString() == chapterId)
+        .firstOrNull;
+    if (chapter == null) throw ApiException.notFound('未找到章节');
+    if (job['state'] == 'running') {
+      throw ApiException.badRequest('任务正在运行');
+    }
+    repository.resetChapterStatus(jobId, chapterId);
+    final control = _controls.putIfAbsent(jobId, () => _Control());
+    control.paused = false;
+    control.cancelled = false;
+    repository.updateJob(jobId, state: 'queued', error: '');
+    _emit(userId, jobId, force: true);
+    _pump(userId);
   }
 
   /// Zips already-downloaded files for a local comic chapter selection.

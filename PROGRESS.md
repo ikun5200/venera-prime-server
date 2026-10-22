@@ -193,6 +193,24 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   returns a WebP, and wrong credentials show “用户名或密码错误”.
   Tests: 57 backend / 25 frontend.
 
+- Suwayomi-inspired server features (E-28): implemented all P0/P1 items.
+  P0-1 durable queue (`queue_order`, restart recovery, up/down/first/last,
+  per-chapter retry, one job per user). P0-2 auto-download of new chapters with
+  limit, re-upload filtering and unread-entry exclusion. P0-3 scheduled WebDAV
+  backups with interval/time/retention and selectable history/statistics/
+  settings. P1-4 update filters (unread/not-started/completed), per-comic
+  `always|unread|never` strategy and parallel source checks. P1-5 SSE
+  `/api/events` for tasks/downloads/cache with frontend EventSource
+  invalidation (polling removed). P1-6 per-host rate limiting, 429
+  `Retry-After` retries and FlareSolverr fallback in the Rust HTTP bridge.
+  P1-7 OPDS/OPDS-PSE feeds for favorites, history, local library and remote
+  chapters. P1-8 on-demand WebP conversion with disk cache plus streamed image
+  responses. P1-9 hashed API tokens (Bearer/Basic/SSE query) and
+  `download`/`manage_sources`/`clear_cache`/`nsfw` permissions with admin UI
+  and NSFW list filtering. New tests cover tokens, permissions, queue
+  reordering/recovery, OPDS, SSE, strategy persistence, NSFW filtering, WebP
+  conversion and backup content selection. Tests: 67 backend / 26 frontend.
+
 ## Next
 
 - Output the final delivery report.

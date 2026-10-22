@@ -12,7 +12,9 @@ import 'services/auth_service.dart';
 import 'services/comic_service.dart';
 import 'services/content_cache_service.dart';
 import 'services/download_service.dart';
+import 'services/event_bus.dart';
 import 'services/js_host_client.dart';
+import 'services/image_service.dart';
 import 'services/library_service.dart';
 import 'services/local_service.dart';
 import 'services/settings_service.dart';
@@ -29,6 +31,7 @@ class AppContext {
 
   late final UserRepository users;
   late final SessionRepository sessions;
+  late final ApiTokenRepository apiTokens;
   late final SettingsRepository settingsRepository;
   late final AuditRepository audit;
   late final SourceRepository sourceRepository;
@@ -41,10 +44,12 @@ class AppContext {
   late final LocalRepository localRepository;
 
   late final JsHostClient js;
+  late final EventBusService events;
   late final AuthService auth;
   late final AdminService admin;
   late final SettingsService settings;
   late final ContentCacheService contentCache;
+  late final ImageService images;
   late final TaskService tasks;
   late final SourceService sources;
   late final ComicService comics;
@@ -63,6 +68,7 @@ class AppContext {
     Directory(config.dataDir).createSync(recursive: true);
     users = UserRepository(db);
     sessions = SessionRepository(db);
+    apiTokens = ApiTokenRepository(db);
     settingsRepository = SettingsRepository(db);
     audit = AuditRepository(db);
     sourceRepository = SourceRepository(db);
@@ -75,17 +81,20 @@ class AppContext {
     localRepository = LocalRepository(db);
 
     js = JsHostClient(config);
+    events = EventBusService();
     auth = AuthService(
       config: config,
       db: db,
       users: users,
       sessions: sessions,
       audit: audit,
+      tokens: apiTokens,
     );
     admin = AdminService(users: users, sessions: sessions, audit: audit);
     settings = SettingsService(settingsRepository);
     contentCache = ContentCacheService(db: db, settings: settingsRepository);
-    tasks = TaskService();
+    images = ImageService(config: config, settings: settingsRepository);
+    tasks = TaskService(events: events);
     sources = SourceService(
       config: config,
       db: db,
@@ -123,13 +132,6 @@ class AppContext {
     readLater = ReadLaterService(readLaterRepository);
     imageFavorites = ImageFavoriteService(imageFavoriteRepository);
     statistics = StatisticsService(statisticsRepository);
-    followUpdates = FollowUpdateService(
-      repository: followUpdateRepository,
-      favorites: favoriteRepository,
-      comics: comics,
-      sources: sourceRepository,
-      tasks: tasks,
-    );
     local = LocalService(
       db: db,
       repository: localRepository,
@@ -146,6 +148,18 @@ class AppContext {
       comics: comics,
       local: local,
       paths: paths,
+      events: events,
+    );
+    followUpdates = FollowUpdateService(
+      repository: followUpdateRepository,
+      favorites: favoriteRepository,
+      comics: comics,
+      sources: sourceRepository,
+      tasks: tasks,
+      settings: settingsRepository,
+      history: historyRepository,
+      localRepository: localRepository,
+      downloads: downloads,
     );
     backup = BackupService(
       db: db,
@@ -162,11 +176,13 @@ class AppContext {
       config: config,
       repository: localRepository,
       backup: backup,
+      settings: settingsRepository,
     );
   }
 
   Future<void> dispose() async {
     await js.dispose();
+    await events.dispose();
     db.close();
   }
 

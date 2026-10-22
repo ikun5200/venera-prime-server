@@ -349,6 +349,24 @@ export default function ComicDetailPage() {
     onError: (error) => toast.error(error.message),
   });
 
+  const updateStrategy = useMutation({
+    mutationFn: (strategy: "always" | "unread" | "never") =>
+      api.updateFavoriteStrategy({
+        comicId: id,
+        comicType: data?.comicType ?? 0,
+        strategy,
+      }),
+    onSuccess: (_result, strategy) => {
+      queryClient.setQueryData<ComicDetails | undefined>(
+        ["comic", source, id],
+        (old) => (old ? { ...old, updateStrategy: strategy } : old),
+      );
+      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["follow-updates"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const share = async () => {
     if (!data) return;
     const url = data.url ?? window.location.href;
@@ -960,6 +978,28 @@ export default function ComicDetailPage() {
               ) : null}
             </div>
           </div>
+          {favoriteFolders.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted">
+                {t("Update Strategy")}
+              </h3>
+              <Select
+                value={data?.updateStrategy ?? "always"}
+                disabled={updateStrategy.isPending}
+                onChange={(event) =>
+                  updateStrategy.mutate(
+                    event.target.value as "always" | "unread" | "never",
+                  )
+                }
+              >
+                <option value="always">{t("Always check")}</option>
+                <option value="unread">
+                  {t("Only when no unread chapters")}
+                </option>
+                <option value="never">{t("Never check")}</option>
+              </Select>
+            </div>
+          ) : null}
           {sourceInfo?.capabilities.favorites === true &&
           settings.localFavoritesFirst !== false ? (
             <NetworkFavoriteSection source={source} comicId={id} />

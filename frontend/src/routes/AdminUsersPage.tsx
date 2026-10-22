@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, MoreHorizontal, Plus, Trash2, UserX } from "lucide-react";
+import { KeyRound, MoreHorizontal, Plus, Shield, Trash2, UserX } from "lucide-react";
 import { api } from "../lib/api";
 import { useAppStore, toast } from "../lib/store";
 import { useT } from "../lib/i18n";
@@ -20,7 +20,22 @@ import {
   PromptDialog,
   Select,
   Spinner,
+  Switch,
 } from "../components/ui";
+
+const permissionOptions = [
+  { value: "download", label: "Download" },
+  { value: "manage_sources", label: "Manage sources" },
+  { value: "clear_cache", label: "Clear cache" },
+  { value: "nsfw", label: "NSFW content" },
+];
+
+const defaultPermissions = [
+  "download",
+  "manage_sources",
+  "clear_cache",
+  "nsfw",
+];
 
 export default function AdminUsersPage() {
   const t = useT();
@@ -34,16 +49,22 @@ export default function AdminUsersPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
+  const [permissions, setPermissions] = useState<string[]>(
+    defaultPermissions,
+  );
+  const [permissionUser, setPermissionUser] = useState<User | null>(null);
   const [resetUser, setResetUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
 
   const create = useMutation({
-    mutationFn: () => api.adminCreateUser(username, password, role),
+    mutationFn: () =>
+      api.adminCreateUser(username, password, role, permissions),
     onSuccess: (result) => {
       toast.success(t("User created"));
       setCreateOpen(false);
       setUsername("");
       setPassword("");
+      setPermissions(defaultPermissions);
       queryClient.setQueryData<{ items: User[] } | undefined>(
         ["admin-users"],
         (old) =>
@@ -66,11 +87,17 @@ export default function AdminUsersPage() {
       body,
     }: {
       id: number;
-      body: { password?: string; disabled?: boolean; role?: string };
+      body: {
+        password?: string;
+        disabled?: boolean;
+        role?: string;
+        permissions?: string[];
+      };
     }) => api.adminUpdateUser(id, body),
     onSuccess: (result) => {
       toast.success(t("Updated"));
       setResetUser(null);
+      setPermissionUser(null);
       queryClient.setQueryData<{ items: User[] } | undefined>(
         ["admin-users"],
         (old) =>
@@ -110,7 +137,13 @@ export default function AdminUsersPage() {
         title={t("Admin")}
         subtitle={t("@count users", { count: users.length })}
         actions={
-          <IconButton label={t("Add")} onClick={() => setCreateOpen(true)}>
+          <IconButton
+            label={t("Add")}
+            onClick={() => {
+              setPermissions(defaultPermissions);
+              setCreateOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4" />
           </IconButton>
         }
@@ -155,6 +188,14 @@ export default function AdminUsersPage() {
                     </IconButton>
                   )}
                   items={[
+                    {
+                      label: t("Permissions"),
+                      icon: <Shield className="h-3.5 w-3.5" />,
+                      onSelect: () => {
+                        setPermissions(user.permissions ?? defaultPermissions);
+                        setPermissionUser(user);
+                      },
+                    },
                     {
                       label: t("Reset password"),
                       icon: <KeyRound className="h-3.5 w-3.5" />,
@@ -244,7 +285,81 @@ export default function AdminUsersPage() {
               <option value="admin">{t("Administrator")}</option>
             </Select>
           </Field>
+          <Field label={t("Permissions")}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {permissionOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex items-center gap-2 text-[13px]"
+                >
+                  <Switch
+                    checked={permissions.includes(option.value)}
+                    onChange={(value) =>
+                      setPermissions((current) =>
+                        value
+                          ? [...current, option.value]
+                          : current.filter((item) => item !== option.value),
+                      )
+                    }
+                  />
+                  {t(option.label)}
+                </label>
+              ))}
+            </div>
+          </Field>
         </div>
+      </Modal>
+
+      <Modal
+        open={permissionUser !== null}
+        onClose={() => setPermissionUser(null)}
+        title={t("Permissions")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPermissionUser(null)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              loading={update.isPending}
+              onClick={() =>
+                permissionUser &&
+                update.mutate({
+                  id: permissionUser.id,
+                  body: { permissions },
+                })
+              }
+            >
+              {t("Save")}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          {permissionOptions.map((option) => (
+            <label
+              key={option.value}
+              className="flex items-center gap-2 text-[13px]"
+            >
+              <Switch
+                checked={permissions.includes(option.value)}
+                onChange={(value) =>
+                  setPermissions((current) =>
+                    value
+                      ? [...current, option.value]
+                      : current.filter((item) => item !== option.value),
+                  )
+                }
+              />
+              {t(option.label)}
+            </label>
+          ))}
+        </div>
+        {permissionUser?.role === "admin" ? (
+          <p className="mt-3 text-[11px] text-muted">
+            {t("Administrators always have every permission.")}
+          </p>
+        ) : null}
       </Modal>
 
       <PromptDialog

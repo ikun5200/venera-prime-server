@@ -142,7 +142,17 @@ class JsHostClient {
     _starting = true;
     try {
       final binary = _resolveBinary();
-      final process = await Process.start(binary, const [], runInShell: false);
+      final process = await Process.start(
+        binary,
+        const [],
+        runInShell: false,
+        environment: {
+          ...Platform.environment,
+          'VENERA_FLARESOLVERR_URL': config.flareSolverrUrl,
+          'VENERA_HTTP_RATE_LIMIT': '${config.httpRateLimitPerSecond}',
+          'VENERA_HTTP_RETRIES': '${config.httpRetries}',
+        },
+      );
       _process = process;
       _generation++;
       final generation = _generation;

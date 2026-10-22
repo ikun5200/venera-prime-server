@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 
 import '../db/rows.dart';
+import 'event_bus.dart';
 
 enum TaskStatus { running, completed, failed, cancelled }
 
@@ -54,7 +55,20 @@ class BackgroundTask {
 class TaskService {
   final Map<String, BackgroundTask> _tasks = {};
   final Map<int, List<String>> _byUser = {};
+  final Map<String, int> _lastEmit = {};
   final _uuid = const Uuid();
+  final EventBusService? events;
+
+  TaskService({this.events});
+
+  void _emit(BackgroundTask task, {bool force = false}) {
+    final bus = events;
+    if (bus == null) return;
+    final now = nowMs();
+    if (!force && now - (_lastEmit[task.id] ?? 0) < 500) return;
+    _lastEmit[task.id] = now;
+    bus.publish(task.userId, 'task', data: {'task': task.toJson()});
+  }
 
   BackgroundTask create(int userId, String type, String title) {
     final task = BackgroundTask(
@@ -74,7 +88,9 @@ class TaskService {
     while (list.length > 100) {
       final removed = list.removeLast();
       _tasks.remove(removed);
+      _lastEmit.remove(removed);
     }
+    _emit(task, force: true);
     return task;
   }
 
@@ -85,6 +101,7 @@ class TaskService {
     if (message != null) task.message = message;
     if (result != null) task.result = result;
     task.updatedAt = nowMs();
+    _emit(task);
   }
 
   void complete(String id, {String? message, Object? result}) {
@@ -95,6 +112,7 @@ class TaskService {
     if (message != null) task.message = message;
     task.result = result;
     task.updatedAt = nowMs();
+    _emit(task, force: true);
   }
 
   void fail(String id, String error) {
@@ -103,6 +121,7 @@ class TaskService {
     task.status = TaskStatus.failed;
     task.error = error;
     task.updatedAt = nowMs();
+    _emit(task, force: true);
   }
 
   void cancel(String id) {
@@ -113,6 +132,7 @@ class TaskService {
       task.status = TaskStatus.cancelled;
     }
     task.updatedAt = nowMs();
+    _emit(task, force: true);
   }
 
   bool isCancelled(String id) => _tasks[id]?.cancelRequested ?? false;

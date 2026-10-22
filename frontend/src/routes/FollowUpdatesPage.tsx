@@ -42,6 +42,10 @@ export default function FollowUpdatesPage() {
     queryKey: ["favorite-folders"],
     queryFn: api.favoriteFolders,
   });
+  const appSettings = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings,
+  });
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -53,6 +57,25 @@ export default function FollowUpdatesPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  const saveSetting = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => api.updateSettings(patch),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["settings"], updated);
+      toast.success(t("Saved"));
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const setting = (key: string) => appSettings.data?.[key];
+  const switchSetting = (key: string, label: string) => (
+    <label className="flex items-center gap-2 text-[13px]">
+      <Switch
+        checked={setting(key) === true}
+        onChange={(value) => saveSetting.mutate({ [key]: value })}
+      />
+      {label}
+    </label>
+  );
 
   const check = useMutation({
     mutationFn: api.checkFollowUpdates,
@@ -228,6 +251,77 @@ export default function FollowUpdatesPage() {
               </Button>
             </div>
           ) : null}
+        </Card>
+
+        <Card className="mb-6 p-4">
+          <h2 className="text-[14px] font-semibold">{t("Automation")}</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {switchSetting(
+              "autoDownloadNewChapters",
+              t("Auto download new chapters"),
+            )}
+            {switchSetting(
+              "excludeEntryWithUnreadChapters",
+              t("Do not auto download entries with unread chapters"),
+            )}
+            {switchSetting(
+              "autoDownloadIgnoreReUploads",
+              t("Ignore re-uploaded chapters"),
+            )}
+            <label className="flex items-center gap-2 text-[13px]">
+              {t("New chapter download limit per update")}
+              <Input
+                type="number"
+                min={0}
+                value={String(setting("autoDownloadNewChaptersLimit") ?? 0)}
+                onChange={(event) =>
+                  saveSetting.mutate({
+                    autoDownloadNewChaptersLimit:
+                      Number(event.target.value) || 0,
+                  })
+                }
+                className="w-[90px]"
+              />
+              <span className="text-[11px] text-muted">
+                {t("0 means unlimited")}
+              </span>
+            </label>
+          </div>
+          <h3 className="mt-5 text-[12px] font-semibold uppercase tracking-wide text-muted">
+            {t("Update Filters")}
+          </h3>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            {switchSetting(
+              "excludeUnreadChapters",
+              t("Exclude entries with unread chapters"),
+            )}
+            {switchSetting(
+              "excludeNotStarted",
+              t("Exclude entries not started"),
+            )}
+            {switchSetting(
+              "excludeCompleted",
+              t("Exclude completed entries"),
+            )}
+            <label className="flex items-center gap-2 text-[13px]">
+              {t("Parallel source checks")}
+              <Select
+                value={String(setting("maxSourcesInParallel") ?? 8)}
+                onChange={(event) =>
+                  saveSetting.mutate({
+                    maxSourcesInParallel: Number(event.target.value),
+                  })
+                }
+                className="w-[90px]"
+              >
+                {[1, 2, 4, 8, 16].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
         </Card>
 
         <div className="mb-3 flex items-center justify-between">

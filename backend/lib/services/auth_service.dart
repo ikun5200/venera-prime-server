@@ -12,8 +12,8 @@ import '../util/log.dart';
 
 class AuthContext {
   final UserRecord user;
-  final SessionRecord session;
-  AuthContext(this.user, this.session);
+  final SessionRecord? session;
+  AuthContext(this.user, [this.session]);
 }
 
 class AuthService {
@@ -22,6 +22,7 @@ class AuthService {
   final UserRepository users;
   final SessionRepository sessions;
   final AuditRepository audit;
+  final ApiTokenRepository tokens;
 
   static const sessionCookie = 'venera_session';
   static const sessionLifetime =
@@ -33,6 +34,7 @@ class AuthService {
     required this.users,
     required this.sessions,
     required this.audit,
+    required this.tokens,
   });
 
   bool get initialized => users.count() > 0;
@@ -97,13 +99,48 @@ class AuthService {
 
   void logout(AuthContext? context) {
     if (context == null) return;
-    sessions.deleteById(context.session.id);
+    final session = context.session;
+    if (session != null) sessions.deleteById(session.id);
     audit.log('logout', userId: context.user.id);
   }
 
   AuthContext? authenticate(Request request) {
-    final token = _cookie(request, sessionCookie);
+    final cookieToken = _cookie(request, sessionCookie);
+    if (cookieToken != null && cookieToken.isNotEmpty) {
+      final fromSession = _sessionAuth(cookieToken);
+      if (fromSession != null) return fromSession;
+    }
+    final header = request.headers['authorization'];
+    String? token;
+    if (header != null && header.trim().isNotEmpty) {
+      final trimmed = header.trim();
+      if (trimmed.toLowerCase().startsWith('bearer ')) {
+        token = trimmed.substring(7).trim();
+      } else if (trimmed.toLowerCase().startsWith('basic ')) {
+        try {
+          final decoded =
+              utf8.decode(base64Decode(trimmed.substring(6).trim()));
+          final index = decoded.indexOf(':');
+          if (index >= 0) token = decoded.substring(index + 1);
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    // EventSource cannot set headers; allow the token as a query parameter
+    // for the event stream only.
+    if ((token == null || token.isEmpty) &&
+        request.url.path.endsWith('api/events')) {
+      token = request.url.queryParameters['access_token'];
+    }
     if (token == null || token.isEmpty) return null;
+    final row = tokens.byHash(CryptoUtil.sha256Hex(token));
+    if (row == null) return null;
+    tokens.touch(row['id'] as int);
+    return AuthContext(_userFromTokenRow(row));
+  }
+
+  AuthContext? _sessionAuth(String token) {
     final session = sessions.byHash(CryptoUtil.sha256Hex(token));
     if (session == null) return null;
     final user = users.byId(session.userId);
@@ -118,6 +155,51 @@ class AuthService {
     }
     return AuthContext(user, session);
   }
+
+  UserRecord _userFromTokenRow(Map<String, Object?> row) => UserRecord(
+        id: row['user_id'] as int,
+        username: row['user_name'] as String,
+        passwordHash: row['user_password_hash'] as String,
+        role: row['user_role'] as String,
+        createdAt: row['user_created_at'] as int,
+        disabled: row['user_disabled'] == 1 || row['user_disabled'] == true,
+        permissions: parsePermissions(row['user_permissions']),
+      );
+
+  Map<String, Object?> createToken(
+    UserRecord user, {
+    required String name,
+    int? expiresInDays,
+  }) {
+    final clean = name.trim();
+    if (clean.isEmpty || clean.length > 80) {
+      throw ApiException.badRequest('令牌名称不能为空且不超过 80 个字符');
+    }
+    final token = 'vps_${CryptoUtil.randomToken()}';
+    final expiresAt = expiresInDays == null || expiresInDays <= 0
+        ? null
+        : DateTime.now()
+            .add(Duration(days: expiresInDays))
+            .millisecondsSinceEpoch;
+    final id = tokens.create(
+      userId: user.id,
+      name: clean,
+      tokenHash: CryptoUtil.sha256Hex(token),
+      expiresAt: expiresAt,
+    );
+    return {
+      'id': id,
+      'name': clean,
+      'token': token,
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+      'expiresAt': expiresAt,
+    };
+  }
+
+  List<Map<String, Object?>> listTokens(UserRecord user) =>
+      tokens.list(user.id);
+
+  bool deleteToken(UserRecord user, int id) => tokens.delete(user.id, id);
 
   static String? _cookie(Request request, String name) {
     final header = request.headers['cookie'];
@@ -160,6 +242,35 @@ void requireAdmin(Request request) {
   if (!auth.user.isAdmin) throw ApiException.forbidden();
 }
 
+/// Permissions a non-admin account can be granted.
+const assignablePermissions = [
+  'download',
+  'manage_sources',
+  'clear_cache',
+  'nsfw',
+];
+
+List<String> parsePermissions(Object? raw) {
+  if (raw is! String || raw.trim().isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded
+          .map((value) => value.toString())
+          .where(assignablePermissions.contains)
+          .toList();
+    }
+  } catch (_) {}
+  return const [];
+}
+
+void requirePermission(Request request, String permission) {
+  final auth = requireAuth(request);
+  if (!auth.user.hasPermission(permission)) {
+    throw ApiException.forbidden('没有权限执行此操作');
+  }
+}
+
 String requestIdOf(Request request) =>
     request.context['requestId'] as String? ?? const Uuid().v4();
 
@@ -177,6 +288,7 @@ Map<String, Object?> userJson(UserRecord user) => {
       'role': user.role,
       'createdAt': user.createdAt,
       'disabled': user.disabled,
+      'permissions': user.permissions,
     };
 
 Future<Map<String, Object?>> readJsonBody(Request request,

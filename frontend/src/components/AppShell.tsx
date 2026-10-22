@@ -18,6 +18,7 @@ import { api } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { cn } from "../lib/utils";
+import { useServerEvents } from "../lib/serverEvents";
 import { Badge, IconButton } from "./ui";
 
 const navItems = [
@@ -35,15 +36,10 @@ export function AppShell() {
   const setUser = useAppStore((state) => state.setUser);
   const settings = useAppStore((state) => state.settings);
   const showTasks = settings.showBackgroundTaskButton !== false;
+  useServerEvents(Boolean(user));
   const tasks = useQuery({
     queryKey: ["tasks"],
     queryFn: api.tasks,
-    refetchInterval: (query) => {
-      const items =
-        (query.state.data as { items?: { status: string }[] } | undefined)
-          ?.items ?? [];
-      return items.some((task) => task.status === "running") ? 5000 : 60000;
-    },
     enabled: showTasks,
   });
   const running = (tasks.data?.items ?? []).filter(

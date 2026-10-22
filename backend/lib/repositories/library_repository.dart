@@ -21,6 +21,7 @@ class FavoriteRecord {
   final int? lastCheckTime;
   final int? lastAttemptTime;
   final List<Object?>? lastUpdateChapters;
+  final String updateStrategy;
 
   FavoriteRecord({
     required this.folderId,
@@ -39,6 +40,7 @@ class FavoriteRecord {
     required this.lastCheckTime,
     required this.lastAttemptTime,
     required this.lastUpdateChapters,
+    this.updateStrategy = 'always',
   });
 
   factory FavoriteRecord.fromRow(Map<String, Object?> row) {
@@ -73,6 +75,7 @@ class FavoriteRecord {
       lastCheckTime: row['last_check_time'] as int?,
       lastAttemptTime: row['last_attempt_time'] as int?,
       lastUpdateChapters: nullableList(row['last_update_chapters_json']),
+      updateStrategy: row['update_strategy'] as String? ?? 'always',
     );
   }
 
@@ -92,6 +95,7 @@ class FavoriteRecord {
         'hasNewUpdate': hasNewUpdate,
         'lastCheckTime': lastCheckTime,
         'lastAttemptTime': lastAttemptTime,
+        'updateStrategy': updateStrategy,
       };
 }
 
@@ -471,6 +475,25 @@ class FavoriteRepository {
       'AND comic_id=? AND comic_type=?',
       [attemptTime, userId, folderId, comicId, comicType],
     );
+  }
+
+  void setUpdateStrategy(
+      int userId, String comicId, int comicType, String strategy) {
+    db.execute(
+      'UPDATE favorites SET update_strategy=? WHERE user_id=? AND comic_id=? '
+      'AND comic_type=?',
+      [strategy, userId, comicId, comicType],
+    );
+  }
+
+  String updateStrategy(int userId, String comicId, int comicType) {
+    final rows = db.select(
+      'SELECT update_strategy FROM favorites WHERE user_id=? AND comic_id=? '
+      'AND comic_type=? LIMIT 1',
+      [userId, comicId, comicType],
+    );
+    if (rows.isEmpty) return 'always';
+    return rows.first['update_strategy'] as String? ?? 'always';
   }
 
   void markAllRead(int userId, {int? folderId}) {

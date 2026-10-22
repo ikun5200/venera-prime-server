@@ -41,7 +41,12 @@ class BackupService {
     required this.imageFavorites,
   });
 
-  Map<String, Object?> export(int userId) {
+  Map<String, Object?> export(
+    int userId, {
+    bool includeSettings = true,
+    bool includeHistory = true,
+    bool includeStatistics = true,
+  }) {
     final user = users.byId(userId);
     return {
       'format': 2,
@@ -49,7 +54,7 @@ class BackupService {
       'version': 1,
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
       'user': {'username': user?.username, 'role': user?.role},
-      'settings': settings.all(userId),
+      if (includeSettings) 'settings': settings.all(userId),
       'sources': sources
           .list(userId)
           .map((s) => {
@@ -76,37 +81,42 @@ class BackupService {
               .map((f) => f.toJson())
               .toList(),
       },
-      'history': history.recent(userId, 100000).map((h) => h.toJson()).toList(),
-      'readLater': readLater.list(userId).map((r) => r.toJson()).toList(),
-      'imageFavorites': imageFavorites.list(userId)['items'],
-      'statistics': db
-          .select(
-              'SELECT day,comic_id,comic_type,title,author,cover,duration_seconds,last_read_at '
-              'FROM reading_statistics WHERE user_id=?',
-              [userId])
-          .map((r) => {
-                'day': r['day'],
-                'comicId': r['comic_id'],
-                'comicType': r['comic_type'],
-                'title': r['title'],
-                'author': r['author'],
-                'cover': r['cover'],
-                'seconds': r['duration_seconds'],
-                'lastReadAt': r['last_read_at'],
-              })
-          .toList(),
-      'followUpdates': {
-        'config': db
-            .select(
-                'SELECT * FROM follow_update_config WHERE user_id=?', [userId])
-            .map((r) => {
-                  'folderId': r['folder_id'],
-                  'checkOnStart': r['check_on_start'] == 1,
-                  'intervalHours': r['interval_hours'],
-                  'fixedTime': r['fixed_time'],
-                })
-            .firstOrNull,
+      if (includeHistory) ...{
+        'history':
+            history.recent(userId, 100000).map((h) => h.toJson()).toList(),
+        'readLater': readLater.list(userId).map((r) => r.toJson()).toList(),
+        'imageFavorites': imageFavorites.list(userId)['items'],
       },
+      if (includeStatistics)
+        'statistics': db
+            .select(
+                'SELECT day,comic_id,comic_type,title,author,cover,duration_seconds,last_read_at '
+                'FROM reading_statistics WHERE user_id=?',
+                [userId])
+            .map((r) => {
+                  'day': r['day'],
+                  'comicId': r['comic_id'],
+                  'comicType': r['comic_type'],
+                  'title': r['title'],
+                  'author': r['author'],
+                  'cover': r['cover'],
+                  'seconds': r['duration_seconds'],
+                  'lastReadAt': r['last_read_at'],
+                })
+            .toList(),
+      if (includeSettings)
+        'followUpdates': {
+          'config': db
+              .select('SELECT * FROM follow_update_config WHERE user_id=?',
+                  [userId])
+              .map((r) => {
+                    'folderId': r['folder_id'],
+                    'checkOnStart': r['check_on_start'] == 1,
+                    'intervalHours': r['interval_hours'],
+                    'fixedTime': r['fixed_time'],
+                  })
+              .firstOrNull,
+        },
     };
   }
 
@@ -327,8 +337,18 @@ class BackupService {
         ip: ip);
   }
 
-  Uint8List exportZip(int userId) {
-    final json = const JsonEncoder.withIndent('  ').convert(export(userId));
+  Uint8List exportZip(
+    int userId, {
+    bool includeSettings = true,
+    bool includeHistory = true,
+    bool includeStatistics = true,
+  }) {
+    final json = const JsonEncoder.withIndent('  ').convert(export(
+      userId,
+      includeSettings: includeSettings,
+      includeHistory: includeHistory,
+      includeStatistics: includeStatistics,
+    ));
     final archive = Archive();
     final bytes = utf8.encode(json);
     archive.addFile(ArchiveFile('backup.json', bytes.length, bytes));
@@ -340,12 +360,15 @@ class WebDavService {
   final Config config;
   final LocalRepository repository;
   final BackupService backup;
+  final SettingsRepository settings;
   final http.Client client = http.Client();
+  final Set<int> _scheduled = {};
 
   WebDavService({
     required this.config,
     required this.repository,
     required this.backup,
+    required this.settings,
   });
 
   Map<String, Object?> get(int userId) {
@@ -359,6 +382,7 @@ class WebDavService {
         'autoSync': false,
         'dataVersion': 0,
         'lastBackupName': null,
+        'lastAutoBackupAt': null,
         'updatedAt': null,
       };
     }
@@ -370,6 +394,7 @@ class WebDavService {
       'autoSync': row['autoSync'],
       'dataVersion': row['dataVersion'],
       'lastBackupName': row['lastBackupName'],
+      'lastAutoBackupAt': row['lastAutoBackupAt'],
       'updatedAt': row['updatedAt'],
     };
   }
@@ -444,7 +469,14 @@ class WebDavService {
     final row = repository.webdav(userId);
     if (row == null) throw ApiException.badRequest('尚未配置 WebDAV');
     final password = await _password(userId);
-    final bytes = backup.exportZip(userId);
+    final bytes = backup.exportZip(
+      userId,
+      includeSettings:
+          settings.get(userId, 'autoBackupIncludeSettings') != false,
+      includeHistory: settings.get(userId, 'autoBackupIncludeHistory') != false,
+      includeStatistics:
+          settings.get(userId, 'autoBackupIncludeStatistics') != false,
+    );
     final version = ((row['dataVersion'] as int?) ?? 0) + 1;
     final now = DateTime.now();
     final day = now.millisecondsSinceEpoch ~/ 86400000;
@@ -565,6 +597,44 @@ class WebDavService {
     throw ApiException.badRequest('备份文件无效');
   }
 
+  /// Runs due scheduled backups for every configured WebDAV account. The
+  /// server timer calls this hourly; the time of day and the retention count
+  /// are user settings.
+  Future<void> runScheduledBackups() async {
+    for (final userId in repository.usersWithWebdav()) {
+      if (_scheduled.contains(userId)) continue;
+      final interval =
+          (settings.get(userId, 'backupIntervalDays') as num?)?.toInt() ?? 0;
+      if (interval <= 0) continue;
+      final time = (settings.get(userId, 'backupTime') as String?) ?? '03:00';
+      final parts = time.split(':');
+      final hour = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 3;
+      final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+      final now = DateTime.now();
+      final today =
+          DateTime(now.year, now.month, now.day, hour.clamp(0, 23), minute);
+      if (now.isBefore(today)) continue;
+      final row = repository.webdav(userId);
+      final lastAt = row?['lastAutoBackupAt'] as int?;
+      if (lastAt != null &&
+          now.difference(DateTime.fromMillisecondsSinceEpoch(lastAt)) <
+              Duration(days: interval)) {
+        continue;
+      }
+      _scheduled.add(userId);
+      try {
+        await upload(userId);
+        repository.markAutoBackup(userId, now.millisecondsSinceEpoch);
+        Log.info('Scheduled backup completed', userId: userId);
+      } catch (error) {
+        Log.warning('Scheduled backup failed',
+            userId: userId, extra: {'error': '$error'});
+      } finally {
+        _scheduled.remove(userId);
+      }
+    }
+  }
+
   Future<void> _prune(int userId, String username, String? password) async {
     try {
       final request = http.Request('PROPFIND', _base(userId))
@@ -586,7 +656,10 @@ class WebDavService {
         if (name.endsWith('.venera')) names.add(name);
       }
       names.sort();
-      while (names.length > 10) {
+      final retention =
+          ((settings.get(userId, 'backupRetention') as num?)?.toInt() ?? 10)
+              .clamp(1, 1000);
+      while (names.length > retention) {
         final oldest = names.removeAt(0);
         await client.delete(_base(userId).resolve(oldest),
             headers: _headers(username, password));

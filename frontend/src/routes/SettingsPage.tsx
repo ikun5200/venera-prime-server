@@ -4,6 +4,7 @@ import {
   Bug,
   Compass,
   Info,
+  KeyRound,
   LayoutGrid,
   Network,
   Palette,
@@ -64,6 +65,12 @@ export default function SettingsPage() {
       title: t("Customize home"),
       description: "Reorder and hide home modules",
       icon: LayoutGrid,
+    },
+    {
+      to: "/settings/tokens",
+      title: t("API Tokens"),
+      description: "Tokens for OPDS readers and scripts",
+      icon: KeyRound,
     },
     {
       to: "/settings/webdav",

@@ -8,7 +8,10 @@ with `ON DELETE CASCADE` when the user is removed.
 Migrations are ordered SQL scripts applied in a transaction; the applied
 version is stored in `PRAGMA user_version`. Migration 1 creates the schema
 below. New migrations are append-only and never edit earlier files. Migration
-5 adds the persistent content cache and image-cache index.
+5 adds the persistent content cache and image-cache index. Migration 6 adds
+`queue_order`, favorite update strategies, user permissions, API tokens and
+backup scheduling state; migration 7 grants the previously implicit `nsfw`
+permission to existing accounts.
 
 ## Tables
 
@@ -21,6 +24,7 @@ below. New migrations are append-only and never edit earlier files. Migration
 | role | TEXT NOT NULL | `admin` \| `user` |
 | created_at | INTEGER NOT NULL | |
 | disabled | INTEGER NOT NULL DEFAULT 0 | 1 blocks login and invalidates sessions |
+| permissions_json | TEXT NOT NULL | JSON array of `download`, `manage_sources`, `clear_cache`, `nsfw`; admins bypass |
 
 Index: `UNIQUE(username)`.
 
@@ -84,7 +88,8 @@ PK `(folder_id, comic_id, comic_type)`, `user_id`, `name`, `author`,
 instant list rendering, migration 4), `favorited_at` (TEXT
 `YYYY-MM-DD HH:MM:SS`), `display_order` (signed), `last_update_time`,
 `has_new_update`, `last_check_time`, `last_attempt_time`,
-`last_update_chapters_json`. Indexes `(user_id, folder_id, display_order)`,
+`last_update_chapters_json`, `update_strategy` (`always` \| `unread` \|
+`never`, default `always`). Indexes `(user_id, folder_id, display_order)`,
 `(user_id, comic_id, comic_type)`, `(user_id, has_new_update)`.
 
 ### history
@@ -122,9 +127,10 @@ uploaded/imported, or source hash), `downloaded_chapters_json`, `created_at`,
 `id TEXT PK` (UUID), `user_id`, `kind` (`images` \| `archive`), `source_key`,
 `comic_id`, `comic_type`, `title`, `cover`, `state`
 (`queued|running|paused|error|completed|cancelled`), `progress`, `total`,
-`payload_json`, `error`, `created_at`, `updated_at`. Index
-`(user_id, state, created_at)`. `download_chapters` and `download_pages` child
-tables track per-chapter/per-page status (PKs include `user_id`).
+`payload_json`, `error`, `created_at`, `updated_at`, `queue_order` (smaller
+runs first). Index `(user_id, state, created_at)`. `download_chapters` and
+`download_pages` child tables track per-chapter/per-page status (PKs include
+`user_id`). `restorePending()` converts interrupted `running` rows to `queued`.
 
 ### uploads
 `id TEXT PK`, `user_id`, `name`, `path` (relative), `size`, `mime`,
@@ -134,7 +140,12 @@ tables track per-chapter/per-page status (PKs include `user_id`).
 ### webdav_config
 `user_id PK`, `url`, `username`, `password_enc` (AES-256-GCM with
 `SESSION_SECRET`-derived key), `path`, `auto_sync`, `data_version`,
-`last_backup_name`, `last_backup_identity`, `updated_at`.
+`last_backup_name`, `last_backup_identity`, `last_auto_backup_at`, `updated_at`.
+
+### api_tokens
+`id INTEGER PK AUTOINCREMENT`, `user_id` (cascade), `name`, `token_hash`
+(SHA-256, unique), `created_at`, `last_used_at`, `expires_at` (nullable).
+Plaintext is returned only by the creation response. Index `(user_id)`.
 
 ### follow_update_config
 `user_id PK`, `folder_id` (nullable), `check_on_start`, `interval_hours`,

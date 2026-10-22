@@ -245,3 +245,43 @@ Responsive contract:
 - Logs redact `password`, `token`, `cookie`, `authorization`, WebDAV passwords.
 - Source scripts run in a separate process; they are trusted by design (no
   sandbox), but cannot crash or hang the API.
+
+## 10. Server integrations (E-28)
+
+- **Durable queue**: `DownloadService` keeps one active job per user. Jobs live
+  in `download_jobs` with `queue_order`; `restorePending()` runs at boot,
+  converts interrupted `running` rows back to `queued`, and pumps each user's
+  queue. `pause` stops the current run and lets the next queued job start;
+  completed chapters and existing page files are skipped on resume. Reorder is
+  `up/down/first/last`; a single chapter can be re-queued independently.
+- **Events**: `EventBusService` fans out per-user task/download/cache events.
+  `GET /api/events` is an SSE stream with a 20 s heartbeat and
+  `shelf.io.buffer_output=false`; the React shell keeps one `EventSource`,
+  merges download progress directly into the query cache, and invalidates
+  task/local-library caches on completion. No periodic polling remains.
+- **Update engine**: follow checks use a worker pool sized by
+  `maxSourcesInParallel`, apply unread/not-started/completed filters and the
+  per-comic `always|unread|never` strategy, then optionally enqueue new chapter
+  IDs for download. Re-upload detection compares chapter names against the
+  downloaded local comic.
+- **Backups**: the hourly timer (plus a boot check) evaluates
+  `backupIntervalDays`/`backupTime`, uploads a filtered archive, records
+  `last_auto_backup_at`, and prunes WebDAV files to `backupRetention`.
+- **HTTP resilience**: the Rust sidecar spaces requests per host, retries 429
+  honoring `Retry-After`, and on 403/429/503 or a Cloudflare interstitial calls
+  FlareSolverr (`FLARESOLVERR_URL`), merging the returned cookies into the
+  source cookie jar.
+- **OPDS**: atomic feeds under `/opds` (favorites, history, local, remote
+  chapters) with OPDS-PSE page links and ZIP acquisition. Basic auth accepts
+  the account name plus an API token; unauthenticated requests get a Basic
+  challenge.
+- **Images**: `ImageService` converts JPEG/PNG responses to WebP in an isolate
+  when `imageFormat=webp`, caches by user/key/quality/width under
+  `image-conversions/`, and streams the result with `Content-Length`. Image
+  routes use the same conversion path as OPDS-PSE.
+- **API tokens and permissions**: `api_tokens` stores SHA-256 hashes with
+  optional expiry and last-used time. Bearer/Basic/`access_token` (SSE only)
+  authenticate as the owning account. `download`, `manage_sources`,
+  `clear_cache` and `nsfw` are enforced by route guards; list/detail routes
+  hide NSFW-tagged comics when `nsfw` is absent. Migration 7 grants `nsfw` to
+  existing accounts so behavior does not change silently.

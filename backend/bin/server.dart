@@ -15,6 +15,7 @@ Future<void> main(List<String> args) async {
   final db = Db.open(config.dbPath);
   db.housekeeping();
   final ctx = AppContext(config, db);
+  ctx.downloads.restorePending();
 
   final handler = buildServerHandler(ctx);
   final server = await shelf_io.serve(handler, config.host, config.port);
@@ -30,7 +31,9 @@ Future<void> main(List<String> args) async {
       db.housekeeping();
       ctx.sessions.deleteExpired();
       ctx.contentCache.pruneAll();
+      unawaited(ctx.images.prune());
       ctx.followUpdates.runDueChecks();
+      unawaited(ctx.webdav.runScheduledBackups());
     } catch (error) {
       Log.warning('Housekeeping failed', extra: {'error': '$error'});
     }
@@ -43,6 +46,14 @@ Future<void> main(List<String> args) async {
       ctx.followUpdates.runDueChecks();
     } catch (error) {
       Log.warning('Startup follow check failed', extra: {'error': '$error'});
+    }
+  }));
+
+  unawaited(Future<void>.delayed(const Duration(seconds: 20), () {
+    try {
+      ctx.webdav.runScheduledBackups();
+    } catch (error) {
+      Log.warning('Startup backup check failed', extra: {'error': '$error'});
     }
   }));
 

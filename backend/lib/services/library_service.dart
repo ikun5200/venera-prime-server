@@ -5,11 +5,14 @@ import 'dart:math' as math;
 import '../db/database.dart';
 import '../repositories/image_favorite_repository.dart';
 import '../repositories/library_repository.dart';
+import '../repositories/local_repository.dart';
 import '../repositories/source_repository.dart';
+import '../repositories/user_repository.dart';
 import '../util/comic.dart';
 import '../util/errors.dart';
 import '../util/log.dart';
 import 'comic_service.dart';
+import 'download_service.dart';
 import 'source_service.dart';
 import 'task_service.dart';
 
@@ -172,6 +175,14 @@ class FavoriteService {
 
   void removeFromAll(int userId, String comicId, int comicType) =>
       favorites.removeFromAll(userId, comicId, comicType);
+
+  void setUpdateStrategy(
+      int userId, String comicId, int comicType, String strategy) {
+    if (!const ['always', 'unread', 'never'].contains(strategy)) {
+      throw ApiException.badRequest('未知更新策略');
+    }
+    favorites.setUpdateStrategy(userId, comicId, comicType, strategy);
+  }
 
   void moveOrCopy(
           int userId, int from, int to, List<Map<String, Object?>> items,
@@ -728,6 +739,10 @@ class FollowUpdateService {
   final ComicService comics;
   final SourceRepository sources;
   final TaskService tasks;
+  final SettingsRepository settings;
+  final HistoryRepository history;
+  final LocalRepository localRepository;
+  final DownloadService downloads;
 
   FollowUpdateService({
     required this.repository,
@@ -735,6 +750,10 @@ class FollowUpdateService {
     required this.comics,
     required this.sources,
     required this.tasks,
+    required this.settings,
+    required this.history,
+    required this.localRepository,
+    required this.downloads,
   });
 
   FollowUpdateConfig config(int userId) => repository.config(userId);
@@ -809,22 +828,57 @@ class FollowUpdateService {
     final folderId = config.folderId!;
     final items = favorites.allInFolder(userId, folderId);
     final intervalMs = config.intervalHours * 3600 * 1000;
+    final maxParallel =
+        ((settings.get(userId, 'maxSourcesInParallel') as num?)?.toInt() ?? 8)
+            .clamp(1, 16);
+    final autoDownload =
+        settings.get(userId, 'autoDownloadNewChapters') == true;
+    final autoLimit =
+        (settings.get(userId, 'autoDownloadNewChaptersLimit') as num?)
+                ?.toInt() ??
+            0;
+    final ignoreReUploads =
+        settings.get(userId, 'autoDownloadIgnoreReUploads') == true;
+    final excludeEntryUnread =
+        settings.get(userId, 'excludeEntryWithUnreadChapters') == true;
+    final excludeUnread = settings.get(userId, 'excludeUnreadChapters') == true;
+    final excludeNotStarted = settings.get(userId, 'excludeNotStarted') == true;
+    final excludeCompleted = settings.get(userId, 'excludeCompleted') == true;
+
     tasks.run(userId, 'follow_updates', '检查订阅更新', (task) async {
       var checked = 0;
       var updated = 0;
       var failed = 0;
+      var skipped = 0;
+      var downloaded = 0;
+      var processed = 0;
+      var nextIndex = 0;
       final now = DateTime.now().millisecondsSinceEpoch;
-      for (var i = 0; i < items.length; i++) {
-        if (task.cancelRequested) return null;
-        final item = items[i];
+
+      Future<void> processItem(FavoriteRecord item) async {
         final lastAttempt = item.lastAttemptTime ?? 0;
         final lastCheck = item.lastCheckTime ?? 0;
         if (now - (lastAttempt > lastCheck ? lastAttempt : lastCheck) <
             intervalMs) {
-          continue;
+          skipped++;
+          return;
+        }
+        if (item.updateStrategy == 'never') {
+          skipped++;
+          return;
+        }
+        final progress = history.progress(userId, item.comicId, item.comicType);
+        final unread = _hasUnreadChapters(progress, item);
+        if (excludeNotStarted && progress == null) {
+          skipped++;
+          return;
+        }
+        if (excludeUnread && unread) {
+          skipped++;
+          return;
         }
         final sourceKey = _sourceKeyForType(userId, item.comicType);
-        if (sourceKey == null) continue;
+        if (sourceKey == null) return;
         try {
           final info = await comics
               .comicInfo(userId, sourceKey, item.comicId, refresh: true)
@@ -836,6 +890,21 @@ class FollowUpdateService {
           final newChapter = chapters.any((id) => !previous.contains(id));
           final changed = newUpdateTime != item.lastUpdateTime;
           final hasNew = hasPrevious && (changed || newChapter);
+          if (excludeCompleted && _isCompleted(info['status']?.toString())) {
+            favorites.setUpdateState(
+              userId: userId,
+              folderId: folderId,
+              comicId: item.comicId,
+              comicType: item.comicType,
+              lastUpdateTime: newUpdateTime,
+              hasNewUpdate: false,
+              checkTime: now,
+              chapters: chapters,
+            );
+            checked++;
+            skipped++;
+            return;
+          }
           favorites.setUpdateState(
             userId: userId,
             folderId: folderId,
@@ -848,6 +917,31 @@ class FollowUpdateService {
           );
           checked++;
           if (hasNew) updated++;
+          if (hasNew && hasPrevious && autoDownload) {
+            var newIds =
+                chapters.where((id) => !previous.contains(id)).toList();
+            if (ignoreReUploads) {
+              newIds = _removeReUploads(userId, item, info['chapters'], newIds);
+            }
+            if (newIds.isNotEmpty && !(excludeEntryUnread && unread)) {
+              if (autoLimit > 0) {
+                newIds = newIds.take(autoLimit).toList();
+              }
+              try {
+                await downloads.create(
+                  userId,
+                  sourceKey,
+                  item.comicId,
+                  chapterIds: newIds.map((id) => id.toString()).toList(),
+                );
+                downloaded++;
+              } catch (error) {
+                Log.warning('Auto download failed',
+                    userId: userId,
+                    extra: {'comic': item.comicId, 'error': '$error'});
+              }
+            }
+          }
         } catch (error) {
           favorites.markAttempt(
             userId: userId,
@@ -860,14 +954,102 @@ class FollowUpdateService {
           Log.warning('Follow update failed',
               userId: userId,
               extra: {'comic': item.comicId, 'error': '$error'});
+        } finally {
+          processed++;
+          tasks.update(task.id,
+              progress: processed / (items.isEmpty ? 1 : items.length),
+              message: '已检查 $checked 部，更新 $updated 部，自动下载 $downloaded 部');
         }
-        tasks.update(task.id,
-            progress: (i + 1) / items.length,
-            message: '已检查 $checked 部，更新 $updated 部');
       }
-      return {'checked': checked, 'updated': updated, 'failed': failed};
+
+      Future<void> worker() async {
+        while (!task.cancelRequested) {
+          final index = nextIndex++;
+          if (index >= items.length) return;
+          await processItem(items[index]);
+        }
+      }
+
+      await Future.wait(List.generate(maxParallel, (_) => worker()));
+      return {
+        'checked': checked,
+        'updated': updated,
+        'failed': failed,
+        'skipped': skipped,
+        'downloaded': downloaded,
+      };
     });
   }
+
+  bool _hasUnreadChapters(HistoryRecord? progress, FavoriteRecord item) {
+    final total = item.lastUpdateChapters?.length ?? 0;
+    if (total == 0 || progress == null) return false;
+    return progress.readEpisode.length < total;
+  }
+
+  bool _isCompleted(String? status) {
+    if (status == null || status.trim().isEmpty) return false;
+    final value = status.toLowerCase();
+    return const [
+      '完结',
+      '完結',
+      '已完结',
+      '已完結',
+      'completed',
+      'complete',
+      'finished',
+    ].any(value.contains);
+  }
+
+  Map<String, String> _chapterNames(Object? chapters) {
+    final names = <String, String>{};
+    if (chapters is! Map) return names;
+    for (final entry in chapters.entries) {
+      if (entry.value is Map) {
+        for (final chapter in (entry.value as Map).entries) {
+          names[chapter.key.toString()] = chapter.value.toString();
+        }
+      } else {
+        names[entry.key.toString()] = entry.value.toString();
+      }
+    }
+    return names;
+  }
+
+  List<Object?> _removeReUploads(
+    int userId,
+    FavoriteRecord item,
+    Object? chapters,
+    List<Object?> newIds,
+  ) {
+    final local =
+        localRepository.findByExt(userId, item.comicType, item.comicId);
+    if (local == null) return newIds;
+    final downloadedNames = <String>{};
+    void visit(Object? value) {
+      if (value is Map) {
+        for (final nested in value.values) {
+          visit(nested);
+        }
+      } else if (value is String) {
+        downloadedNames.add(_normalizeChapterName(value));
+      }
+    }
+
+    for (final value in local.chapters.values) {
+      visit(value);
+    }
+    if (downloadedNames.isEmpty) return newIds;
+    final names = _chapterNames(chapters);
+    return newIds.where((id) {
+      final name = names[id.toString()];
+      if (name == null) return true;
+      return !downloadedNames.contains(_normalizeChapterName(name));
+    }).toList();
+  }
+
+  String _normalizeChapterName(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[\s\-_.]'), '');
 
   /// Runs the check for every user whose config has an interval or fixed time
   /// that is due. Called by the hourly server timer.

@@ -210,14 +210,24 @@ this path.
 |---|---|---|
 | GET | `/api/downloads` | jobs |
 | POST | `/api/downloads` | `{source,comicId,chapters?:[id],archiveId?}` |
-| POST | `/api/downloads/:id/pause` | |
-| POST | `/api/downloads/:id/resume` | |
-| POST | `/api/downloads/:id/retry` | |
+| POST | `/api/downloads/:id/pause` | pause; the queue starts the next job |
+| POST | `/api/downloads/:id/resume` | re-queue a paused job |
+| POST | `/api/downloads/:id/retry` | re-queue failed chapters |
 | POST | `/api/downloads/:id/cancel` | |
 | POST | `/api/downloads/:id/first` | move to front |
+| POST | `/api/downloads/:id/up` | move up one queue slot |
+| POST | `/api/downloads/:id/down` | move down one queue slot |
+| POST | `/api/downloads/:id/last` | move to the end |
+| POST | `/api/downloads/:id/chapters/:chapterId/retry` | retry one failed chapter |
 | GET | `/api/downloads/:id` | progress detail |
 | GET | `/api/downloads/:id/archive` | zip of downloaded chapters (browser download) |
 | GET | `/api/downloads/browser` | `?source=&comicId=&chapters=` → zip on the fly |
+
+Jobs are durable in `download_jobs`/`download_chapters` (`queue_order`).
+`restorePending()` runs at startup: interrupted `running` rows become `queued`
+and each user's next job starts automatically. Only one job per user runs at a
+time; completed chapters are skipped on resume, so a restart never re-downloads
+finished work.
 
 ## Local library
 
@@ -255,6 +265,49 @@ payload is returned with `cache.stale=true`. Setting
 `serverCacheEnabled=false` bypasses the cache entirely. Source settings,
 script updates, login/logout and deletion invalidate that source's entries.
 
+## API tokens, permissions and events
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/tokens` | list own tokens (hashes never returned) |
+| POST | `/api/tokens` | `{name,expiresInDays?}` → plaintext token once |
+| DELETE | `/api/tokens/:id` | revoke |
+| GET | `/api/events` | SSE stream (`text/event-stream`) |
+
+Tokens authenticate as `Authorization: Bearer <token>` or as the password of
+HTTP Basic (`username:token`), which is what OPDS clients use. EventSource may
+pass `?access_token=` on `/api/events` only. Event payloads are JSON:
+`{type:"task",task:{...}}`, `{type:"download",job:{...}}` or `{type:"cache"}`.
+The stream sends a heartbeat comment every 20 s and the web app invalidates the
+matching React Query caches instead of polling.
+
+Accounts carry a permission list: `download`, `manage_sources`, `clear_cache`
+and `nsfw` (administrators always have all). The corresponding API routes
+return 403 without the permission, and NSFW-tagged comics are hidden from list
+endpoints for accounts without `nsfw`.
+
+## OPDS
+
+Authenticate with HTTP Basic (`username` + API token as password) or a Bearer
+token. Unauthenticated requests receive `401` with a Basic challenge.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/opds` | root navigation feed |
+| GET | `/opds/favorites?page=1` | favorites acquisition feed |
+| GET | `/opds/local` | downloaded comics |
+| GET | `/opds/history` | recent reading |
+| GET | `/opds/comic?source=&id=` | chapter acquisition feed |
+| GET | `/opds/local/:id` | local chapter feed |
+| GET | `/opds/pse?source=&comic=&chapter=&page=` | OPDS-PSE page image |
+| GET | `/opds/local/:id/pse/:chapterId?page=` | local OPDS-PSE page image |
+| GET | `/opds/download?source=&comic=&chapters=` | CBZ/ZIP acquisition |
+| GET | `/opds/local/:id/download?chapters=` | local CBZ/ZIP acquisition |
+
+Chapter entries expose `rel="http://vaemendis.net/opds-pse/stream"` with
+`pse:count` and a `{pageNumber}` URL template; acquisition links return ZIPs.
+Images honor the WebP conversion settings below.
+
 ## WebDAV / backup
 
 | Method | Path | Notes |
@@ -267,6 +320,22 @@ script updates, login/logout and deletion invalidate that source's entries.
 | GET | `/api/webdav/status` | last backup, identity, version |
 | GET | `/api/backup/export` | full `.venera` JSON/zip |
 | POST | `/api/backup/import` | restore uploaded backup |
+
+Scheduled backups use user settings `backupIntervalDays` (0 = off),
+`backupTime` (`HH:mm`), `backupRetention` (files kept on WebDAV) and
+`autoBackupIncludeHistory` / `autoBackupIncludeStatistics` /
+`autoBackupIncludeSettings`. The hourly server timer (plus a check 20 s after
+boot) uploads when the interval has elapsed and the configured time of day has
+passed, then records `webdav_config.last_auto_backup_at`.
+
+## Image conversion
+
+`imageFormat=webp` converts proxied and OPDS-PSE images to WebP with
+`imageQuality` (1–100) and optional `imageMaxWidth` (0 = original width).
+Original bytes stay in the normal image cache; converted files live in
+`<DATA_DIR>/image-conversions` and are pruned to 1 GiB / 20 000 files. Image
+responses are streamed with `Content-Length` and a private one-day cache
+header.
 
 ## Statistics / image favorites
 

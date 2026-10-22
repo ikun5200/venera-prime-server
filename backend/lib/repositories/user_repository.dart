@@ -11,6 +11,7 @@ class UserRecord {
   final String role;
   final int createdAt;
   final bool disabled;
+  final List<String> permissions;
 
   UserRecord({
     required this.id,
@@ -19,9 +20,13 @@ class UserRecord {
     required this.role,
     required this.createdAt,
     required this.disabled,
+    this.permissions = const [],
   });
 
   bool get isAdmin => role == 'admin';
+
+  bool hasPermission(String permission) =>
+      isAdmin || permissions.contains(permission);
 
   Map<String, Object?> toJson({bool includeHash = false}) => {
         'id': id,
@@ -30,16 +35,27 @@ class UserRecord {
         'role': role,
         'createdAt': createdAt,
         'disabled': disabled,
+        'permissions': permissions,
       };
 
-  factory UserRecord.fromRow(Map<String, Object?> row) => UserRecord(
-        id: row['id'] as int,
-        username: row['username'] as String,
-        passwordHash: row['password_hash'] as String,
-        role: row['role'] as String,
-        createdAt: row['created_at'] as int,
-        disabled: asBool(row['disabled']),
-      );
+  factory UserRecord.fromRow(Map<String, Object?> row) {
+    List<String> permissions = const [];
+    try {
+      final decoded = jsonDecode(row['permissions_json'] as String? ?? '[]');
+      if (decoded is List) {
+        permissions = decoded.map((value) => value.toString()).toList();
+      }
+    } catch (_) {}
+    return UserRecord(
+      id: row['id'] as int,
+      username: row['username'] as String,
+      passwordHash: row['password_hash'] as String,
+      role: row['role'] as String,
+      createdAt: row['created_at'] as int,
+      disabled: asBool(row['disabled']),
+      permissions: permissions,
+    );
+  }
 }
 
 class UserRepository {
@@ -70,16 +86,23 @@ class UserRepository {
     required String username,
     required String passwordHash,
     String role = 'user',
+    List<String>? permissions,
   }) {
+    final effective = permissions ??
+        const ['download', 'manage_sources', 'clear_cache', 'nsfw'];
     final id = db.insert(
-      'INSERT INTO users (username,password_hash,role,created_at,disabled) '
-      'VALUES (?,?,?,?,0)',
-      [username, passwordHash, role, nowMs()],
+      'INSERT INTO users (username,password_hash,role,created_at,disabled,'
+      'permissions_json) VALUES (?,?,?,?,0,?)',
+      [username, passwordHash, role, nowMs(), jsonEncode(effective)],
     );
     return byId(id)!;
   }
 
-  void update(int id, {String? passwordHash, String? role, bool? disabled}) {
+  void update(int id,
+      {String? passwordHash,
+      String? role,
+      bool? disabled,
+      List<String>? permissions}) {
     final sets = <String>[];
     final params = <Object?>[];
     if (passwordHash != null) {
@@ -93,6 +116,10 @@ class UserRepository {
     if (disabled != null) {
       sets.add('disabled = ?');
       params.add(disabled ? 1 : 0);
+    }
+    if (permissions != null) {
+      sets.add('permissions_json = ?');
+      params.add(jsonEncode(permissions));
     }
     if (sets.isEmpty) return;
     params.add(id);
@@ -296,6 +323,71 @@ class AuditRepository {
       'page': page,
       'pageSize': pageSize,
     };
+  }
+}
+
+class ApiTokenRepository {
+  final Db db;
+  ApiTokenRepository(this.db);
+
+  int create({
+    required int userId,
+    required String name,
+    required String tokenHash,
+    int? expiresAt,
+  }) =>
+      db.insert(
+        'INSERT INTO api_tokens (user_id,name,token_hash,created_at,expires_at) '
+        'VALUES (?,?,?,?,?)',
+        [userId, name, tokenHash, nowMs(), expiresAt],
+      );
+
+  List<Map<String, Object?>> list(int userId) => db
+      .select(
+        'SELECT id,name,created_at,last_used_at,expires_at FROM api_tokens '
+        'WHERE user_id=? ORDER BY created_at DESC',
+        [userId],
+      )
+      .map((row) => {
+            'id': row['id'],
+            'name': row['name'],
+            'createdAt': row['created_at'],
+            'lastUsedAt': row['last_used_at'],
+            'expiresAt': row['expires_at'],
+          })
+      .toList();
+
+  Map<String, Object?>? byHash(String hash) {
+    final rows = db.select(
+      'SELECT t.*,u.role AS user_role,u.disabled AS user_disabled,'
+      'u.username AS user_name,u.password_hash AS user_password_hash,'
+      'u.created_at AS user_created_at,u.permissions_json AS user_permissions '
+      'FROM api_tokens t JOIN users u ON u.id=t.user_id WHERE t.token_hash=?',
+      [hash],
+    );
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final expiresAt = row['expires_at'] as int?;
+    if (expiresAt != null && expiresAt < nowMs()) return null;
+    if (asBool(row['user_disabled'])) return null;
+    return row;
+  }
+
+  void touch(int id) => db.execute(
+      'UPDATE api_tokens SET last_used_at=? WHERE id=?', [nowMs(), id]);
+
+  bool delete(int userId, int id) {
+    final rows = db.select(
+        'SELECT 1 FROM api_tokens WHERE user_id=? AND id=?', [userId, id]);
+    db.execute('DELETE FROM api_tokens WHERE user_id=? AND id=?', [userId, id]);
+    return rows.isNotEmpty;
+  }
+
+  int deleteForUser(int userId) {
+    final rows = db.select(
+        'SELECT COUNT(*) AS n FROM api_tokens WHERE user_id=?', [userId]);
+    db.execute('DELETE FROM api_tokens WHERE user_id=?', [userId]);
+    return (rows.first['n'] as int?) ?? 0;
   }
 }
 

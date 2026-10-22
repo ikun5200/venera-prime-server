@@ -36,6 +36,7 @@ import HomeLayoutPage from "./routes/HomeLayoutPage";
 import PageFilterPage from "./routes/PageFilterPage";
 import BlockedWordsPage from "./routes/BlockedWordsPage";
 import WebDavPage from "./routes/WebDavPage";
+import TokensPage from "./routes/TokensPage";
 import LogsPage from "./routes/LogsPage";
 import AdminUsersPage from "./routes/AdminUsersPage";
 import TasksPage from "./routes/TasksPage";
@@ -290,6 +291,7 @@ export default function App() {
             element={<BlockedWordsPage kind="comments" />}
           />
           <Route path="settings/webdav" element={<WebDavPage />} />
+          <Route path="settings/tokens" element={<TokensPage />} />
           <Route
             path="settings/app/export"
             element={<Navigate to="/settings/webdav" replace />}

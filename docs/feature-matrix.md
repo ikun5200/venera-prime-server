@@ -418,3 +418,19 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | SRC-04 | server | Source login validation | source runtime | false `result` → “用户名或密码错误” | DONE | E-27 |
 | SRC-05 | server | Readability check with zero images | `/api/sources/:key/check` | fails at `pages` instead of false green | DONE | E-27 |
 | SRC-06 | server | Invalid register/webview URL | capabilities/UI | null in API, hidden in UI | DONE | E-27 |
+
+## Server feature follow-up (E-28, Suwayomi parity)
+
+| ID | Source | Item | Route/API | Behavior | Status | Evidence |
+|---|---|---|---|---|---|---|
+| SRV-01 | P0-1 | Durable download queue | `/api/downloads*` | SQLite queue order, restart recovery, append chapters | DONE | E-28 |
+| SRV-02 | P0-1 | Queue reorder and chapter retry | `/api/downloads/:id/{up,down,first,last}`, `.../chapters/:id/retry` | reorder pending jobs, retry one failed chapter | DONE | E-28 |
+| SRV-03 | P0-2 | Auto-download new chapters | follow-updates | limit, re-upload filter, unread-entry exclusion | DONE | E-28 |
+| SRV-04 | P0-3 | Scheduled WebDAV backup | `/settings/webdav`, hourly timer | interval, time, retention, include toggles | DONE | E-28 |
+| SRV-05 | P1-4 | Library update policies | `/api/follow-updates/check` | unread/not-started/completed filters, per-comic strategy, parallel sources | DONE | E-28 |
+| SRV-06 | P1-5 | Server-sent events | `GET /api/events` | task/download/cache events, heartbeat, no frontend polling | DONE | E-28 |
+| SRV-07 | P1-6 | HTTP resilience | Rust JS host | per-host spacing, 429 retry, FlareSolverr fallback | DONE | E-28 |
+| SRV-08 | P1-7 | OPDS and OPDS-PSE | `/opds*` | favorites/local/history/comic feeds, PSE pages, ZIP acquisition | DONE | E-28 |
+| SRV-09 | P1-8 | WebP conversion and streaming | `/api/image*`, `/opds/*/pse` | format/quality/max width, disk cache, streamed responses | DONE | E-28 |
+| SRV-10 | P1-9 | API tokens | `/api/tokens*` | SHA-256 hashes, expiry, Bearer/Basic | DONE | E-28 |
+| SRV-11 | P1-9 | Permissions | admin UI + API routes | download/manage_sources/clear_cache/nsfw enforced; NSFW filtering | DONE | E-28 |

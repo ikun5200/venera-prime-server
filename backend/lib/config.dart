@@ -15,6 +15,9 @@ class Config {
   final int jsTimeoutMs;
   final int jsConcurrency;
   final int rateLimitPerMinute;
+  final String flareSolverrUrl;
+  final int httpRateLimitPerSecond;
+  final int httpRetries;
   final int maxUploadBytes;
   final String staticDir;
   final String appVersion;
@@ -33,6 +36,9 @@ class Config {
     required this.jsTimeoutMs,
     required this.jsConcurrency,
     required this.rateLimitPerMinute,
+    required this.flareSolverrUrl,
+    required this.httpRateLimitPerSecond,
+    required this.httpRetries,
     required this.maxUploadBytes,
     required this.staticDir,
     required this.appVersion,
@@ -104,6 +110,9 @@ class Config {
       jsTimeoutMs: readInt('JS_TIMEOUT_MS', 30000),
       jsConcurrency: readInt('JS_CONCURRENCY', 8),
       rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 300),
+      flareSolverrUrl: read('FLARESOLVERR_URL', ''),
+      httpRateLimitPerSecond: readInt('HTTP_RATE_LIMIT_PER_SECOND', 10),
+      httpRetries: readInt('HTTP_429_RETRIES', 2),
       maxUploadBytes: readInt('MAX_UPLOAD_BYTES', 512 * 1024 * 1024),
       staticDir: read('STATIC_DIR', 'frontend/dist'),
       appVersion: read('APP_VERSION', '1.0.0'),

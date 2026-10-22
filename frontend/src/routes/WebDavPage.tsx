@@ -13,6 +13,7 @@ import {
   Field,
   Input,
   Modal,
+  Select,
   Spinner,
   Switch,
 } from "../components/ui";
@@ -21,6 +22,10 @@ export default function WebDavPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["webdav"], queryFn: api.webdav });
+  const appSettings = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings,
+  });
   const [url, setUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +66,16 @@ export default function WebDavPage() {
     onSuccess: () => toast.success(t("Connection OK")),
     onError: (error) => toast.error(error.message),
   });
+
+  const saveSetting = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => api.updateSettings(patch),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["settings"], updated);
+      toast.success(t("Saved"));
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const setting = (key: string) => appSettings.data?.[key];
 
   const upload = useMutation({
     mutationFn: api.uploadWebdav,
@@ -170,7 +185,7 @@ export default function WebDavPage() {
               <h2 className="text-[15px] font-semibold">{t("Sync Data")}</h2>
               <p className="text-[12px] text-muted">
                 {t(
-                  "Upload creates a versioned backup on the WebDAV server and keeps the ten newest. Download restores the newest backup for this account.",
+                  "Upload creates a versioned backup on the WebDAV server and keeps the configured number of files. Download restores the newest backup for this account.",
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
@@ -197,6 +212,95 @@ export default function WebDavPage() {
                   {query.data.dataVersion}
                 </p>
               ) : null}
+            </Card>
+
+            <Card className="flex flex-col gap-3 p-4">
+              <h2 className="text-[15px] font-semibold">
+                {t("Scheduled Backups")}
+              </h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label={t("Backup interval")}>
+                  <Select
+                    value={String(setting("backupIntervalDays") ?? 0)}
+                    onChange={(event) =>
+                      saveSetting.mutate({
+                        backupIntervalDays: Number(event.target.value),
+                      })
+                    }
+                  >
+                    <option value={0}>{t("Disabled")}</option>
+                    {[1, 3, 7, 14, 30].map((days) => (
+                      <option key={days} value={days}>
+                        {t("Every @days days", { days })}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t("Backup time")}>
+                  <Input
+                    type="time"
+                    value={(setting("backupTime") as string) ?? "03:00"}
+                    onChange={(event) =>
+                      saveSetting.mutate({ backupTime: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label={t("Backup retention")}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={String(setting("backupRetention") ?? 10)}
+                    onChange={(event) =>
+                      saveSetting.mutate({
+                        backupRetention: Number(event.target.value) || 1,
+                      })
+                    }
+                  />
+                </Field>
+                {query.data?.lastAutoBackupAt ? (
+                  <p className="self-end text-[11px] text-muted">
+                    {t("Last automatic backup")}:{" "}
+                    {new Date(
+                      query.data.lastAutoBackupAt as number,
+                    ).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="flex items-center gap-2 text-[13px]">
+                  <Switch
+                    checked={setting("autoBackupIncludeHistory") !== false}
+                    onChange={(value) =>
+                      saveSetting.mutate({ autoBackupIncludeHistory: value })
+                    }
+                  />
+                  {t("Include history")}
+                </label>
+                <label className="flex items-center gap-2 text-[13px]">
+                  <Switch
+                    checked={setting("autoBackupIncludeStatistics") !== false}
+                    onChange={(value) =>
+                      saveSetting.mutate({ autoBackupIncludeStatistics: value })
+                    }
+                  />
+                  {t("Include statistics")}
+                </label>
+                <label className="flex items-center gap-2 text-[13px]">
+                  <Switch
+                    checked={setting("autoBackupIncludeSettings") !== false}
+                    onChange={(value) =>
+                      saveSetting.mutate({ autoBackupIncludeSettings: value })
+                    }
+                  />
+                  {t("Include settings")}
+                </label>
+              </div>
+              <p className="text-[11px] text-muted">
+                {t(
+                  "Scheduled backups run while the server is online and keep only the configured number of files.",
+                )}
+              </p>
             </Card>
 
             <Card className="flex flex-col gap-3 p-4">

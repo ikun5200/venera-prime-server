@@ -21,6 +21,7 @@ class AdminService {
     required String username,
     required String password,
     String role = 'user',
+    List<String>? permissions,
     int? actorId,
     String? ip,
   }) async {
@@ -29,8 +30,12 @@ class AdminService {
       throw ApiException.conflict('用户名已存在');
     }
     final hash = await CryptoUtil.hashPassword(password);
-    final user =
-        users.create(username: username.trim(), passwordHash: hash, role: role);
+    final user = users.create(
+      username: username.trim(),
+      passwordHash: hash,
+      role: role,
+      permissions: permissions,
+    );
     audit.log('user_create',
         userId: actorId,
         ip: ip,
@@ -44,6 +49,7 @@ class AdminService {
     String? password,
     String? role,
     bool? disabled,
+    List<String>? permissions,
     required int actorId,
     String? ip,
   }) async {
@@ -67,13 +73,18 @@ class AdminService {
       }
       hash = await CryptoUtil.hashPassword(password);
     }
-    users.update(id, passwordHash: hash, role: role, disabled: disabled);
+    users.update(id,
+        passwordHash: hash,
+        role: role,
+        disabled: disabled,
+        permissions: permissions);
     if (disabled == true || hash != null) {
       sessions.deleteForUser(id);
     }
     audit.log('user_update', userId: actorId, ip: ip, detail: {
       'target': id,
       if (role != null) 'role': role,
+      if (permissions != null) 'permissions': permissions,
       if (disabled != null) 'disabled': disabled,
       if (hash != null) 'passwordChanged': true,
     });

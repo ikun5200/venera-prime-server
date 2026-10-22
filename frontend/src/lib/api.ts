@@ -1,4 +1,5 @@
 import type {
+  ApiTokenInfo,
   CatalogEntry,
   Comic,
   ComicDetails,
@@ -150,16 +151,33 @@ export const api = {
     username: string,
     password: string,
     role: "admin" | "user",
-  ) => post<{ user: User }>("/admin/users", { username, password, role }),
+    permissions?: string[],
+  ) =>
+    post<{ user: User }>("/admin/users", {
+      username,
+      password,
+      role,
+      permissions,
+    }),
   adminUpdateUser: (
     id: number,
-    body: { password?: string; role?: string; disabled?: boolean },
+    body: {
+      password?: string;
+      role?: string;
+      disabled?: boolean;
+      permissions?: string[];
+    },
   ) => patch<{ user: User }>(`/admin/users/${id}`, body),
   adminDeleteUser: (id: number) => del<{ ok: boolean }>(`/admin/users/${id}`),
   adminAudit: (page = 1) =>
     get<Paged<Record<string, unknown>>>(
       `/admin/audit?page=${page}&pageSize=50`,
     ),
+
+  tokens: () => get<{ items: ApiTokenInfo[] }>("/tokens"),
+  createToken: (body: { name: string; expiresInDays?: number }) =>
+    post<{ token: ApiTokenInfo }>("/tokens", body),
+  deleteToken: (id: number) => del<{ ok: boolean }>(`/tokens/${id}`),
 
   settings: () => get<Settings>("/settings"),
   updateSettings: (patchValue: Settings) =>
@@ -653,8 +671,26 @@ export const api = {
   }) => post<{ job: DownloadJob }>("/downloads", body),
   downloadAction: (
     id: string,
-    action: "pause" | "resume" | "retry" | "cancel" | "first",
+    action:
+      | "pause"
+      | "resume"
+      | "retry"
+      | "cancel"
+      | "first"
+      | "up"
+      | "down"
+      | "last",
   ) => post<{ job: DownloadJob }>(`/downloads/${enc(id)}/${action}`),
+  retryDownloadChapter: (id: string, chapterId: string) =>
+    post<{ job: DownloadJob }>(
+      `/downloads/${enc(id)}/chapters/${enc(chapterId)}/retry`,
+    ),
+
+  updateFavoriteStrategy: (body: {
+    comicId: string;
+    comicType: number;
+    strategy: "always" | "unread" | "never";
+  }) => post<{ ok: boolean }>("/favorites/update-strategy", body),
 
   localComics: (params: { q?: string; sort?: string } = {}) => {
     const search = new URLSearchParams();

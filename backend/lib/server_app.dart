@@ -9,14 +9,19 @@ import 'package:shelf/shelf.dart';
 import 'app_context.dart';
 import 'config.dart';
 import 'routes/api_router.dart';
+import 'routes/opds_router.dart';
 import 'services/auth_service.dart';
 import 'util/errors.dart';
 import 'util/log.dart';
 
 Handler buildServerHandler(AppContext ctx) {
   final api = buildApiRouter(ctx);
+  final opds = buildOpdsRouter(ctx);
   final staticHandler = StaticSpaHandler(ctx.config);
   Future<Response> router(Request request) async {
+    if (request.url.path == 'opds' || request.url.path.startsWith('opds/')) {
+      return opds(request);
+    }
     if (request.url.path.startsWith('api')) {
       final response = await api(request);
       if (response.statusCode == 404) {

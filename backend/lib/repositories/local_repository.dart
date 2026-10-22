@@ -256,6 +256,27 @@ class LocalRepository {
     return _jobToJson(rows.first);
   }
 
+  /// Lightweight job payload for progress events; avoids serializing every
+  /// chapter while pages are downloading.
+  Map<String, Object?>? jobSummary(int userId, String id) {
+    final rows = db.select(
+      'SELECT id,state,progress,total,error,queue_order,updated_at '
+      'FROM download_jobs WHERE user_id=? AND id=?',
+      [userId, id],
+    );
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    return {
+      'id': row['id'],
+      'state': row['state'],
+      'progress': row['progress'],
+      'total': row['total'],
+      'error': row['error'],
+      'queueOrder': row['queue_order'],
+      'updatedAt': row['updated_at'],
+    };
+  }
+
   Map<String, Object?> _jobToJson(Map<String, Object?> row) {
     Map<String, Object?> payload;
     try {
@@ -282,6 +303,7 @@ class LocalRepository {
       'progress': row['progress'],
       'total': row['total'],
       'error': row['error'],
+      'queueOrder': row['queue_order'],
       'createdAt': row['created_at'],
       'updatedAt': row['updated_at'],
       'payload': payload,
@@ -299,7 +321,11 @@ class LocalRepository {
 
   List<Map<String, Object?>> jobs(int userId) => db
       .select(
-          'SELECT * FROM download_jobs WHERE user_id=? ORDER BY created_at DESC',
+          "SELECT * FROM download_jobs WHERE user_id=? ORDER BY "
+          "CASE state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 "
+          "WHEN 'paused' THEN 2 ELSE 3 END, "
+          "CASE WHEN state IN ('running','queued','paused') THEN queue_order "
+          "ELSE 0 END ASC, updated_at DESC",
           [userId])
       .map((r) => _jobToJson(r))
       .toList();
@@ -320,10 +346,14 @@ class LocalRepository {
         'job_${nowMs()}_${(payload.hashCode & 0xffffff).toRadixString(16)}';
     final now = nowMs();
     db.transaction(() {
+      final maxOrder = db.select(
+          'SELECT COALESCE(MAX(queue_order), 0) AS n FROM download_jobs '
+          'WHERE user_id=?',
+          [userId]).first['n'] as int;
       db.execute(
         'INSERT INTO download_jobs (id,user_id,kind,source_key,comic_id,comic_type,'
-        'title,cover,state,progress,total,payload_json,created_at,updated_at) '
-        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'title,cover,state,progress,total,payload_json,created_at,updated_at,'
+        'queue_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [
           id,
           userId,
@@ -339,6 +369,7 @@ class LocalRepository {
           jsonEncode(payload),
           now,
           now,
+          maxOrder + 1,
         ],
       );
       for (final chapter in chapters) {
@@ -358,6 +389,66 @@ class LocalRepository {
       }
     });
     return id;
+  }
+
+  void appendJobChapters(
+    int userId,
+    String jobId,
+    List<Map<String, Object?>> chapters,
+  ) {
+    if (chapters.isEmpty) return;
+    final rows = db.select(
+        'SELECT payload_json,total FROM download_jobs WHERE user_id=? AND id=?',
+        [userId, jobId]);
+    if (rows.isEmpty) return;
+    Map<String, Object?> payload;
+    try {
+      final decoded = jsonDecode(rows.first['payload_json'] as String? ?? '{}');
+      payload = decoded is Map
+          ? decoded.map((k, v) => MapEntry(k.toString(), v))
+          : <String, Object?>{};
+    } catch (_) {
+      payload = <String, Object?>{};
+    }
+    final existing = (payload['chapters'] as List?) ?? const [];
+    final known = existing
+        .whereType<Map>()
+        .map((chapter) => chapter['id'].toString())
+        .toSet();
+    final added = chapters
+        .where((chapter) => !known.contains(chapter['id'].toString()))
+        .toList();
+    if (added.isEmpty) return;
+    payload['chapters'] = [...existing, ...added];
+    db.transaction(() {
+      db.execute(
+        'UPDATE download_jobs SET payload_json=?, total=?, updated_at=? '
+        'WHERE user_id=? AND id=?',
+        [
+          jsonEncode(payload),
+          ((rows.first['total'] as int?) ?? 0) + added.length,
+          nowMs(),
+          userId,
+          jobId,
+        ],
+      );
+      for (final chapter in added) {
+        db.execute(
+          'INSERT OR IGNORE INTO download_chapters '
+          '(user_id,job_id,chapter_id,chapter_name,status,total_pages,'
+          'downloaded_pages) VALUES (?,?,?,?,?,?,?)',
+          [
+            userId,
+            jobId,
+            chapter['id'],
+            chapter['name'] ?? '',
+            'pending',
+            chapter['totalPages'] ?? 0,
+            0,
+          ],
+        );
+      }
+    });
   }
 
   void updateJob(String id,
@@ -425,10 +516,85 @@ class LocalRepository {
   String? nextQueuedJob(int userId) {
     final rows = db.select(
       "SELECT id FROM download_jobs WHERE user_id=? AND state='queued' "
-      'ORDER BY created_at ASC LIMIT 1',
+      'ORDER BY queue_order ASC, created_at ASC LIMIT 1',
       [userId],
     );
     return rows.isEmpty ? null : rows.first['id'] as String;
+  }
+
+  List<int> usersWithQueuedJobs() => db
+      .select("SELECT DISTINCT user_id FROM download_jobs WHERE state='queued'")
+      .map((row) => row['user_id'] as int)
+      .toList();
+
+  /// Jobs interrupted by a server restart go back to the queue.
+  void resetInterruptedJobs() {
+    db.execute(
+      "UPDATE download_jobs SET state='queued', error=NULL, updated_at=? "
+      "WHERE state='running'",
+      [nowMs()],
+    );
+    db.execute(
+        "UPDATE download_chapters SET status='pending' WHERE status='running'");
+  }
+
+  /// Moves a queued or paused job within the pending queue.
+  void moveInQueue(int userId, String id, String direction) {
+    final rows = db.select(
+      "SELECT id, queue_order FROM download_jobs WHERE user_id=? "
+      "AND state IN ('queued','paused') "
+      'ORDER BY queue_order ASC, created_at ASC',
+      [userId],
+    );
+    if (rows.isEmpty) return;
+    final index = rows.indexWhere((row) => row['id'] == id);
+    if (index < 0) return;
+    final order = rows[index]['queue_order'] as int;
+    int? target;
+    switch (direction) {
+      case 'up':
+        if (index > 0) target = rows[index - 1]['queue_order'] as int;
+      case 'down':
+        if (index < rows.length - 1) {
+          target = rows[index + 1]['queue_order'] as int;
+        }
+      case 'first':
+        if (index > 0) target = (rows.first['queue_order'] as int) - 1;
+      case 'last':
+        if (index < rows.length - 1) {
+          target = (rows.last['queue_order'] as int) + 1;
+        }
+      default:
+        throw ApiException.badRequest('未知排序操作');
+    }
+    if (target == null) return;
+    final other = rows.where((row) => row['queue_order'] == target).firstOrNull;
+    db.transaction(() {
+      if (other != null) {
+        db.execute(
+            'UPDATE download_jobs SET queue_order=? WHERE id=?', [target, id]);
+        db.execute('UPDATE download_jobs SET queue_order=? WHERE id=?',
+            [order, other['id']]);
+      } else {
+        db.execute(
+            'UPDATE download_jobs SET queue_order=? WHERE id=?', [target, id]);
+      }
+    });
+  }
+
+  void resetChapterStatus(String jobId, String chapterId) {
+    db.execute(
+        "UPDATE download_chapters SET status='pending' WHERE job_id=? "
+        'AND chapter_id=?',
+        [jobId, chapterId]);
+  }
+
+  /// Re-queues every failed chapter of a job.
+  void resetFailedChapters(String jobId) {
+    db.execute(
+        "UPDATE download_chapters SET status='pending' WHERE job_id=? "
+        "AND status IN ('error','running')",
+        [jobId]);
   }
 
   // ---- uploads ---------------------------------------------------------
@@ -514,9 +680,19 @@ class LocalRepository {
       'dataVersion': r['data_version'],
       'lastBackupName': r['last_backup_name'],
       'lastBackupIdentity': r['last_backup_identity'],
+      'lastAutoBackupAt': r['last_auto_backup_at'],
       'updatedAt': r['updated_at'],
     };
   }
+
+  List<int> usersWithWebdav() => db
+      .select("SELECT user_id FROM webdav_config WHERE url <> ''")
+      .map((row) => row['user_id'] as int)
+      .toList();
+
+  void markAutoBackup(int userId, int at) => db.execute(
+      'UPDATE webdav_config SET last_auto_backup_at=? WHERE user_id=?',
+      [at, userId]);
 
   void saveWebdav(int userId,
       {required String url,
@@ -526,18 +702,20 @@ class LocalRepository {
       bool autoSync = false,
       int? dataVersion,
       String? lastBackupName,
-      String? lastBackupIdentity}) {
+      String? lastBackupIdentity,
+      int? lastAutoBackupAt}) {
     final existing = webdav(userId);
     db.execute(
       'INSERT INTO webdav_config (user_id,url,username,password_enc,path,auto_sync,'
-      'data_version,last_backup_name,last_backup_identity,updated_at) '
-      'VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET '
+      'data_version,last_backup_name,last_backup_identity,last_auto_backup_at,'
+      'updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET '
       'url=excluded.url,username=excluded.username,'
       'password_enc=COALESCE(excluded.password_enc,password_enc),'
       'path=excluded.path,auto_sync=excluded.auto_sync,'
       'data_version=COALESCE(excluded.data_version,data_version),'
       'last_backup_name=COALESCE(excluded.last_backup_name,last_backup_name),'
       'last_backup_identity=COALESCE(excluded.last_backup_identity,last_backup_identity),'
+      'last_auto_backup_at=COALESCE(excluded.last_auto_backup_at,last_auto_backup_at),'
       'updated_at=excluded.updated_at',
       [
         userId,
@@ -549,6 +727,7 @@ class LocalRepository {
         dataVersion ?? existing?['dataVersion'] ?? 0,
         lastBackupName,
         lastBackupIdentity,
+        lastAutoBackupAt,
         nowMs(),
       ],
     );

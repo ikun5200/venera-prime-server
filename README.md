@@ -33,10 +33,22 @@ isolated per account.
   image favorites, follow updates and reading statistics.
 - **Local comics** — chunked upload/import (CBZ/ZIP), server-side reading,
   chapter deletion, and CBZ/PDF/EPUB export.
-- **Downloads** — server-side chapter queue with pause/resume/retry/cancel, plus
-  a direct "download to browser" ZIP for one or many chapters.
-- **Data sync** — WebDAV backup/restore with ten-version retention, plus local
+- **Downloads** — durable server-side chapter queue that survives restarts,
+  reorder (`up/down/first/last`), pause/resume, whole-job or per-chapter retry,
+  automatic download of new chapters for followed comics, plus a direct
+  "download to browser" ZIP for one or many chapters.
+- **Data sync** — WebDAV backup/restore with scheduled backups (interval, time,
+  configurable retention, selectable history/statistics/settings), plus local
   backup export/import.
+- **Live updates** — a per-user SSE stream (`/api/events`) pushes task,
+  download and cache changes to the web app; no polling.
+- **OPDS / OPDS-PSE** — read favorites, history and the local library from
+  OPDS clients, with page-image streaming and ZIP acquisition.
+- **Image conversion** — optional on-demand WebP conversion with quality and
+  max-width settings plus a disk cache; original bytes remain cached.
+- **API tokens & permissions** — hashed Bearer/Basic tokens (also usable as an
+  OPDS password) and per-account `download`, `manage_sources`, `clear_cache`
+  and `nsfw` permissions.
 - **Accounts** — first-run admin creation, admin user CRUD, Argon2id passwords,
   HttpOnly sessions, per-user isolation on every resource.
 
@@ -44,7 +56,7 @@ isolated per account.
 
 ```
 Browser (React + TypeScript + Tailwind)
-        │  Cookie session, JSON
+        │  Cookie session, JSON + SSE
 Dart backend (shelf) ── SQLite (WAL) + data/users/<id>/
         │  stdio JSON lines
 Rust sidecar (rquickjs/QuickJS) ── original init.js + user source scripts
@@ -102,6 +114,9 @@ docker run -d --name venera -p 8080:8080 \
 | `JS_HOST_BIN` | `rust/js_host/target/release/venera_js_host` (image: `/app/venera_js_host`) | QuickJS sidecar binary |
 | `JS_TIMEOUT_MS` | `30000` | Per source call timeout |
 | `JS_CONCURRENCY` | `8` | Concurrent sidecar calls |
+| `FLARESOLVERR_URL` | empty | Optional FlareSolverr `/v1` endpoint used when a source request hits 403/429/503 or a Cloudflare interstitial |
+| `HTTP_RATE_LIMIT_PER_SECOND` | `10` | Per-host request spacing in the JS HTTP bridge (`0` disables) |
+| `HTTP_429_RETRIES` | `2` | Retries for 429 responses, honoring `Retry-After`, before the FlareSolverr fallback |
 | `RATE_LIMIT_PER_MINUTE` | `300` | General API limit per user/IP; image proxies and polling endpoints use separate, larger buckets |
 | `MAX_UPLOAD_BYTES` | `536870912` | Upload cap (512 MiB) |
 | `APP_VERSION` | `1.0.0` | Reported by `/api/health` |

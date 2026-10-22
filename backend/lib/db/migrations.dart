@@ -392,4 +392,37 @@ CREATE INDEX idx_image_cache_comic
   ON image_cache(user_id, source_key, comic_id, ep_id);
 CREATE INDEX idx_image_cache_source ON image_cache(user_id, source_key);
 ''',
+  // 6 — durable download queue order, update strategy, user permissions,
+  //     API tokens and backup scheduling metadata
+  '''
+ALTER TABLE download_jobs ADD COLUMN queue_order INTEGER NOT NULL DEFAULT 0;
+UPDATE download_jobs SET queue_order = created_at WHERE queue_order = 0;
+
+ALTER TABLE favorites ADD COLUMN update_strategy TEXT NOT NULL DEFAULT 'always';
+
+ALTER TABLE users ADD COLUMN permissions_json TEXT NOT NULL
+  DEFAULT '["download","manage_sources","clear_cache","nsfw"]';
+
+ALTER TABLE webdav_config ADD COLUMN last_auto_backup_at INTEGER;
+
+CREATE TABLE api_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER,
+  expires_at INTEGER
+);
+CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
+''',
+  // 7 — NSFW was an implicit permission before this release; keep existing
+  //     accounts at parity and let administrators revoke it explicitly.
+  '''
+UPDATE users SET permissions_json = '["nsfw"]'
+  WHERE role <> 'admin' AND permissions_json = '[]';
+UPDATE users SET permissions_json = REPLACE(permissions_json, ']', ',"nsfw"]')
+  WHERE role <> 'admin' AND permissions_json <> '[]'
+    AND permissions_json NOT LIKE '%"nsfw"%';
+''',
 ];

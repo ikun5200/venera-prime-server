@@ -458,6 +458,10 @@ class ComicService {
     details['favoriteFolders'] = favorites.folderIdsForComic(
         userId, comicId, comicTypeForSource(sourceKey));
     details['isFavorite'] = (details['favoriteFolders'] as List).isNotEmpty;
+    details['updateStrategy'] = details['isFavorite'] == true
+        ? favorites.updateStrategy(
+            userId, comicId, comicTypeForSource(sourceKey))
+        : 'always';
     details['localComicId'] = _localComicId(userId, sourceKey, comicId);
     return details;
   }
@@ -491,6 +495,7 @@ class ComicService {
     }
     final updateTime = _findUpdateTime(raw, tags);
     final author = _findAuthor(tags);
+    final status = _findStatus(raw, tags);
     return {
       'id': comicId,
       'comicId': comicId,
@@ -513,6 +518,7 @@ class ComicService {
       'subId': raw['subId'],
       'uploader': raw['uploader'] ?? author,
       'updateTime': updateTime,
+      'status': status,
       'uploadTime': raw['uploadTime'],
       'url': raw['url'],
       'stars': raw['stars'],
@@ -568,6 +574,23 @@ class ComicService {
       if (list != null && list.isNotEmpty) return list.first;
     }
     return value is String ? value : null;
+  }
+
+  String _findStatus(Map<String, Object?> raw, Map<String, List<String>> tags) {
+    final direct = raw['status'];
+    if (direct is String && direct.trim().isNotEmpty) return direct.trim();
+    for (final entry in tags.entries) {
+      final key = entry.key.toLowerCase();
+      if (key == 'status' ||
+          key == 'state' ||
+          entry.key == '状态' ||
+          entry.key == '狀態' ||
+          entry.key == '连载状态' ||
+          entry.key == '連載狀態') {
+        if (entry.value.isNotEmpty) return entry.value.first;
+      }
+    }
+    return '';
   }
 
   String? _validateDate(String value) {

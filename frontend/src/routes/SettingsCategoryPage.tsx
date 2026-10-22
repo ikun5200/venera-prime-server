@@ -1366,6 +1366,30 @@ function buildItems(category: string): Item[] {
           max: 16,
         },
         {
+          kind: "select",
+          key: "imageFormat",
+          label: "Image format",
+          options: [
+            { value: "original", label: "Original" },
+            { value: "webp", label: "WebP" },
+          ],
+          hint: "WebP reduces bandwidth; the original cache is kept.",
+        },
+        {
+          kind: "slider",
+          key: "imageQuality",
+          label: "Image quality",
+          min: 1,
+          max: 100,
+        },
+        {
+          kind: "slider",
+          key: "imageMaxWidth",
+          label: "Max image width (0 = original)",
+          min: 0,
+          max: 2400,
+        },
+        {
           kind: "switch",
           key: "ignoreBadCertificate",
           label: "Ignore Certificate Errors",
