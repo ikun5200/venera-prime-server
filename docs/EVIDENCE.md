@@ -1057,3 +1057,14 @@ Every acceptance item is backed by a reproducible command, output summary and
   title being squeezed by five action icons; the title now gets its own row.
 - Pending for this evidence: CI run and NAS deploy (will be appended after
   commit).
+- CI: run `39728138710` (commit `0408786`) succeeded (backend-test,
+  frontend-test, docker build+push).
+- NAS: compose updated with `FLARESOLVERR_URL=http://suwayomi-flaresolverr:8191`
+  (joined `suwayomi_default`), per-host HTTP limits and retries; DB backed up to
+  `data/venera.db.bak-20261022` before migration. `docker compose pull && up -d`
+  → container `Up (healthy)`, `/api/health` ok. `PRAGMA user_version=7`,
+  `download_jobs.queue_order`, `favorites.update_strategy`,
+  `webdav_config.last_auto_backup_at`, `api_tokens` and admin permissions all
+  present; 33 existing sources preserved. `/opds` without auth → 401, and the
+  FlareSolverr endpoint answers from inside the venera container (HTTP 301 on
+  `/`). Image digest `sha256:3960dc87…39148`; bundle `index-235grYoG.js`.
