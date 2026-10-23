@@ -128,7 +128,7 @@ export function AppShell() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-bg/85 px-3 backdrop-blur-md md:hidden">
+      <header className="sticky top-0 z-30 flex min-h-[56px] items-center gap-2 border-b border-border bg-bg/85 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-md md:hidden">
         <div className="flex h-7 w-7 items-center justify-center rounded bg-accent text-xs font-bold text-white">
           V
         </div>

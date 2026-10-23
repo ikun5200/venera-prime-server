@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { api, imageUrl, localImageUrl } from "../lib/api";
-import { useAppStore, toast } from "../lib/store";
+import { applyTheme, useAppStore, toast } from "../lib/store";
 import { useT } from "../lib/i18n";
 import {
   comicSettingsKey,
@@ -86,6 +86,19 @@ export default function ReaderPage() {
     [comicKey, deviceId, settings],
   );
   const comicSpecificEnabled = isComicSpecificEnabled(settings, comicKey);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    root.classList.add("reader-immersive");
+    document.body.classList.add("reader-immersive");
+    meta?.setAttribute("content", "#000000");
+    return () => {
+      root.classList.remove("reader-immersive");
+      document.body.classList.remove("reader-immersive");
+      applyTheme(useAppStore.getState().settings);
+    };
+  }, []);
 
   const sourcesQuery = useQuery({
     queryKey: ["sources"],
@@ -1883,7 +1896,7 @@ export default function ReaderPage() {
       {/* Top controls */}
       <div
         className={cn(
-          "absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-black/70 px-3 py-2 backdrop-blur-md transition-transform duration-200 ease-enter",
+          "absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-black/70 px-3 pb-2 pt-[max(8px,env(safe-area-inset-top))] backdrop-blur-md transition-transform duration-200 ease-enter",
           controlsVisible ? "translate-y-0" : "-translate-y-full",
         )}
       >

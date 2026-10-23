@@ -226,6 +226,19 @@ describe("ReaderPage", () => {
     ).toBe(true);
   });
 
+  it("uses the black immersive theme while the reader is mounted", async () => {
+    const { unmount } = renderReader();
+    await waitFor(() =>
+      expect(
+        document.documentElement.classList.contains("reader-immersive"),
+      ).toBe(true),
+    );
+    unmount();
+    expect(document.documentElement.classList.contains("reader-immersive")).toBe(
+      false,
+    );
+  });
+
   it("opens at the page requested in the URL", async () => {
     renderReader("/reader/test_source/comic-1?page=3");
     await waitFor(() =>

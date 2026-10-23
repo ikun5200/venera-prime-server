@@ -235,3 +235,14 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
 - 7z/CB7 import (ZIP/CBZ supported).
 - Proxy/DNS/certificate settings are persisted but not enforced by the Rust
   HTTP client yet.
+
+- iOS immersive reader (E-30): the reader now forces `theme-color` to
+  `#000000`, adds a `reader-immersive` root/body class with a black background
+  and dark color-scheme, and restores the user's light/dark theme-color on
+  exit. The mobile top bar and reader toolbar include
+  `safe-area-inset-top`; bottom safe-area handling already existed. Added an
+  iOS web-app manifest (`display: standalone`, black status bar), Apple
+  touch icon and 192/512 PWA icons, so “Add to Home Screen” opens without
+  Safari chrome. Safari inside a normal tab still cannot programmatically hide
+  its own address bar (Apple limitation), but the status/toolbar area is now
+  black instead of white. Frontend tests: 30.

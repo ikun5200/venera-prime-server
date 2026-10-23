@@ -1106,3 +1106,38 @@ Every acceptance item is backed by a reproducible command, output summary and
   container `Up (healthy)`, `PRAGMA user_version=8`,
   `history.chapter_id` present, 33 sources preserved. Bundle
   `index-CEG53p__.js`.
+
+## E-30 — iOS immersive reader / status bar (2026-10-23) — PASS (local)
+
+- Symptom (iPhone): opening the reader left a white band/status-bar area at
+  the top; the page never felt immersive.
+- Diagnosis: the static `theme-color` was light (`#fafaf9`) and the reader did
+  not rotate the page background to black. iOS Safari paints its status/toolbar
+  area from `theme-color`; a fixed element cannot cover it. The build also had
+  no iOS web-app metadata, so “Add to Home Screen” opened with browser chrome.
+- Fix:
+  - `ReaderPage` adds `reader-immersive` to `<html>`/`<body>` on mount,
+    switches `theme-color` to `#000000`, and applies `color-scheme: dark`.
+    On unmount it removes the class and calls `applyTheme` so the configured
+    light/dark color is restored. `applyTheme` itself respects the reader
+    class if settings re-render while reading.
+  - CSS keeps the html/body/root background black during reading, including
+    iOS overscroll.
+  - Reader top toolbar and mobile app header use `env(safe-area-inset-top)`;
+    bottom bars already used the bottom inset.
+  - `index.html` now declares `mobile-web-app-capable`,
+    `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style=black`,
+    a manifest and an Apple touch icon. `manifest.webmanifest` uses
+    `display: standalone`, black theme/background and 192/512 icons.
+- Verification (local production image, 390×844 viewport):
+  - With the reader open: theme-color `#000000`, html/body background
+    `rgb(0, 0, 0)`, classes `dark reader-immersive`.
+  - After navigating home: classes removed and theme-color restored to
+    `#0c0a09` (dark setting).
+  - `/manifest.webmanifest` is served as `application/manifest+json`; dist
+    contains the manifest, apple-touch-icon and 192/512 icons.
+  - `npm run typecheck`, `npm test` **30/30**, `npm run build` pass.
+- Note: iOS Safari in a normal tab does not expose a web API to hide its own
+  address bar. The white tint is fixed; true full-screen (no Safari chrome)
+  requires “添加到主屏幕”, which now launches standalone with a black status
+  bar. CI/NAS deploy appended below.

@@ -32,6 +32,8 @@ isolated per account.
   Chapter lists default to newest first (numeric title comparison, even when a
   source returns a disordered list), finished chapters are greyed out, and
   next/previous chapter follows numeric chronology instead of raw source order.
+  The reader switches the iOS status area to pure black; add the site to the
+  Home Screen for standalone viewing without Safari's address bar.
 - **Library** — local favorite folders, network favorites, history, read later,
   image favorites, follow updates and reading statistics.
 - **Local comics** — chunked upload/import (CBZ/ZIP), server-side reading,

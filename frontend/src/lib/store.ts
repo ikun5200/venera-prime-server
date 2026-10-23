@@ -88,7 +88,16 @@ export function applyTheme(settings: Settings) {
   const rgb = hexToRgb(hex);
   document.documentElement.style.setProperty("--accent", rgb);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", dark ? "#0c0a09" : "#fafaf9");
+  if (meta) {
+    meta.setAttribute(
+      "content",
+      document.documentElement.classList.contains("reader-immersive")
+        ? "#000000"
+        : dark
+          ? "#0c0a09"
+          : "#fafaf9",
+    );
+  }
 }
 
 function hexToRgb(hex: string): string {

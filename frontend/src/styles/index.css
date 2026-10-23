@@ -101,6 +101,23 @@ button {
   background: #000;
 }
 
+/* iOS Safari uses the page background for the status-bar / overscroll area.
+   Keep it black while the reader is mounted, including in standalone PWA mode. */
+html.reader-immersive {
+  background: #000;
+  color-scheme: dark;
+}
+
+html.reader-immersive body,
+html.reader-immersive #root {
+  background: #000;
+  overscroll-behavior: none;
+}
+
+html.reader-immersive body {
+  color: #fff;
+}
+
 .reader-page {
   user-select: none;
   -webkit-user-select: none;
