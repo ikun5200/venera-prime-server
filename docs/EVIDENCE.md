@@ -1069,7 +1069,7 @@ Every acceptance item is backed by a reproducible command, output summary and
   FlareSolverr endpoint answers from inside the venera container (HTTP 301 on
   `/`). Image digest `sha256:3960dc87…39148`; bundle `index-235grYoG.js`.
 
-## E-29 — Chapter order and read-state polish (2026-10-23) — PASS (local)
+## E-29 — Chapter order and read-state polish (2026-10-23) — PASS
 
 - Reported issues: finished chapters had no grey state; chapter lists did not
   default to newest-first; disordered sources jumped from chapter 300 to 200
@@ -1101,4 +1101,8 @@ Every acceptance item is backed by a reproducible command, output summary and
     they were read.
   - `dart analyze` clean, `dart test` **68/68**; `npm run typecheck`,
     `npm test` **29/29**, `npm run build` pass.
-- Pending: CI and NAS deploy (will be appended).
+- CI: run `39905634225` (commit `acac73f`) succeeded.
+- NAS: DB backed up to `data/venera.db.bak-20261023`; compose pull/up done,
+  container `Up (healthy)`, `PRAGMA user_version=8`,
+  `history.chapter_id` present, 33 sources preserved. Bundle
+  `index-CEG53p__.js`.
