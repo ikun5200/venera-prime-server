@@ -425,4 +425,9 @@ UPDATE users SET permissions_json = REPLACE(permissions_json, ']', ',"nsfw"]')
   WHERE role <> 'admin' AND permissions_json <> '[]'
     AND permissions_json NOT LIKE '%"nsfw"%';
 ''',
+  // 8 — stable current-chapter id so resume works when the display order
+  //     differs from the source order.
+  '''
+ALTER TABLE history ADD COLUMN chapter_id TEXT;
+''',
 ];

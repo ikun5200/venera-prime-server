@@ -395,6 +395,30 @@ void main() {
     });
   });
 
+  group('history chapter ids', () {
+    test('persists the current and finished chapter ids', () async {
+      final (_, client, _) = await setUpApp();
+      final saved = await client.put('/api/history', {
+        'comicId': 'comic-history',
+        'comicType': 1,
+        'sourceKey': 'test_source',
+        'title': 'History Comic',
+        'subtitle': 'Author',
+        'cover': '',
+        'ep': 3,
+        'page': 2,
+        'chapterId': 'chapter-300',
+        'readEpisode': ['chapter-100', 'chapter-200'],
+        'maxPage': 10,
+      });
+      expect(saved.status, 200);
+      final list = await client.get('/api/history');
+      final item = (list.body['items'] as List).first as Map;
+      expect(item['chapterId'], 'chapter-300');
+      expect(item['readEpisode'], ['chapter-100', 'chapter-200']);
+    });
+  });
+
   group('image conversion and backup filters', () {
     test('WebP conversion returns a WebP payload and caches it', () async {
       final (app, _, userId) = await setUpApp();

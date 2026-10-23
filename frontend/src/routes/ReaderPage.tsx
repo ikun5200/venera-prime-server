@@ -47,6 +47,8 @@ import {
   copyText,
   flattenChapters,
   friendlyError,
+  sortChapters,
+  type ChapterOrder,
 } from "../lib/utils";
 import {
   Button,
@@ -105,7 +107,7 @@ export default function ReaderPage() {
     enabled: isLocal && Number.isFinite(localId),
   });
 
-  const chapters = useMemo<Chapter[]>(() => {
+  const sourceChapters = useMemo<Chapter[]>(() => {
     const raw = isLocal
       ? (localQuery.data?.chapterList ?? []).map((chapter) => ({
           id: chapter.id,
@@ -131,15 +133,27 @@ export default function ReaderPage() {
     localQuery.data,
     readerSettings.hideDuplicateChapters,
   ]);
+  const chapterOrder =
+    (settings.comicChapterOrder as Record<string, ChapterOrder> | undefined)?.[
+      comicKey
+    ] ?? (settings.reverseChapterOrder ? "reverse" : "newest");
+  const displayChapters = useMemo(
+    () => sortChapters(sourceChapters, chapterOrder),
+    [chapterOrder, sourceChapters],
+  );
+  const chapters = useMemo(
+    () => sortChapters(sourceChapters, "oldest"),
+    [sourceChapters],
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, Chapter[]>();
-    for (const chapter of chapters) {
+    for (const chapter of displayChapters) {
       const key = chapter.group ?? "";
       map.set(key, [...(map.get(key) ?? []), chapter]);
     }
     return [...map.entries()].map(([name, list]) => ({ name, chapters: list }));
-  }, [chapters]);
+  }, [displayChapters]);
 
   const [chapterId, setChapterId] = useState("");
   const [currentPage, setCurrentPage] = useState(() => {
@@ -155,7 +169,7 @@ export default function ReaderPage() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [failed, setFailed] = useState<Record<number, boolean>>({});
   const [pendingLastPage, setPendingLastPage] = useState(false);
-  const [readEpisodes, setReadEpisodes] = useState<Set<number>>(new Set());
+  const [readEpisodes, setReadEpisodes] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastWheel = useRef(0);
   const sessionStart = useRef(Date.now());
@@ -277,16 +291,20 @@ export default function ReaderPage() {
 
   useEffect(() => {
     const read = comicQuery.data?.progress?.readEpisode;
-    if (Array.isArray(read)) {
-      setReadEpisodes(
-        new Set(
-          read
-            .map((value) => Number(value))
-            .filter((value) => Number.isFinite(value)),
-        ),
-      );
+    if (!Array.isArray(read)) return;
+    const ids = new Set<string>();
+    for (const value of read) {
+      if (typeof value === "string") {
+        ids.add(value);
+        continue;
+      }
+      const index = Number(value);
+      if (!Number.isFinite(index)) continue;
+      const legacy = sourceChapters[index - 1];
+      if (legacy) ids.add(legacy.id);
     }
-  }, [comicQuery.data?.progress?.readEpisode]);
+    setReadEpisodes(ids);
+  }, [comicQuery.data?.progress?.readEpisode, sourceChapters]);
 
   const chapter = chapters.find((item) => item.id === chapterId);
   const chapterIndex = chapters.findIndex((item) => item.id === chapterId);
@@ -299,10 +317,13 @@ export default function ReaderPage() {
       return;
     }
     const progress = comicQuery.data?.progress;
+    const saved = progress?.chapterId
+      ? chapters.find((item) => item.id === progress.chapterId)
+      : undefined;
     const index = progress
       ? clamp((progress.ep ?? 1) - 1, 0, chapters.length - 1)
       : 0;
-    setChapterId(chapters[index]?.id ?? chapters[0].id);
+    setChapterId(saved?.id ?? chapters[index]?.id ?? chapters[0].id);
   }, [chapterId, chapters, comicQuery.data?.progress, searchParams]);
 
   const localImagesQuery = useQuery({
@@ -468,7 +489,7 @@ export default function ReaderPage() {
       if (now - lastProgressSave.current < 800) return;
       lastProgressSave.current = now;
       const nextRead = new Set(readEpisodes);
-      if (page >= pages.length - 1) nextRead.add(chapterIndex);
+      if (page >= pages.length - 1 && chapter) nextRead.add(chapter.id);
       api
         .saveProgress({
           comicId,
@@ -482,6 +503,7 @@ export default function ReaderPage() {
           chapterGroup: chapter?.group
             ? groups.findIndex((group) => group.name === chapter.group) + 1
             : null,
+          chapterId: chapter?.id,
           maxPage: imageKeys.length,
           readEpisode: [...nextRead],
         })
@@ -2120,16 +2142,25 @@ export default function ReaderPage() {
               value={chapter?.group ?? groups[0]?.name ?? ""}
               onChange={(value) => {
                 const group = groups.find((item) => item.name === value);
-                if (group?.chapters[0])
-                  goToChapter(chapters.indexOf(group.chapters[0]));
+                if (group?.chapters[0]) {
+                  const index = chapters.findIndex(
+                    (item) => item.id === group.chapters[0].id,
+                  );
+                  if (index >= 0) goToChapter(index);
+                }
               }}
             />
           ) : null}
           <div className="overflow-hidden rounded border border-border">
-            {chapters.map((item, index) => (
+            {displayChapters.map((item) => (
               <button
                 key={item.id}
-                onClick={() => goToChapter(index)}
+                onClick={() => {
+                  const index = chapters.findIndex(
+                    (chapterItem) => chapterItem.id === item.id,
+                  );
+                  if (index >= 0) goToChapter(index);
+                }}
                 className={cn(
                   "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-[13px] last:border-b-0",
                   item.id === chapterId
@@ -2137,13 +2168,20 @@ export default function ReaderPage() {
                     : "hover:bg-surface2",
                 )}
               >
-                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate",
+                    readEpisodes.has(item.id) && "text-muted",
+                  )}
+                >
+                  {item.title}
+                </span>
                 {downloadedEpisodes.has(item.id) ? (
                   <span className="text-[10px] text-accent">
                     {t("Downloaded")}
                   </span>
                 ) : null}
-                {readEpisodes.has(index) ? (
+                {readEpisodes.has(item.id) ? (
                   <span className="text-[10px] text-muted">{t("Read")}</span>
                 ) : null}
               </button>

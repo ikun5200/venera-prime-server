@@ -29,6 +29,9 @@ isolated per account.
 - **Reader** — gallery LTR/RTL/TTB and continuous LTR/RTL/TTB, two-page spread,
   page margins, night mode, auto page turning, keyboard and touch navigation,
   progress memory, chapter drawer, chapter comments and image collection.
+  Chapter lists default to newest first (numeric title comparison, even when a
+  source returns a disordered list), finished chapters are greyed out, and
+  next/previous chapter follows numeric chronology instead of raw source order.
 - **Library** — local favorite folders, network favorites, history, read later,
   image favorites, follow updates and reading statistics.
 - **Local comics** — chunked upload/import (CBZ/ZIP), server-side reading,

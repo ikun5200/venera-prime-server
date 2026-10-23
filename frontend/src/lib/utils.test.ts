@@ -48,6 +48,27 @@ describe("chapter helpers", () => {
     ]);
   });
 
+  it("sorts disordered sources by chapter number", () => {
+    const chapters = [
+      { id: "300", title: "第300话", index: 0 },
+      { id: "200", title: "第200话", index: 1 },
+      { id: "100", title: "第100话", index: 2 },
+      { id: "extra", title: "番外", index: 3 },
+    ];
+    expect(sortChapters(chapters, "newest").map((c) => c.id)).toEqual([
+      "300",
+      "200",
+      "100",
+      "extra",
+    ]);
+    expect(sortChapters(chapters, "oldest").map((c) => c.id)).toEqual([
+      "100",
+      "200",
+      "300",
+      "extra",
+    ]);
+  });
+
   it("parses option strings", () => {
     expect(parseOption("value-Display Text")).toEqual({
       value: "value",

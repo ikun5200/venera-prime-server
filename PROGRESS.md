@@ -211,6 +211,17 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   reordering/recovery, OPDS, SSE, strategy persistence, NSFW filtering, WebP
   conversion and backup content selection. Tests: 67 backend / 26 frontend.
 
+- Chapter reading polish (E-29): chapter lists now default to **newest first**
+  using a numeric comparison of chapter titles (`newest`), with source/reverse/
+  title orders still selectable. The reader keeps a separate ascending
+  chronological list for next/previous, so disordered sources such as
+  300/200/100 no longer jump from 300 back to 200; 200 advances to 300 and the
+  newest chapter has no next. Finished chapters are stored as chapter IDs
+  (`history.chapter_id` + `read_episode_json`) and render grey in both the
+  detail list and reader drawer; legacy numeric read indexes are resolved
+  against raw source order. Migration 8 adds `history.chapter_id`. Tests: 68
+  backend / 29 frontend.
+
 ## Next
 
 - Output the final delivery report.

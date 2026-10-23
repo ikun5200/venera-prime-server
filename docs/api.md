@@ -182,7 +182,7 @@ this path.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/history` | `?q=&page=` |
-| PUT | `/api/history` | `{comic,ep,page,chapterGroup,maxPage,readEpisode}` upsert |
+| PUT | `/api/history` | `{comic,ep,page,chapterGroup,chapterId,maxPage,readEpisode}` upsert; `readEpisode` stores chapter IDs (legacy numeric indexes still resolve) |
 | DELETE | `/api/history/:comicType/:comicId` | |
 | POST | `/api/history/clear` | `{unfavoritedOnly?:true}` |
 | POST | `/api/history/refresh` | `{ids?}` background task |

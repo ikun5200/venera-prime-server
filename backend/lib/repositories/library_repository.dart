@@ -524,6 +524,7 @@ class HistoryRecord {
   final int ep;
   final int page;
   final int? chapterGroup;
+  final String? chapterId;
   final List<Object?> readEpisode;
   final int? maxPage;
 
@@ -538,6 +539,7 @@ class HistoryRecord {
     required this.ep,
     required this.page,
     required this.chapterGroup,
+    required this.chapterId,
     required this.readEpisode,
     required this.maxPage,
   });
@@ -561,6 +563,7 @@ class HistoryRecord {
       ep: row['ep'] as int,
       page: row['page'] as int,
       chapterGroup: row['chapter_group'] as int?,
+      chapterId: row['chapter_id'] as String?,
       readEpisode: readEpisode,
       maxPage: row['max_page'] as int?,
     );
@@ -577,6 +580,7 @@ class HistoryRecord {
         'ep': ep,
         'page': page,
         'chapterGroup': chapterGroup,
+        'chapterId': chapterId,
         'readEpisode': readEpisode,
         'maxPage': maxPage,
       };
@@ -597,16 +601,18 @@ class HistoryRepository {
     required int ep,
     required int page,
     int? chapterGroup,
+    String? chapterId,
     List<Object?> readEpisode = const [],
     int? maxPage,
   }) {
     db.execute(
       'INSERT INTO history (user_id,comic_id,comic_type,source_key,title,subtitle,'
-      'cover,last_read_at,ep,page,chapter_group,read_episode_json,max_page) '
-      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,comic_id,comic_type) '
+      'cover,last_read_at,ep,page,chapter_group,chapter_id,read_episode_json,max_page) '
+      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,comic_id,comic_type) '
       'DO UPDATE SET source_key=excluded.source_key,title=excluded.title,'
       'subtitle=excluded.subtitle,cover=excluded.cover,last_read_at=excluded.last_read_at,'
       'ep=excluded.ep,page=excluded.page,chapter_group=excluded.chapter_group,'
+      'chapter_id=excluded.chapter_id,'
       'read_episode_json=excluded.read_episode_json,max_page=excluded.max_page',
       [
         userId,
@@ -620,6 +626,7 @@ class HistoryRepository {
         ep,
         page,
         chapterGroup,
+        chapterId,
         jsonEncode(readEpisode),
         maxPage,
       ],

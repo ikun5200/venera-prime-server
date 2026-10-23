@@ -34,6 +34,7 @@ export interface Progress {
   ep: number;
   page: number;
   chapterGroup?: number | null;
+  chapterId?: string | null;
   readEpisode: unknown[];
   maxPage?: number | null;
 }
@@ -161,6 +162,7 @@ export interface HistoryItem {
   ep: number;
   page: number;
   chapterGroup?: number | null;
+  chapterId?: string | null;
   readEpisode: unknown[];
   maxPage?: number | null;
 }

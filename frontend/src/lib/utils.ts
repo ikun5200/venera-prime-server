@@ -132,7 +132,14 @@ export function chapterGroups(
 }
 
 export type ChapterOrder =
-  "source" | "reverse" | "titleAscending" | "titleDescending";
+  "newest" | "oldest" | "source" | "reverse" | "titleAscending" | "titleDescending";
+
+function chapterNumber(chapter: Chapter): number | null {
+  const matches = chapter.title.match(/\d+(?:\.\d+)?/g);
+  if (!matches || matches.length === 0) return null;
+  const value = Number(matches[matches.length - 1]);
+  return Number.isFinite(value) ? value : null;
+}
 
 export function sortChapters(
   chapters: Chapter[],
@@ -140,6 +147,26 @@ export function sortChapters(
 ): Chapter[] {
   const copy = [...chapters];
   switch (order) {
+    case "newest":
+      return copy.sort((a, b) => {
+        const left = chapterNumber(a);
+        const right = chapterNumber(b);
+        if (left == null && right == null) return a.index - b.index;
+        if (left == null) return 1;
+        if (right == null) return -1;
+        if (right !== left) return right - left;
+        return a.index - b.index;
+      });
+    case "oldest":
+      return copy.sort((a, b) => {
+        const left = chapterNumber(a);
+        const right = chapterNumber(b);
+        if (left == null && right == null) return a.index - b.index;
+        if (left == null) return 1;
+        if (right == null) return -1;
+        if (left !== right) return left - right;
+        return a.index - b.index;
+      });
     case "reverse":
       return copy.reverse();
     case "titleAscending":

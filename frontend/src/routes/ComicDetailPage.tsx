@@ -57,6 +57,7 @@ import {
 import { comicPath, readerPath } from "../lib/links";
 
 const chapterOrderOptions: { value: ChapterOrder; label: string }[] = [
+  { value: "newest", label: "Newest first" },
   { value: "source", label: "Source order" },
   { value: "reverse", label: "Reversed source order" },
   { value: "titleAscending", label: "Chapter title ascending" },
@@ -80,7 +81,7 @@ export default function ComicDetailPage() {
   const comicKey = `${id}@${source}`;
   const [order, setOrder] = useState<ChapterOrder>(
     (settings.comicChapterOrder as Record<string, ChapterOrder>)?.[comicKey] ??
-      (settings.reverseChapterOrder ? "reverse" : "source"),
+      (settings.reverseChapterOrder ? "reverse" : "newest"),
   );
   const [readingOrder, setReadingOrder] = useState(
     (settings.comicChapterReadingOrder as Record<string, string>)?.[comicKey] ??
@@ -151,6 +152,25 @@ export default function ComicDetailPage() {
     () => sortChapters(chapterList, order),
     [chapterList, order],
   );
+  const navigationChapters = useMemo(
+    () => sortChapters(chapterList, "oldest"),
+    [chapterList],
+  );
+  const readChapterIds = useMemo(() => {
+    const ids = new Set<string>();
+    const raw = data ? flattenChapters(data.chapters) : [];
+    for (const value of data?.progress?.readEpisode ?? []) {
+      if (typeof value === "string") {
+        ids.add(value);
+        continue;
+      }
+      const index = Number(value);
+      if (!Number.isFinite(index)) continue;
+      const legacy = raw[index - 1];
+      if (legacy) ids.add(legacy.id);
+    }
+    return ids;
+  }, [data]);
   const groups = useMemo(
     () => (data ? chapterGroups(data.chapters) : []),
     [data],
@@ -180,11 +200,16 @@ export default function ComicDetailPage() {
 
   const continueReading = () => {
     if (!data?.progress) {
-      if (ordered[0]) openChapter(ordered[0], 1);
+      if (navigationChapters[0]) openChapter(navigationChapters[0], 1);
       return;
     }
     const index = Math.max(0, (data.progress.ep ?? 1) - 1);
-    const chapter = chapterList[index] ?? ordered[0];
+    const chapter =
+      navigationChapters.find(
+        (item) => item.id === data.progress?.chapterId,
+      ) ??
+      navigationChapters[index] ??
+      navigationChapters[0];
     if (chapter) openChapter(chapter, data.progress.page ?? 1);
   };
 
@@ -799,7 +824,12 @@ export default function ComicDetailPage() {
                     onClick={() => openChapter(chapter)}
                     className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-surface2"
                   >
-                    <span className="min-w-0 flex-1 truncate text-[13px]">
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-[13px]",
+                        readChapterIds.has(chapter.id) && "text-muted",
+                      )}
+                    >
                       {chapter.title}
                     </span>
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />

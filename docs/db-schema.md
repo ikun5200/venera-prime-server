@@ -11,7 +11,8 @@ below. New migrations are append-only and never edit earlier files. Migration
 5 adds the persistent content cache and image-cache index. Migration 6 adds
 `queue_order`, favorite update strategies, user permissions, API tokens and
 backup scheduling state; migration 7 grants the previously implicit `nsfw`
-permission to existing accounts.
+permission to existing accounts; migration 8 adds `history.chapter_id` so
+resume and chapter navigation are independent of display order.
 
 ## Tables
 
@@ -94,8 +95,10 @@ instant list rendering, migration 4), `favorited_at` (TEXT
 
 ### history
 PK `(user_id, comic_id, comic_type)`, `title`, `subtitle`, `cover`,
-`last_read_at`, `ep` (1-based), `page` (1-based), `chapter_group` (nullable),
-`read_episode_json`, `max_page`. Index `(user_id, last_read_at DESC)`.
+`last_read_at`, `ep` (1-based index in ascending chapter order), `page`
+(1-based), `chapter_group` (nullable), `chapter_id` (stable current chapter ID),
+`read_episode_json` (chapter IDs; legacy numeric indexes are still accepted),
+`max_page`. Index `(user_id, last_read_at DESC)`.
 
 ### read_later
 PK `(user_id, comic_id, comic_type)`, `source_key`, `title`, `subtitle`,

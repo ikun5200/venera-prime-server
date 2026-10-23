@@ -230,6 +230,7 @@ class BackupService {
           ep: (map['ep'] as int?) ?? 1,
           page: (map['page'] as int?) ?? 1,
           chapterGroup: map['chapterGroup'] as int?,
+          chapterId: map['chapterId']?.toString(),
           readEpisode: map['readEpisode'] is List
               ? map['readEpisode'] as List
               : const [],

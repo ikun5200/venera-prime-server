@@ -577,6 +577,7 @@ class HistoryService {
       ep: (body['ep'] as int?) ?? 1,
       page: (body['page'] as int?) ?? 1,
       chapterGroup: body['chapterGroup'] as int?,
+      chapterId: body['chapterId']?.toString(),
       readEpisode:
           body['readEpisode'] is List ? body['readEpisode'] as List : const [],
       maxPage: body['maxPage'] as int?,

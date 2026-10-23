@@ -434,3 +434,12 @@ Status: `NOT_STARTED` · `DONE` · `BLOCKED` (BLOCKED requires an entry in
 | SRV-09 | P1-8 | WebP conversion and streaming | `/api/image*`, `/opds/*/pse` | format/quality/max width, disk cache, streamed responses | DONE | E-28 |
 | SRV-10 | P1-9 | API tokens | `/api/tokens*` | SHA-256 hashes, expiry, Bearer/Basic | DONE | E-28 |
 | SRV-11 | P1-9 | Permissions | admin UI + API routes | download/manage_sources/clear_cache/nsfw enforced; NSFW filtering | DONE | E-28 |
+
+## Chapter reading polish (E-29)
+
+| ID | Source | Item | Route/API | Behavior | Status | Evidence |
+|---|---|---|---|---|---|---|
+| CH-01 | reader | Newest-first chapter list | detail + reader drawer | numeric title sort, source/reverse/title overrides | DONE | E-29 |
+| CH-02 | reader | Read chapter styling | detail + reader drawer | muted titles from chapter-ID read set | DONE | E-29 |
+| CH-03 | reader | Stable next/previous | reader navigation | ascending chronology, `history.chapter_id` resume | DONE | E-29 |
+| CH-04 | backend | Legacy read indexes | `/api/history` | numeric `readEpisode` resolved against source order | DONE | E-29 |

@@ -1068,3 +1068,37 @@ Every acceptance item is backed by a reproducible command, output summary and
   present; 33 existing sources preserved. `/opds` without auth → 401, and the
   FlareSolverr endpoint answers from inside the venera container (HTTP 301 on
   `/`). Image digest `sha256:3960dc87…39148`; bundle `index-235grYoG.js`.
+
+## E-29 — Chapter order and read-state polish (2026-10-23) — PASS (local)
+
+- Reported issues: finished chapters had no grey state; chapter lists did not
+  default to newest-first; disordered sources jumped from chapter 300 to 200
+  when advancing.
+- Implementation:
+  - `sortChapters` gained `newest`/`oldest` modes that extract the last number
+    from a chapter title (`第300话`, `Ch. 300`, `300-301`, `12.5`) and compare
+    numerically; ties keep source order and unnumbered titles follow numbered
+    ones. Detail and reader drawer default to `newest`; the explicit
+    source/reverse/title options remain.
+  - Reader navigation uses an independent ascending chronological list, so
+    next/previous is never taken from a disordered source array. `ep` is saved
+    against that ascending index. `progress.chapterId` makes resume independent
+    of any later display-order change.
+  - Read markers are stored as chapter IDs in `read_episode_json`; legacy
+    numeric indexes are resolved against the raw source order. Migration 8 adds
+    `history.chapter_id` (current chapter), `HistoryRecord`/upsert/import/export
+    carry it.
+  - Detail list and reader drawer render read chapter titles with `text-muted`
+    while keeping the “阅读” badge in the reader.
+- Verification (local container, real browser):
+  - A source returning `{300,200,100}` renders **300, 200, 100** in the detail
+    list; the first row is “最新在前”.
+  - After marking chapter 100 read, its computed title color is
+    `rgb(168, 162, 158)` (muted) versus `rgb(250, 250, 249)` for unread rows.
+  - Reader opens chapter 200, “下一张图片” at the end moves to **300** (not
+    100/200); pressing next again on 300 stays on 300.
+  - Reader drawer lists 300, 200, 100 top-to-bottom and greys all three after
+    they were read.
+  - `dart analyze` clean, `dart test` **68/68**; `npm run typecheck`,
+    `npm test` **29/29**, `npm run build` pass.
+- Pending: CI and NAS deploy (will be appended).

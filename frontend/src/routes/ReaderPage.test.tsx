@@ -142,6 +142,90 @@ describe("ReaderPage", () => {
     unmountTtb();
   });
 
+  it("navigates disordered sources by chapter number, not source order", async () => {
+    const disordered = {
+      ...details,
+      chapters: { "300": "第300话", "200": "第200话", "100": "第100话" },
+      progress: {
+        ep: 2,
+        page: 1,
+        chapterId: "200",
+        readEpisode: ["100"],
+      },
+    };
+    mockFetch({
+      "/api/comic/test_source/comic-1": disordered,
+      "/api/comic/test_source/comic-1/chapter/200/images": {
+        images: ["a", "b", "c"],
+        total: 3,
+      },
+      "/api/comic/test_source/comic-1/chapter/300/images": {
+        images: ["a", "b", "c"],
+        total: 3,
+      },
+      "/api/history": { ok: true },
+      "/api/statistics": { ok: true },
+    });
+    renderReader();
+    await waitFor(() =>
+      expect(screen.getAllByText("1 / 3").length).toBeGreaterThan(0),
+    );
+    expect(screen.getByText("第200话")).toBeInTheDocument();
+
+    const nextPage = () => screen.getAllByLabelText("下一张图片")[0];
+    fireEvent.click(nextPage());
+    fireEvent.click(nextPage());
+    await waitFor(() =>
+      expect(screen.getAllByText("3 / 3").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(nextPage());
+    await waitFor(() =>
+      expect(screen.getByText("第300话")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("第100话")).not.toBeInTheDocument();
+
+    fireEvent.click(nextPage());
+    fireEvent.click(nextPage());
+    fireEvent.click(nextPage());
+    expect(screen.getByText("第300话")).toBeInTheDocument();
+    expect(screen.queryByText("第200话")).not.toBeInTheDocument();
+  });
+
+  it("greys finished chapters and restores read state by chapter id", async () => {
+    const progress = {
+      ...details,
+      chapters: { "100": "第100话" },
+      progress: {
+        ep: 1,
+        page: 1,
+        chapterId: "100",
+        readEpisode: ["100"],
+      },
+    };
+    mockFetch({
+      "/api/comic/test_source/comic-1": progress,
+      "/api/comic/test_source/comic-1/chapter/100/images": {
+        images: ["a"],
+        total: 1,
+      },
+      "/api/history": { ok: true },
+      "/api/statistics": { ok: true },
+    });
+    renderReader();
+    await waitFor(() =>
+      expect(screen.getByText("第100话")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByLabelText("章节"));
+    await waitFor(() =>
+      expect(screen.getAllByText("阅读").length).toBeGreaterThan(0),
+    );
+    expect(
+      screen
+        .getAllByText("第100话")
+        .some((element) => element.className.includes("text-muted")),
+    ).toBe(true);
+  });
+
   it("opens at the page requested in the URL", async () => {
     renderReader("/reader/test_source/comic-1?page=3");
     await waitFor(() =>

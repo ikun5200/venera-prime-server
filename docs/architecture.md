@@ -279,6 +279,14 @@ Responsive contract:
   when `imageFormat=webp`, caches by user/key/quality/width under
   `image-conversions/`, and streams the result with `Content-Length`. Image
   routes use the same conversion path as OPDS-PSE.
+- **Chapter order and read state**: the detail list and reader drawer default to
+  `newest` — chapter numbers extracted from titles are compared numerically and
+  sorted descending, so a disordered source still shows 300 above 200. Reader
+  navigation uses a separate ascending chronological list (`oldest`), so
+  next/previous never jump back to an arbitrary source position. Finished
+  chapters are stored as chapter IDs in `read_episode_json` and
+  `history.chapter_id`; legacy numeric indexes resolve against the raw source
+  order. Read titles render muted in both the detail list and reader drawer.
 - **API tokens and permissions**: `api_tokens` stores SHA-256 hashes with
   optional expiry and last-used time. Bearer/Basic/`access_token` (SSE only)
   authenticate as the owning account. `download`, `manage_sources`,
