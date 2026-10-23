@@ -1140,4 +1140,8 @@ Every acceptance item is backed by a reproducible command, output summary and
 - Note: iOS Safari in a normal tab does not expose a web API to hide its own
   address bar. The white tint is fixed; true full-screen (no Safari chrome)
   requires “添加到主屏幕”, which now launches standalone with a black status
-  bar. CI/NAS deploy appended below.
+  bar.
+- CI: run `39907258258` (commit `bb8a5e0`) succeeded.
+- NAS: compose pull/up done, container `Up (healthy)`, public `/` serves the
+  new Apple/manifest tags and `/manifest.webmanifest` returns
+  `application/manifest+json`; bundle `index-CNmF9WKD.js`.
