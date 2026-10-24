@@ -246,3 +246,20 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   Safari chrome. Safari inside a normal tab still cannot programmatically hide
   its own address bar (Apple limitation), but the status/toolbar area is now
   black instead of white. Frontend tests: 30.
+
+- UI fixes round 2 (E-31): reader settings/chapter/comment drawers are body
+  portals and inherited the reader's white-on-black, so text vanished on the
+  white panel in light mode — `body.reader-immersive` is now applied only while
+  a drawer is open (and `Drawer`/`Modal` set `text-fg` themselves). The source
+  library catalog now annotates installed entries: `GET
+  /api/source-libraries/:id/catalog` returns `installed`,
+  `installedSourceKey`, `installedVersion` and `updateAvailable` (matched by
+  provenance origin id or file name); the UI shows an "已添加" badge with a
+  "重新安装" button (or "可更新"/"更新"), and installing shows 已更新. Opening a
+  comic shows live server cache progress: new `GET
+  /api/comic/:source/:id/chapter/:ep/prefetch` reports
+  `running/cachedPages/requestedPages/downloadedPages/failedPages/
+  bytesDownloaded/startedAt`, the reader toolbar renders
+  "服务器缓存 X/Y 页 · N 页/秒 · N MB/s" while the prefetch runs (poll bucket),
+  and the status endpoint test covers the whole cycle. Tests: 69 backend /
+  30 frontend.

@@ -91,11 +91,9 @@ export default function ReaderPage() {
     const root = document.documentElement;
     const meta = document.querySelector('meta[name="theme-color"]');
     root.classList.add("reader-immersive");
-    document.body.classList.add("reader-immersive");
     meta?.setAttribute("content", "#000000");
     return () => {
       root.classList.remove("reader-immersive");
-      document.body.classList.remove("reader-immersive");
       applyTheme(useAppStore.getState().settings);
     };
   }, []);
@@ -177,6 +175,14 @@ export default function ReaderPage() {
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // The drawers are portals into document.body; without this rule their text
+  // inherits the reader's white-on-black and vanishes on a white panel.
+  useEffect(() => {
+    document.body.classList.toggle(
+      "reader-immersive",
+      settingsOpen || chaptersOpen || commentsOpen,
+    );
+  }, [settingsOpen, chaptersOpen, commentsOpen]);
   const [fullscreen, setFullscreen] = useState(false);
   const [autoTurning, setAutoTurning] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -819,6 +825,31 @@ export default function ReaderPage() {
     readerSettings.serverPrefetchImageCount,
     sourceKey,
   ]);
+
+  // Live server-cache progress for the current chapter while it warms.
+  const cacheStatusQuery = useQuery({
+    queryKey: ["prefetch-status", sourceKey, comicId, chapterId],
+    queryFn: () => api.prefetchStatus(sourceKey, comicId, chapterId!),
+    enabled: !isLocal && Boolean(sourceKey && comicId && chapterId),
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.running ? 700 : false),
+    refetchIntervalInBackground: true,
+  });
+  const cacheStatus = cacheStatusQuery.data;
+  const cacheSpeed = useMemo(() => {
+    if (!cacheStatus?.running) return null;
+    const startedAt = cacheStatus.startedAt;
+    const downloaded = cacheStatus.downloadedPages ?? 0;
+    if (!startedAt || downloaded <= 0) return null;
+    const seconds = Math.max(1, (Date.now() - startedAt) / 1000);
+    const pagesPerSecond = downloaded / seconds;
+    const bytes = cacheStatus.bytesDownloaded ?? 0;
+    const mbPerSecond = bytes / seconds / (1024 * 1024);
+    return {
+      pagesPerSecond: pagesPerSecond.toFixed(1),
+      mbPerSecond: mbPerSecond >= 0.1 ? mbPerSecond.toFixed(1) : null,
+    };
+  }, [cacheStatus]);
 
   useEffect(() => {
     const onFullscreen = () =>
@@ -1967,6 +1998,25 @@ export default function ReaderPage() {
             {Math.min(currentPage + 1, imageUrls.length)} / {imageUrls.length}
           </div>
         )}
+        {cacheStatus?.running ? (
+          <div
+            className="mb-2 flex items-center justify-center gap-2 rounded bg-white/10 px-2 py-1 text-[11px] text-white/80"
+            role="status"
+          >
+            <Spinner className="h-3 w-3 text-white/80" />
+            <span className="tabular">
+              {t("Server cache @downloaded/@total pages", {
+                downloaded: cacheStatus.downloadedPages ?? 0,
+                total: cacheStatus.requestedPages ?? "?",
+              })}
+              {cacheSpeed
+                ? ` · ${t("@speed pages/s", {
+                    speed: cacheSpeed.pagesPerSecond,
+                  })}${cacheSpeed.mbPerSecond ? ` · ${cacheSpeed.mbPerSecond} MB/s` : ""}`
+                : ""}
+            </span>
+          </div>
+        ) : null}
         <div className="flex items-center gap-1 overflow-x-auto">
           <IconButton
             label={t("Previous image")}

@@ -362,3 +362,13 @@ header.
 
 `GET /` and any non-`/api` path serve `frontend/dist`; unknown paths fall back
 to `index.html` (SPA). Hashed assets get `Cache-Control: immutable`.
+
+## Prefetch progress
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/comic/:source/:id/chapter/:ep/prefetch` | `{from?,limit?}` start/refresh cache warm |
+| GET | `/api/comic/:source/:id/chapter/:ep/prefetch` | `{running,cachedPages,requestedPages,downloadedPages,failedPages,bytesDownloaded,startedAt}` |
+
+GET is classified as a polling endpoint for rate limits and is what the reader
+toolbar uses to show live 服务器缓存 progress while a chapter warms.

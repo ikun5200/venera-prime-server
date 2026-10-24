@@ -733,7 +733,34 @@ Handler buildApiRouter(AppContext ctx) {
       priority: library['priority'] as int,
       lastChecked: DateTime.now().millisecondsSinceEpoch,
     );
-    return _json({'items': entries, 'library': library});
+    final installed = ctx.sourceRepository.provenancesByOrigin(auth.user.id);
+    final items = entries.map((entry) {
+      final rows = [
+        ...(installed[entry['id']?.toString() ?? ''] ?? const []),
+      ];
+      // Catalog entries may omit a stable id; match by file name in the URL.
+      final url = entry['url']?.toString() ?? '';
+      final fileName = url.split('/').last;
+      if (fileName.isNotEmpty) {
+        rows.addAll(installed[fileName] ?? const []);
+      }
+      if (rows.isEmpty) return entry;
+      rows.sort((a, b) => (b['version'] ?? '').toString().compareTo(
+            (a['version'] ?? '').toString(),
+          ));
+      final first = rows.first;
+      final catalogVersion = (entry['version'] ?? '').toString();
+      final updateAvailable = catalogVersion.isNotEmpty &&
+          catalogVersion != (first['version'] ?? '').toString();
+      return {
+        ...entry,
+        'installed': true,
+        'installedSourceKey': first['sourceKey'],
+        'installedVersion': first['version'],
+        'updateAvailable': updateAvailable,
+      };
+    }).toList();
+    return _json({'items': items, 'library': library});
   });
 
   router.post('/api/source-libraries/<id>/install',
@@ -910,6 +937,14 @@ Handler buildApiRouter(AppContext ctx) {
     final limit = (body['limit'] as num?)?.toInt();
     return _json(await ctx.comics.prefetchChapter(auth.user.id, source, id, ep,
         from: from, limit: limit));
+  });
+
+  router.get('/api/comic/<source>/<id>/chapter/<ep>/prefetch',
+      (Request request, String source, String id, String ep) {
+    final auth = requireAuth(request);
+    return _json(
+      ctx.comics.prefetchStatus(auth.user.id, source, id, ep),
+    );
   });
 
   router.get('/api/comic/<source>/<id>/thumbnails',

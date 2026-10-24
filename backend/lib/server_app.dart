@@ -281,7 +281,8 @@ bool _isPollPath(String path) {
       path == 'api/downloads' ||
       path == 'api/health' ||
       path == 'api/init/status' ||
-      path == 'api/auth/me';
+      path == 'api/auth/me' ||
+      (path.startsWith('api/comic/') && path.endsWith('/prefetch'));
 }
 
 class RateLimiter {

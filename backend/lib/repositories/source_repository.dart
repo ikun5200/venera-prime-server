@@ -306,6 +306,35 @@ class SourceRepository {
     };
   }
 
+  /// All provenance rows for a user, keyed by origin/library entry id and by
+  /// source key, so catalog pages can annotate installed entries.
+  Map<String, List<Map<String, Object?>>> provenancesByOrigin(int userId) {
+    final rows = db.select(
+      'SELECT p.*, s.version AS installed_version, s.name AS installed_name '
+      'FROM source_provenance p JOIN sources s '
+      'ON s.user_id = p.user_id AND s.source_key = p.source_key '
+      'WHERE p.user_id=?',
+      [userId],
+    );
+    final result = <String, List<Map<String, Object?>>>{};
+    void add(String key, Map<String, Object?> row) {
+      result.putIfAbsent(key, () => []).add(row);
+    }
+
+    for (final r in rows) {
+      final entry = {
+        'sourceKey': r['source_key'] as String,
+        'version': r['installed_version'] as String? ?? '',
+        'name': r['installed_name'] as String? ?? '',
+      };
+      add(r['origin_id']?.toString() ?? '', entry);
+      if (r['source_file_name'] != null) {
+        add(r['source_file_name'].toString(), entry);
+      }
+    }
+    return result;
+  }
+
   // ---- cookies ---------------------------------------------------------
 
   List<Map<String, Object?>> cookies(int userId) => db

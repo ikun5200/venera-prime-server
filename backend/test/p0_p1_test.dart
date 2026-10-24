@@ -419,6 +419,67 @@ void main() {
     });
   });
 
+  group('prefetch progress', () {
+    test('status endpoint tracks running/downloaded/bytes', () async {
+      final image = img.Image(width: 16, height: 16);
+      img.fill(image, color: img.ColorRgb8(10, 90, 200));
+      final png = Uint8List.fromList(img.encodePng(image));
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        // A short delay keeps at least one poll inside the running window.
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        request.response.headers.contentType = ContentType('image', 'png');
+        request.response.add(png);
+        await request.response.close();
+      });
+      addTearDown(() => server.close(force: true));
+      final base = 'http://127.0.0.1:${server.port}';
+
+      final (app, client, _) = await setUpApp();
+      final script = '''
+class ProgressSource extends ComicSource {
+  name = "Progress"; key = "progress_source"; version = "1.0.0";
+  comic = {
+    loadInfo: async (id) => new ComicDetails({ title: "p", chapters: { "1": "c" } }),
+    loadEp: async (id, ep) => ({ images: ["$base/a", "$base/b", "$base/c"] })
+  };
+}
+''';
+      final imported = await client.post('/api/sources', {'script': script});
+      expect(imported.status, 200);
+
+      final before =
+          await client.get('/api/comic/progress_source/1/chapter/1/prefetch');
+      expect(before.body['running'], false);
+      expect((before.body['cachedPages'] as num).toInt(), 0);
+
+      final started = await client.post(
+          '/api/comic/progress_source/1/chapter/1/prefetch',
+          {'from': 1, 'limit': 3});
+      expect(started.body['running'], true);
+
+      Map<String, Object?> status = {};
+      var sawRunning = false;
+      for (var attempt = 0; attempt < 60; attempt++) {
+        final response =
+            await client.get('/api/comic/progress_source/1/chapter/1/prefetch');
+        status = response.body;
+        if (status['running'] == true) sawRunning = true;
+        if (status['running'] == false &&
+            (status['downloadedPages'] as num).toInt() >= 3) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(sawRunning, true, reason: '$status');
+      expect((status['requestedPages'] as num).toInt(), 3);
+      expect((status['downloadedPages'] as num).toInt(), 3);
+      expect((status['cachedPages'] as num).toInt(), 3);
+      expect((status['bytesDownloaded'] as num).toInt(), greaterThan(0));
+      expect((status['failedPages'] as num).toInt(), 0);
+    });
+  });
+
   group('image conversion and backup filters', () {
     test('WebP conversion returns a WebP payload and caches it', () async {
       final (app, _, userId) = await setUpApp();

@@ -1145,3 +1145,38 @@ Every acceptance item is backed by a reproducible command, output summary and
 - NAS: compose pull/up done, container `Up (healthy)`, public `/` serves the
   new Apple/manifest tags and `/manifest.webmanifest` returns
   `application/manifest+json`; bundle `index-CNmF9WKD.js`.
+
+## E-31 — Drawer visibility, catalog install state, cache progress (2026-10-24) — PASS (local)
+
+- Reported issues: reader settings drawer text invisible in light mode; catalog
+  sources always showed "安装" even when already added; no visibility into
+  server cache progress/speed while reading.
+- Root causes and fixes:
+  - **Invisible drawer text**: the reader mounts with white text on black and
+    `body.reader-immersive` (black background) for iOS status-bar blending.
+    Drawers/Modals are portals into `document.body`, so their `bg-surface`
+    panel stayed white while inherited text color was white. Now the body
+    class is applied only while a drawer is open, and `Drawer`/`Modal` panels
+    set `text-fg` themselves. Verified: panel text `rgb(28,25,23)` on
+    `rgb(255,255,255)` in light mode; body class removed after close while
+    `html.reader-immersive` and black `theme-color` persist.
+  - **Catalog install state**: `GET /api/source-libraries/:id/catalog` now
+    joins `source_provenance` (by origin id or file name) and returns
+    `installed`, `installedSourceKey`, `installedVersion`, `updateAvailable`
+    (catalog version differs). The UI shows 已添加/重新安装 or 可更新/更新;
+    installing when already installed toasts 已更新.
+  - **Cache progress**: `ComicService` tracks per-chapter prefetch progress
+    (total/completed/failed/bytes/startedAt) and exposes `GET
+    /api/comic/:source/:id/chapter/:ep/prefetch`. The reader polls it (700 ms,
+    only while running; route is in the poll rate-limit bucket) and shows
+    "服务器缓存 X/Y 页 · N 页/秒 · N MB/s" in the bottom toolbar while the
+    prefetch runs. Verified end-to-end in a browser: after clearing the image
+    cache the API reported `running=true` then
+    `downloadedPages=3, cachedPages=3, bytesDownloaded=46156`; the toolbar
+    rendered the progress text during the run.
+- Note: a chapter whose pages share one URL dedupes to a single cache entry,
+  so the progress bar may not appear (nothing left to download); verified
+  with distinct image URLs.
+- Tests: `dart analyze` clean, `dart test` **69/69** (new prefetch-status
+  cycle test); frontend typecheck/build pass, `npm test` **30/30**.
+- Pending: CI and NAS deploy appended after push.

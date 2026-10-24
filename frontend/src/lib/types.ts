@@ -314,6 +314,10 @@ export interface CatalogEntry {
   version: string;
   description: string;
   url?: string | null;
+  installed?: boolean;
+  installedSourceKey?: string;
+  installedVersion?: string;
+  updateAvailable?: boolean;
 }
 
 export interface WebDavConfig {

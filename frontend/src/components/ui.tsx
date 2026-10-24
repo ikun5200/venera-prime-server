@@ -485,7 +485,7 @@ export function Modal({
           aria-modal="true"
           aria-label={title}
           className={cn(
-            "relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet border border-border bg-surface shadow-pop sm:rounded-sheet",
+            "relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet border border-border bg-surface text-fg shadow-pop sm:rounded-sheet",
             width,
           )}
         >
@@ -561,7 +561,7 @@ export function Drawer({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "absolute top-0 flex h-[100dvh] w-full flex-col border-border bg-surface shadow-pop",
+          "absolute top-0 flex h-[100dvh] w-full flex-col border-border bg-surface text-fg shadow-pop",
           width,
           side === "right" ? "right-0 border-l" : "left-0 border-r",
           "transition-transform duration-200 ease-enter",

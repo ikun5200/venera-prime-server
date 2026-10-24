@@ -385,6 +385,16 @@ export const api = {
       `/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/prefetch`,
       { from, ...(limit === undefined ? {} : { limit }) },
     ),
+  prefetchStatus: (source: string, id: string, ep: string) =>
+    get<{
+      running: boolean;
+      cachedPages: number;
+      requestedPages?: number | null;
+      downloadedPages?: number | null;
+      failedPages?: number | null;
+      bytesDownloaded?: number | null;
+      startedAt?: number | null;
+    }>(`/comic/${enc(source)}/${enc(id)}/chapter/${enc(ep)}/prefetch`),
   thumbnails: (source: string, id: string, next?: string) =>
     get<{ thumbnails: unknown; next: unknown }>(
       `/comic/${enc(source)}/${enc(id)}/thumbnails${next ? `?next=${enc(next)}` : ""}`,

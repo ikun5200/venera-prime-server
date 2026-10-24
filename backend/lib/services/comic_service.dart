@@ -20,6 +20,14 @@ import '../util/path_guard.dart';
 import 'content_cache_service.dart';
 import 'source_service.dart';
 
+class _PrefetchProgress {
+  int total = 0;
+  int completed = 0;
+  int failed = 0;
+  int bytes = 0;
+  int startedAt = 0;
+}
+
 class ComicService {
   final Config config;
   final SourceService sources;
@@ -38,6 +46,7 @@ class ComicService {
       _imageConfigCache = {};
   final Set<String> _prefetching = {};
   final Map<int, int> _lastCacheEnforce = {};
+  final Map<String, _PrefetchProgress> _prefetchProgress = {};
 
   /// Identical source calls that arrive together share one JS-host round trip.
   final Map<String, Future<Map<String, Object?>>> _inflight = {};
@@ -1102,6 +1111,8 @@ class ComicService {
       return {'enabled': true, 'running': true, 'limit': effective};
     }
     _prefetching.add(token);
+    _prefetchProgress[token] = _PrefetchProgress()
+      ..startedAt = DateTime.now().millisecondsSinceEpoch;
     unawaited(_runPrefetch(userId, sourceKey, comicId, epId,
             from: from, limit: effective)
         .catchError((Object error) {
@@ -1113,6 +1124,41 @@ class ComicService {
       });
     }).whenComplete(() => _prefetching.remove(token)));
     return {'enabled': true, 'running': true, 'limit': effective};
+  }
+
+  /// Per-chapter prefetch progress for the reader. Counters are in-memory;
+  /// the cached-page total comes from the persistent image index.
+  Map<String, Object?> prefetchStatus(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+  ) {
+    final token = '$userId|$sourceKey|$comicId|$epId';
+    final progress = _prefetchProgress[token];
+    return {
+      'running': _prefetching.contains(token),
+      'cachedPages': cachedImageCount(userId, sourceKey, comicId, epId),
+      'requestedPages': progress?.total,
+      'downloadedPages': progress?.completed,
+      'failedPages': progress?.failed,
+      'bytesDownloaded': progress?.bytes,
+      'startedAt': progress?.startedAt,
+    };
+  }
+
+  int cachedImageCount(
+    int userId,
+    String sourceKey,
+    String comicId,
+    String epId,
+  ) {
+    final rows = sourceRepository.db.select(
+      'SELECT COUNT(*) AS n FROM image_cache WHERE user_id=? AND source_key=? '
+      'AND comic_id=? AND ep_id=?',
+      [userId, sourceKey, comicId, epId],
+    );
+    return (rows.first['n'] as int?) ?? 0;
   }
 
   Future<void> _runPrefetch(
@@ -1190,6 +1236,12 @@ class ComicService {
       }
     }
 
+    final token = '$userId|$sourceKey|$comicId|$epId';
+    final progress = _prefetchProgress[token] ??= (_PrefetchProgress()
+      ..startedAt = DateTime.now().millisecondsSinceEpoch);
+    progress.total = total;
+    progress.completed = indexes.length - missing.length;
+    progress.failed = 0;
     var completed = 0;
     await _forEachLimited(missing, 3, (index) async {
       final list = configs[index] ??
@@ -1197,7 +1249,7 @@ class ComicService {
             {'url': keys[index]}
           ];
       try {
-        await _downloadImage(
+        final image = await _downloadImage(
           userId,
           _imageCacheKey(userId, sourceKey, comicId, epId, keys[index], false),
           list,
@@ -1207,7 +1259,10 @@ class ComicService {
           epId: epId,
         );
         completed++;
+        progress.completed = indexes.length - missing.length + completed;
+        progress.bytes += image.bytes.length;
       } catch (error) {
+        progress.failed++;
         Log.warning('Prefetch image failed',
             userId: userId,
             extra: {'source': sourceKey, 'index': index, 'error': '$error'});
