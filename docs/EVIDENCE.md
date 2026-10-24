@@ -1179,4 +1179,6 @@ Every acceptance item is backed by a reproducible command, output summary and
   with distinct image URLs.
 - Tests: `dart analyze` clean, `dart test` **69/69** (new prefetch-status
   cycle test); frontend typecheck/build pass, `npm test` **30/30**.
-- Pending: CI and NAS deploy appended after push.
+- CI: run `40065368937` (commit `dd27de0`) succeeded.
+- NAS: compose pull/up done, container `Up (healthy)`, bundle
+  `index-D5VVYBAq.js`.
