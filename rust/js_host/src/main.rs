@@ -56,7 +56,9 @@ globalThis.__toHost = function(v) {
 globalThis.__fromHost = function(s) {
   return JSON.parse(s, (k, v) =>
     (v && typeof v === 'object' && Array.isArray(v.__bytes))
-      ? new Uint8Array(v.__bytes).buffer
+      ? (v.__view
+          ? new Uint8Array(v.__bytes)
+          : new Uint8Array(v.__bytes).buffer)
       : v);
 };
 globalThis.__hostCall = function(msg) {
@@ -88,6 +90,9 @@ globalThis.compute = function(func, ...args) {
 "#;
 
 const WEB_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
+/// Some APIs (notably MangaDex) challenge a browser UA coming from a
+/// non-browser TLS stack, but accept the Dart client UA the Flutter app uses.
+const DART_UA: &str = "Dart/3.5 (dart:io)";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CookieRec {
@@ -329,10 +334,7 @@ fn run_in_context(
     ctx.eval::<(), _>(PATCH)
         .map_err(|e| ("INTERNAL".to_string(), format!("patch: {e}")))?;
 
-    let op = request
-        .get("op")
-        .and_then(|v| v.as_str())
-        .unwrap_or("call");
+    let op = request.get("op").and_then(|v| v.as_str()).unwrap_or("call");
 
     if op == "run" {
         let code = request
@@ -423,7 +425,12 @@ ComicSource.sources[__src.key] = __src;
     cookieFields: (a.loginWithCookies && a.loginWithCookies.fields) || null,
     webviewLoginUrl: (a.loginWithWebview && a.loginWithWebview.url) || null,
     registerWebsite: a.registerWebsite || null,
-    explore: (s.explore || []).map(e => ({title: e.title, type: e.type})),
+    explore: (s.explore || []).map(e => ({
+      title: e.title,
+      type: e.type,
+      load: typeof e.load === 'function',
+      loadNext: typeof e.loadNext === 'function',
+    })),
     searchOptions: (s.search && s.search.optionList) || null,
     category: s.category ? {
       title: s.category.title,
@@ -531,7 +538,8 @@ globalThis.__error = null;
       globalThis.__result = JSON.stringify(list);
     }}
   }} catch (e) {{
-    globalThis.__error = String((e && e.stack) || e);
+    globalThis.__error = (e && e.message ? String(e.message) : String(e)) +
+      (e && e.stack ? "\n" + String(e.stack) : "");
   }} finally {{
     globalThis.__done = 1;
   }}
@@ -622,19 +630,16 @@ globalThis.__error = null;
       globalThis.__result = JSON.stringify(out);
     }}
   }} catch (e) {{
-    globalThis.__error = String((e && e.stack) || e);
+    globalThis.__error = (e && e.message ? String(e.message) : String(e)) +
+      (e && e.stack ? "\n" + String(e.stack) : "");
   }} finally {{
     globalThis.__done = 1;
   }}
 }})();
 "#
         );
-        ctx.eval::<(), _>(code).map_err(|e| {
-            (
-                "JS_ERROR".to_string(),
-                format!("image config batch: {e}"),
-            )
-        })?;
+        ctx.eval::<(), _>(code)
+            .map_err(|e| ("JS_ERROR".to_string(), format!("image config batch: {e}")))?;
         let mut idle = 0;
         loop {
             let done: i32 = ctx.globals().get::<_, i32>("__done").unwrap_or(0);
@@ -704,7 +709,8 @@ globalThis.__error = null;
     const res = await fn.apply(recv, args);
     globalThis.__result = JSON.stringify(__toHost(res === undefined ? null : res));
   }} catch (e) {{
-    globalThis.__error = String((e && e.stack) || e);
+    globalThis.__error = (e && e.message ? String(e.message) : String(e)) +
+      (e && e.stack ? "\n" + String(e.stack) : "");
   }} finally {{
     globalThis.__done = 1;
   }}
@@ -876,17 +882,12 @@ fn host_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
             Ok(Value::Null)
         }
         "UI" => {
-            let function = msg
-                .get("function")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let function = msg.get("function").and_then(|v| v.as_str()).unwrap_or("");
             match function {
                 "showLoading" => Ok(json!(0)),
                 "showMessage" => {
                     let text = msg.get("message").and_then(|v| v.as_str()).unwrap_or("");
-                    state
-                        .borrow_mut()
-                        .log("info", "UI", text.to_string());
+                    state.borrow_mut().log("info", "UI", text.to_string());
                     Ok(Value::Null)
                 }
                 "launchUrl" => {
@@ -1034,7 +1035,10 @@ fn flare_solverr(
                 domain,
                 path,
                 expires,
-                secure: item.get("secure").and_then(|v| v.as_bool()).unwrap_or(false),
+                secure: item
+                    .get("secure")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
                 http_only: item
                     .get("httpOnly")
                     .and_then(|v| v.as_bool())
@@ -1051,6 +1055,67 @@ fn retry_after_secs(response: &ureq::Response) -> u64 {
         .header("retry-after")
         .and_then(|value| value.trim().parse::<u64>().ok())
         .unwrap_or(0)
+}
+
+fn do_http(
+    agent: &ureq::Agent,
+    method: &str,
+    url: &str,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+) -> (i64, Option<ureq::Response>, Option<String>) {
+    let mut request = agent.request(method, url);
+    for (k, v) in headers {
+        request = request.set(k, v);
+    }
+    let outcome = if let Some(bytes) = body {
+        request.send_bytes(bytes)
+    } else {
+        request.call()
+    };
+    match outcome {
+        Ok(resp) => (resp.status() as i64, Some(resp), None),
+        Err(ureq::Error::Status(code, resp)) => (code as i64, Some(resp), None),
+        Err(ureq::Error::Transport(error)) => (0, None, Some(error.to_string())),
+    }
+}
+
+fn read_response(resp: ureq::Response) -> (serde_json::Map<String, Value>, Vec<String>, Vec<u8>) {
+    let mut headers = serde_json::Map::new();
+    let mut set_cookies = Vec::new();
+    for name in resp.headers_names() {
+        let values = resp.all(&name);
+        if name.eq_ignore_ascii_case("set-cookie") {
+            set_cookies.extend(values.iter().map(|v| v.to_string()));
+        }
+        headers.insert(name.clone(), json!(values.join(",")));
+    }
+    let mut buffer = Vec::new();
+    let mut reader = resp.into_reader();
+    use std::io::Read;
+    let _ = reader.read_to_end(&mut buffer);
+    (headers, set_cookies, buffer)
+}
+
+fn is_challenge(status: i64, headers: &serde_json::Map<String, Value>, buffer: &[u8]) -> bool {
+    if status == 403 || status == 503 || status == 429 {
+        return true;
+    }
+    let content_type = headers
+        .get("content-type")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    if !(content_type.contains("text") || content_type.contains("json")) {
+        return false;
+    }
+    let text = String::from_utf8_lossy(buffer).to_ascii_lowercase();
+    text.contains("just a moment")
+        || text.contains("cf-challenge")
+        || text.contains("attention required")
+        || text.contains("checking your browser")
+        || text.contains("challenge-assets")
+        || text.contains("challenge-platform")
+        || text.contains("cf_chl_opt")
 }
 
 fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, String> {
@@ -1076,10 +1141,10 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
             headers.push((k.clone(), value));
         }
     }
-    if !headers
+    let has_custom_ua = headers
         .iter()
-        .any(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
-    {
+        .any(|(k, _)| k.eq_ignore_ascii_case("user-agent"));
+    if !has_custom_ua {
         headers.push(("User-Agent".to_string(), WEB_UA.to_string()));
     }
     let cookie_header = {
@@ -1090,7 +1155,21 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
         headers.push(("Cookie".to_string(), cookie));
     }
 
-    let body = msg.get("data").and_then(bytes_from_value);
+    let (body, json_body) = msg
+        .get("data")
+        .and_then(request_body)
+        .map(|(bytes, json)| (Some(bytes), json))
+        .unwrap_or((None, false));
+    if json_body
+        && !headers
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+    {
+        headers.push((
+            "Content-Type".to_string(),
+            "application/json; charset=utf-8".to_string(),
+        ));
+    }
     let want_bytes = msg.get("bytes").and_then(|v| v.as_bool()).unwrap_or(false);
 
     let agent = ureq::AgentBuilder::new()
@@ -1106,28 +1185,12 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
     let mut transport_error: Option<String> = None;
     for attempt in 0..=retries {
         throttle_host(url);
-        let mut request = agent.request(&method, url);
-        for (k, v) in &headers {
-            request = request.set(k, v);
-        }
-        let outcome = if let Some(bytes) = body.as_ref() {
-            request.send_bytes(bytes)
-        } else {
-            request.call()
-        };
-        match outcome {
-            Ok(resp) => {
-                status = resp.status() as i64;
-                response = Some(resp);
-            }
-            Err(ureq::Error::Status(code, resp)) => {
-                status = code as i64;
-                response = Some(resp);
-            }
-            Err(ureq::Error::Transport(error)) => {
-                transport_error = Some(error.to_string());
-                break;
-            }
+        let (code, resp, error) = do_http(&agent, &method, url, &headers, body.as_deref());
+        status = code;
+        response = resp;
+        transport_error = error;
+        if response.is_none() {
+            break;
         }
         if status == 429 && attempt < retries {
             let wait = response
@@ -1150,43 +1213,35 @@ fn http_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Strin
         }));
     };
 
-    let mut response_headers = serde_json::Map::new();
-    let mut set_cookies: Vec<String> = Vec::new();
-    for name in resp.headers_names() {
-        let values = resp.all(&name);
-        if name.eq_ignore_ascii_case("set-cookie") {
-            set_cookies.extend(values.iter().map(|v| v.to_string()));
-        }
-        response_headers.insert(name.clone(), json!(values.join(",")));
-    }
-
-    let mut buffer = Vec::new();
-    let mut reader = resp.into_reader();
-    use std::io::Read;
-    let _ = reader.read_to_end(&mut buffer);
+    let (mut response_headers, mut set_cookies, mut buffer) = read_response(resp);
 
     // A Cloudflare challenge often answers with 200 and an interstitial page.
-    let content_type = response_headers
-        .get("content-type")
-        .and_then(|value| value.as_str())
-        .unwrap_or("");
-    let text_body = if content_type.contains("text") || content_type.contains("json") {
-        Some(String::from_utf8_lossy(&buffer).to_ascii_lowercase())
-    } else {
-        None
-    };
-    let challenge = status == 403
-        || status == 503
-        || status == 429
-        || text_body
-            .as_deref()
-            .map(|text| {
-                text.contains("just a moment")
-                    || text.contains("cf-challenge")
-                    || text.contains("attention required")
-                    || text.contains("checking your browser")
-            })
-            .unwrap_or(false);
+    let mut challenge = is_challenge(status, &response_headers, &buffer);
+    // The app's TLS/Dart stack is accepted by some APIs that challenge a
+    // browser UA from rustls. Retry only when the source did not choose its
+    // own UA, and keep the fallback response only when it is not challenged.
+    if challenge {
+        let mut fallback_headers = headers.clone();
+        for (name, value) in fallback_headers.iter_mut() {
+            if name.eq_ignore_ascii_case("user-agent") {
+                *value = DART_UA.to_string();
+            }
+        }
+        throttle_host(url);
+        let (fallback_status, fallback_resp, _) =
+            do_http(&agent, &method, url, &fallback_headers, body.as_deref());
+        if let Some(fallback_resp) = fallback_resp {
+            let (fallback_headers_map, fallback_cookies, fallback_buffer) =
+                read_response(fallback_resp);
+            if !is_challenge(fallback_status, &fallback_headers_map, &fallback_buffer) {
+                status = fallback_status;
+                response_headers = fallback_headers_map;
+                set_cookies = fallback_cookies;
+                buffer = fallback_buffer;
+                challenge = false;
+            }
+        }
+    }
     let mut solved = false;
     if challenge {
         if let Some((content, cookies)) = flare_solverr(url, &method, body.as_deref()) {
@@ -1334,10 +1389,7 @@ fn cookie_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Str
     let parsed = UrlParts::parse(url);
     match function {
         "set" => {
-            let host = parsed
-                .as_ref()
-                .map(|p| p.host.clone())
-                .unwrap_or_default();
+            let host = parsed.as_ref().map(|p| p.host.clone()).unwrap_or_default();
             if let Some(list) = msg.get("cookies").and_then(|v| v.as_array()) {
                 let mut st = state.borrow_mut();
                 for item in list {
@@ -1401,10 +1453,7 @@ fn cookie_call(state: &Rc<RefCell<HostState>>, msg: &Value) -> Result<Value, Str
             Ok(json!(list))
         }
         "delete" => {
-            let host = parsed
-                .as_ref()
-                .map(|p| p.host.clone())
-                .unwrap_or_default();
+            let host = parsed.as_ref().map(|p| p.host.clone()).unwrap_or_default();
             let mut st = state.borrow_mut();
             st.cookies
                 .retain(|c| !c.domain.trim_start_matches('.').eq_ignore_ascii_case(&host));
@@ -1733,6 +1782,28 @@ fn get_node(doc: &HtmlDoc, key: i64) -> Option<ego_tree::NodeRef<'_, scraper::No
 // Convert
 // ---------------------------------------------------------------------------
 
+/// Converts the JS `data` argument into an HTTP request body. The Flutter app
+/// hands objects/arrays to Dio, which JSON-encodes them; the sidecar must do
+/// the same or JSON APIs receive an empty body.
+fn request_body(value: &Value) -> Option<(Vec<u8>, bool)> {
+    match value {
+        Value::String(s) => Some((s.as_bytes().to_vec(), false)),
+        Value::Null => None,
+        Value::Array(_) => serde_json::to_vec(value).ok().map(|bytes| (bytes, true)),
+        Value::Object(obj) => {
+            if let Some(bytes) = obj.get("__bytes").and_then(|v| v.as_array()) {
+                let out = bytes
+                    .iter()
+                    .map(|item| item.as_u64().map(|n| n as u8))
+                    .collect::<Option<Vec<u8>>>()?;
+                return Some((out, false));
+            }
+            serde_json::to_vec(value).ok().map(|bytes| (bytes, true))
+        }
+        _ => serde_json::to_vec(value).ok().map(|bytes| (bytes, true)),
+    }
+}
+
 fn bytes_from_value(value: &Value) -> Option<Vec<u8>> {
     match value {
         Value::String(s) => Some(s.as_bytes().to_vec()),
@@ -1763,7 +1834,10 @@ fn string_from_value(value: &Value) -> Option<String> {
 }
 
 fn bytes_result(bytes: Vec<u8>) -> Value {
-    json!({"__bytes": bytes})
+    // The Flutter bridge exposes byte buffers as Uint8Array-like values; some
+    // sources index them (`buf[buf.length - 1]`) or call `.slice()`. HTTP
+    // response bodies stay ArrayBuffer for sources that use DataView.
+    json!({"__bytes": bytes, "__view": true})
 }
 
 fn convert(msg: &Value) -> Value {
@@ -1814,10 +1888,19 @@ fn convert(msg: &Value) -> Value {
                 }
             } else {
                 match string_from_value(&value) {
-                    Some(s) => match B64.decode(s.trim()) {
-                        Ok(b) => bytes_result(b),
-                        Err(_) => Value::Null,
-                    },
+                    Some(s) => {
+                        // Dart's base64 decoder tolerates whitespace and a
+                        // UTF-8 BOM; several sources fetch BOM-prefixed
+                        // base64 payloads.
+                        let cleaned: String = s
+                            .chars()
+                            .filter(|c| !c.is_whitespace() && *c != '\u{feff}')
+                            .collect();
+                        match B64.decode(cleaned) {
+                            Ok(b) => bytes_result(b),
+                            Err(_) => Value::Null,
+                        }
+                    }
                     None => Value::Null,
                 }
             }
@@ -1828,15 +1911,12 @@ fn convert(msg: &Value) -> Value {
         "sha1" => hash_result(sha1::Sha1::digest(
             bytes_from_value(&value).unwrap_or_default(),
         )),
-        "sha256" => hash_result(Sha256::digest(
-            bytes_from_value(&value).unwrap_or_default(),
-        )),
+        "sha256" => hash_result(Sha256::digest(bytes_from_value(&value).unwrap_or_default())),
         "sha512" => hash_result(sha2::Sha512::digest(
             bytes_from_value(&value).unwrap_or_default(),
         )),
         "hmac" => {
-            let key =
-                bytes_from_value(msg.get("key").unwrap_or(&Value::Null)).unwrap_or_default();
+            let key = bytes_from_value(msg.get("key").unwrap_or(&Value::Null)).unwrap_or_default();
             let data = bytes_from_value(&value).unwrap_or_default();
             let hash = msg.get("hash").and_then(|v| v.as_str()).unwrap_or("sha256");
             let is_string = msg
@@ -1862,14 +1942,9 @@ fn convert(msg: &Value) -> Value {
             }
         }
         "aes-ecb" | "aes-cbc" | "aes-cfb" | "aes-ofb" => {
-            let key = bytes_from_value(msg.get("key").unwrap_or(&Value::Null))
-                .unwrap_or_default();
-            let iv = bytes_from_value(msg.get("iv").unwrap_or(&Value::Null))
-                .unwrap_or_default();
-            let block_size = msg
-                .get("blockSize")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(128) as usize;
+            let key = bytes_from_value(msg.get("key").unwrap_or(&Value::Null)).unwrap_or_default();
+            let iv = bytes_from_value(msg.get("iv").unwrap_or(&Value::Null)).unwrap_or_default();
+            let block_size = msg.get("blockSize").and_then(|v| v.as_u64()).unwrap_or(128) as usize;
             let data = bytes_from_value(&value).unwrap_or_default();
             match aes_process(kind, &key, &iv, &data, is_encode, block_size) {
                 Some(result) => bytes_result(result),

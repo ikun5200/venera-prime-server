@@ -616,8 +616,25 @@ class SourceService {
         stages['catalog'] = 'running';
         final explore = source.capabilities['exploreData'];
         if (explore is List && explore.isNotEmpty) {
-          final page = await callValue(userId, key, 'explore.0.load', [1])
-              .timeout(const Duration(seconds: 15));
+          final entry = explore.first is Map ? explore.first as Map : const {};
+          Object? page;
+          if (entry['load'] == false && entry['loadNext'] == true) {
+            page = await callValue(userId, key, 'explore.0.loadNext', [null])
+                .timeout(const Duration(seconds: 30));
+          } else {
+            try {
+              page = await callValue(userId, key, 'explore.0.load', [1])
+                  .timeout(const Duration(seconds: 30));
+            } catch (error) {
+              if (!error
+                  .toString()
+                  .contains('Method not found: explore.0.load')) {
+                rethrow;
+              }
+              page = await callValue(userId, key, 'explore.0.loadNext', [null])
+                  .timeout(const Duration(seconds: 30));
+            }
+          }
           id = _firstComicId(page);
         }
         stages['catalog'] = id == null ? 'skipped' : 'ok';
@@ -627,24 +644,15 @@ class SourceService {
       }
       stages['details'] = 'running';
       final info = await callValue(userId, key, 'comic.loadInfo', [id])
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       stages['details'] = 'ok';
       final chapters = info is Map ? info['chapters'] : null;
-      String? epId;
-      if (chapters is Map && chapters.isNotEmpty) {
-        final first = chapters.values.first;
-        if (first is Map && first.isNotEmpty) {
-          epId = first.keys.first.toString();
-        } else {
-          epId = chapters.keys.first.toString();
-        }
-      }
-      if (epId == null) {
-        return {'status': 'failed', 'stage': 'chapters', 'stages': stages};
-      }
+      // Sources without a chapter list (single-gallery sources such as
+      // nhentai) use one implicit chapter with id "0" throughout the app.
+      final epId = _firstChapterId(chapters) ?? '0';
       stages['pages'] = 'running';
       final pages = await callValue(userId, key, 'comic.loadEp', [id, epId])
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       final images = pages is Map ? pages['images'] : null;
       if (images is! List || images.isEmpty) {
         stages['pages'] = 'failed';
@@ -661,7 +669,7 @@ class SourceService {
         stages['image'] = 'running';
         final configs =
             await imageConfigs(userId, key, [image.toString(), id, epId])
-                .timeout(const Duration(seconds: 15));
+                .timeout(const Duration(seconds: 30));
         stages['image'] = configs.isEmpty ? 'skipped' : 'ok';
       }
       return {'status': 'readable', 'comicId': id, 'stages': stages};
@@ -678,6 +686,19 @@ class SourceService {
         'stages': stages,
       };
     }
+  }
+
+  String? _firstChapterId(Object? chapters) {
+    if (chapters is! Map || chapters.isEmpty) return null;
+    for (final entry in chapters.entries) {
+      if (entry.value is Map) {
+        final nested = _firstChapterId(entry.value);
+        if (nested != null) return nested;
+      } else {
+        return entry.key.toString();
+      }
+    }
+    return chapters.keys.first.toString();
   }
 
   String? _firstComicId(Object? page) {

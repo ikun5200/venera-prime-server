@@ -563,4 +563,76 @@ class SettingsSource extends ComicSource {
     final error = res.body['error'] as Map;
     expect(error['message'], contains('HTTP'));
   });
+
+  test('explore entries with only loadNext paginate through cursors', () async {
+    const script = r'''
+class CursorSource extends ComicSource {
+  name = "Cursor"; key = "cursor_source"; version = "1.0.0";
+  explore = [{
+    title: "Cursor", type: "multiPageComicList",
+    loadNext: async (next) => {
+      if (next == null) {
+        return { comics: [{ id: "p1", title: "Page 1", cover: "" }], next: "two" };
+      }
+      if (next == "two") {
+        return { comics: [{ id: "p2", title: "Page 2", cover: "" }], next: null };
+      }
+      return { comics: [], next: null };
+    }
+  }];
+  comic = {
+    loadInfo: async (id) => new ComicDetails({
+      title: id,
+      chapters: { "1": "Chapter 1" }
+    }),
+    loadEp: async (id, ep) => ({ images: ["https://example.com/1.jpg"] })
+  };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+
+    final first = await admin.get('/api/explore?source=cursor_source&page=1');
+    expect(first.status, 200, reason: '${first.body}');
+    final firstData =
+        ((first.body['pages'] as List).first as Map)['data'] as Map;
+    expect(((firstData['comics'] as List).first as Map)['id'], 'p1');
+    expect(firstData['maxPage'], 2);
+
+    final second = await admin.get('/api/explore?source=cursor_source&page=2');
+    expect(second.status, 200, reason: '${second.body}');
+    final secondData =
+        ((second.body['pages'] as List).first as Map)['data'] as Map;
+    expect(((secondData['comics'] as List).first as Map)['id'], 'p2');
+    expect(secondData['maxPage'], 2);
+
+    final check = await admin.get('/api/sources/cursor_source/check');
+    expect(check.status, 200, reason: '${check.body}');
+    expect(check.body['status'], 'readable', reason: '${check.body}');
+  });
+
+  test('readability check accepts single-gallery sources', () async {
+    const script = r'''
+class GallerySource extends ComicSource {
+  name = "Gallery"; key = "gallery_source"; version = "1.0.0";
+  explore = [{
+    title: "Gallery", type: "multiPageComicList",
+    load: async (page) => ({
+      comics: [{ id: "g1", title: "Gallery 1", cover: "" }],
+      maxPage: 1
+    })
+  }];
+  comic = {
+    loadInfo: async (id) => new ComicDetails({ title: id, chapters: null }),
+    loadEp: async (id, ep) => ({ images: ["https://example.com/1.jpg"] })
+  };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+    final check = await admin.get('/api/sources/gallery_source/check');
+    expect(check.status, 200, reason: '${check.body}');
+    expect(check.body['status'], 'readable', reason: '${check.body}');
+    expect((check.body['stages'] as Map)['pages'], 'ok');
+  });
 }

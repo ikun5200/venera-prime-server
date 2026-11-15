@@ -115,3 +115,15 @@ is: record, choose the most conservative/complete option, continue.
   the collect button plus double-tap/swipe quick collect, and the folder rail
   cover the same tasks. Settings remain visible and are stored.
 - Impact: some device-specific affordances differ from the Flutter client.
+
+## B-017 — Interactive Cloudflare challenges
+- Issue: some sources (e.g. ykmh, ikmmh) answer with a Cloudflare
+  "Just a moment…" page even for the Dart client UA. The Flutter app can open a
+  WebView to solve the challenge and reuse the resulting `cf_clearance` cookie;
+  a headless server has no browser.
+- Conservative choice: detect challenge responses, retry once with the Dart
+  client UA (fixes MangaDex-style bot checks), and use `FLARESOLVERR_URL` when
+  configured. Users can also paste the site cookies through source settings.
+- Impact: sources that require an interactive challenge remain unavailable
+  until FlareSolverr is configured or cookies are imported; ordinary
+  credential/cookie login is unaffected.

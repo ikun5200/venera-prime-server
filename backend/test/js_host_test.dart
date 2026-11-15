@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -155,4 +156,99 @@ class UrlSource extends ComicSource {
     expect(capabilities['webviewLogin'], true);
     expect((source['settings'] as Map).containsKey('image_quality'), true);
   }, skip: !binary.existsSync() || !realSource.existsSync());
+
+  test('object request bodies are JSON encoded', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final seen = <({String? type, String body})>[];
+    server.listen((request) async {
+      final body = await utf8.decoder.bind(request).join();
+      seen.add((type: request.headers.contentType?.mimeType, body: body));
+      request.response.headers.contentType = ContentType.json;
+      request.response.write('{"ok":true}');
+      await request.response.close();
+    });
+    final url = 'http://127.0.0.1:${server.port}/echo';
+    final script = '''
+class BodySource extends ComicSource {
+  name = "Body"; key = "body_source"; version = "1.0.0";
+  search = { load: async () => {
+    const res = await Network.post("$url", {"Content-Type": "application/json"},
+      {a: 1, b: "x"});
+    const data = JSON.parse(res.body);
+    return {comics: [{id: "1", title: data.ok ? "json-ok" : "bad", cover: ""}], maxPage: 1};
+  }};
+  comic = { loadInfo: async () => new ComicDetails({title: "x", chapters: {}}) };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+    final search = await admin.get('/api/search?source=body_source&q=x');
+    expect(search.status, 200, reason: '${search.body}');
+    expect(((search.body['comics'] as List).first as Map)['title'], 'json-ok');
+    expect(seen, hasLength(1));
+    expect(seen.first.type, 'application/json');
+    expect(jsonDecode(seen.first.body), {'a': 1, 'b': 'x'});
+    await server.close(force: true);
+  }, skip: !binary.existsSync());
+
+  test('base64 tolerates a BOM and byte results are indexable', () async {
+    const script = r'''
+class BytesSource extends ComicSource {
+  name = "Bytes"; key = "bytes_source"; version = "1.0.0";
+  search = { load: async () => {
+    const buf = Convert.decodeBase64("\ufeffYWJj");
+    return {comics: [{
+      id: "1",
+      title: buf.length + ":" + buf[0] + ":" + Convert.decodeUtf8(buf),
+      cover: ""
+    }], maxPage: 1};
+  }};
+  comic = { loadInfo: async () => new ComicDetails({title: "x", chapters: {}}) };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+    final search = await admin.get('/api/search?source=bytes_source&q=x');
+    expect(search.status, 200, reason: '${search.body}');
+    expect(((search.body['comics'] as List).first as Map)['title'], '3:97:abc');
+  }, skip: !binary.existsSync());
+
+  test('Cloudflare challenge falls back to the Dart user agent', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final agents = <String>[];
+    server.listen((request) async {
+      final agent = request.headers.value('user-agent') ?? '';
+      agents.add(agent);
+      if (agent.contains('Chrome/')) {
+        request.response.headers.contentType = ContentType.html;
+        request.response.write(
+            '<!doctype html><html><script src="/challenge-assets/x.js"></script></html>');
+      } else {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write('{"ok":true}');
+      }
+      await request.response.close();
+    });
+    final url = 'http://127.0.0.1:${server.port}/api';
+    final script = '''
+class ChallengeSource extends ComicSource {
+  name = "Challenge"; key = "challenge_source"; version = "1.0.0";
+  search = { load: async () => {
+    const res = await fetch("$url");
+    const data = JSON.parse(await res.text());
+    return {comics: [{id: "1", title: data.ok ? "fallback-ok" : "bad", cover: ""}], maxPage: 1};
+  }};
+  comic = { loadInfo: async () => new ComicDetails({title: "x", chapters: {}}) };
+}
+''';
+    final imported = await admin.post('/api/sources', {'script': script});
+    expect(imported.status, 200, reason: '${imported.body}');
+    final search = await admin.get('/api/search?source=challenge_source&q=x');
+    expect(search.status, 200, reason: '${search.body}');
+    expect(
+        ((search.body['comics'] as List).first as Map)['title'], 'fallback-ok');
+    expect(agents.any((agent) => agent.contains('Chrome/')), true);
+    expect(agents.any((agent) => agent.startsWith('Dart/')), true);
+    await server.close(force: true);
+  }, skip: !binary.existsSync());
 }

@@ -36,9 +36,9 @@ difference · ✗ not implemented.
 | `load_data` | ✅ | Reads the per-source `data_json` object supplied in the context. |
 | `save_data` | ✅ | Mutates the object; returned to the backend and persisted. `data_key == "setting"` is rejected, matching the original. |
 | `delete_data` | ✅ | |
-| `http` | ✅ | Method/URL/headers/data/bytes; default web UA; per-user cookie jar; follows redirects; returns `{status,headers,body,error}`. `http_client: dart:io` is ignored (same transport). |
+| `http` | ✅ | Method/URL/headers/data/bytes; default web UA; per-user cookie jar; follows redirects; returns `{status,headers,body,error}`. Object/array `data` is JSON-encoded (matching Dio); byte buffers stay raw. A Cloudflare/Dart-UA fallback retries challenged requests. `http_client: dart:io` is ignored (same transport). |
 | `html` (all 21 sub-functions) | ✅ | `parse`, `querySelector(All)`, `getElementById`, `getText`, `getAttributes`, `dom_querySelector(All)`, `getChildren`, `getNodes`, `getInnerHTML`, `getParent`, `getClassNames`, `getId`, `getLocalName`, `getPreviousSibling`, `getNextSibling`, `node_text`, `node_type`, `node_toElement`, `dispose`. 8-document eviction. |
-| `convert` utf8/gbk/base64/md5/sha1/sha256/sha512/hmac | ✅ | |
+| `convert` utf8/gbk/base64/md5/sha1/sha256/sha512/hmac | ✅ | Base64 ignores whitespace and a UTF-8 BOM. Byte results are exposed as `Uint8Array` (`.length`, indexing, `.slice`), matching source assumptions. |
 | `convert` aes-ecb/cbc/cfb/ofb | ✅ | No padding added/removed, exactly like the original. CFB/OFB implement the full 128-bit segment; `blockSize` values other than 128 use CFB-8/OFB-8 and are documented. |
 | `convert` rsa | ✅ | PKCS#8 private key, PKCS#1 v1.5 decryption, block-wise. `isEncode:true` returns null. |
 | `random` | ✅ | `int` truncates; `double` raw. |
@@ -77,6 +77,29 @@ Compatibility additions:
 - ES2022 features used by real sources (`Array.prototype.at`,
   `String.prototype.replaceAll`, optional chaining, nullish coalescing) are
   supported by the bundled QuickJS.
+- `Convert.*` byte results are JS `Uint8Array`s rather than bare
+  `ArrayBuffer`s. Sources such as `jm.js` and `lizimh.js` inspect
+  `buf[buf.length - 1]` and call `buf.slice(...)`; an ArrayBuffer made those
+  operations return `undefined`. HTTP response bodies remain `ArrayBuffer`s so
+  `new DataView(body)` keeps working.
+- `Convert.decodeBase64` strips whitespace and a leading UTF-8 BOM. The JM
+  domain list is served as BOM-prefixed base64; Dart's decoder tolerated it,
+  the Rust decoder previously returned null.
+- `Network.post(url, headers, data)` JSON-encodes object and array bodies and
+  adds `Content-Type: application/json` when the source did not set one. The
+  original Dio client does the same; without it, Komiic and e-hentai received
+  empty GraphQL/JSON bodies and returned 400.
+- Challenged requests are retried once with `Dart/3.5 (dart:io)`. Some APIs
+  (notably MangaDex) reject a browser UA coming from rustls but accept the Dart
+  client UA the app uses. If the retry is still challenged, the original
+  response is kept and the optional FlareSolverr path still runs.
+- Explore entries that only define `loadNext` (e-hentai) are supported. The
+  backend calls `loadNext(null)` for page 1 and keeps the returned cursor chain
+  so page 2/3 requests use the source's own pagination token.
+- Sources without a chapter map (single-gallery sources such as nhentai) are
+  checked and read through the app's implicit chapter id `"0"`.
+- Source readability checks allow 30 s per stage, matching the JS-host timeout;
+  a first e-hentai image can take ~19 s while it resolves the page key.
 
 ## Source lifecycle
 

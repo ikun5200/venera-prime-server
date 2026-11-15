@@ -1182,3 +1182,56 @@ Every acceptance item is backed by a reproducible command, output summary and
 - CI: run `40065368937` (commit `dd27de0`) succeeded.
 - NAS: compose pull/up done, container `Up (healthy)`, bundle
   `index-D5VVYBAq.js`.
+
+## E-32 — Comic sources that worked in the app now work on the web (2026-11-15) — PASS (local snapshot)
+
+- Reported issue: several comic sources that work in the Flutter app failed in
+  the web/server build.
+- Reproduction: copied the NAS database to an isolated local instance (read-only
+  export via `sqlite3.backup`, new local session token; production data was not
+  modified) and ran `GET /api/sources/<key>/check` for all 34 installed sources
+  for the admin account. Initial failures included Komiic (`Invalid Status Code
+  400`), e-hentai (`explore.0.load` missing), JM (`apiDomains` undefined),
+  MangaDex (Cloudflare challenge HTML), nhentai (`stage: chapters` although the
+  gallery has no chapter map), and lizimh (`Unexpected end of JSON input`).
+- Root causes and fixes:
+  - **JSON request bodies**: `Network.post(url, headers, {…})` was treated as an
+    empty body. The Rust bridge now JSON-encodes object/array `data` and adds
+    `Content-Type: application/json` when absent. Fixes Komiic and e-hentai.
+  - **Byte results**: `Convert.*` returned `ArrayBuffer`, but sources such as
+    JM and lizimh use `buf[buf.length - 1]` and `buf.slice(...)`. Byte results
+    now come back as `Uint8Array`; HTTP response bodies stay `ArrayBuffer` for
+    `DataView` users such as hitomi. `Convert.decodeBase64` also strips a UTF-8
+    BOM and whitespace (JM's domain list starts with a BOM).
+  - **Cloudflare/bot checks**: challenged responses retry once with
+    `Dart/3.5 (dart:io)`. MangaDex returns a challenge page for the default
+    browser UA from rustls but accepts the Dart UA; this also unblocked the
+    Shonen Jump+ token request.
+  - **Explore `loadNext`**: e-hentai's explore entries only define `loadNext`.
+    The backend now calls `loadNext(null)` for page 1 and keeps a cursor chain
+    for page 2/3; old imports without capability flags are detected through the
+    `Method not found: explore.N.load` error.
+  - **Single-gallery sources**: readability checks now use the app's implicit
+    chapter id `"0"` when `ComicDetails.chapters` is null (nhentai), and each
+    check stage has 30 s (a first e-hentai image takes ~19–21 s).
+- Verification (isolated local instance, NAS source scripts/settings):
+  - `GET /api/sources/{ehentai,Komiic,jm,manga_dex,nhentai}/check` all return
+    `status: readable` with `catalog/details/pages/image: ok`.
+  - End-to-end through the real APIs:
+    | source | pages | first image |
+    |---|---|---|
+    | ehentai | 80 | 200, 168396 B, image/webp, 21.5 s |
+    | Komiic | 28 | 200, 354644 B, image/jpeg, 1.7 s |
+    | jm | 280 | 200, 38400 B, image/webp, 1.2 s |
+    | manga_dex | 55 | 200, 7237896 B, image/png, 3.4 s |
+    | nhentai | 18 | 200, 627670 B, image/webp, 2.1 s |
+  - Regression tests: JSON object body + content type; BOM base64 and
+    indexable byte results; challenge fallback UA; explore-only-`loadNext`
+    pagination; implicit-chapter readability. `dart analyze` clean,
+    `dart test` **74/74**; frontend typecheck/build pass, `npm test` **30/30**.
+- Remaining failures are upstream/network, not bridge gaps: Cloudflare
+  interactive challenges (ykmh, ikmmh — see B-017), DNS/TLS/refused connections
+  (happy, mh1234, kavita, jcomic, goda intermittently), expired demo servers
+  (komga), and sources whose site/API changed (comick chapter list, mh18
+  selector, wnacg pages). They are reported with their real error messages.
+- CI/NAS: to be filled after deployment.

@@ -222,6 +222,21 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   against raw source order. Migration 8 adds `history.chapter_id`. Tests: 68
   backend / 29 frontend.
 
+- Source runtime compatibility (E-32): diagnosed the sources that worked in the
+  Flutter app but failed on the server by running all 34 installed sources
+  through an isolated copy of the NAS database. Fixed five runtime gaps:
+  object/array `Network.post` bodies are now JSON-encoded (Komiic, e-hentai);
+  `Convert.*` byte results are `Uint8Array`s and base64 accepts a UTF-8 BOM
+  (JM, lizimh); challenged requests retry with the Dart UA (MangaDex and the
+  Shonen Jump+ token request); explore entries with only `loadNext` use a cursor
+  chain (e-hentai); readability checks accept the implicit chapter `"0"` of
+  single-gallery sources (nhentai) and allow 30 s per stage. Real-source checks
+  now pass for Komiic, e-hentai, JM, MangaDex, nhentai, ccc, ManHuaGui,
+  copy_manga, baozi and others. Remaining failures are upstream/network
+  (Cloudflare challenges, DNS/TLS, expired demo servers, changed site/API
+  layouts) and are recorded in `docs/BLOCKERS.md`. Tests: 74 backend / 30
+  frontend.
+
 ## Next
 
 - Output the final delivery report.

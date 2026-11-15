@@ -48,6 +48,11 @@ class ComicService {
   final Map<int, int> _lastCacheEnforce = {};
   final Map<String, _PrefetchProgress> _prefetchProgress = {};
 
+  /// Cursor chain for sources whose explore pages only expose `loadNext`.
+  /// The first element is the cursor for page 1 (always null); each successful
+  /// load appends the cursor returned for the following page.
+  final Map<String, List<Object?>> _exploreCursors = {};
+
   /// Identical source calls that arrive together share one JS-host round trip.
   final Map<String, Future<Map<String, Object?>>> _inflight = {};
   final Set<String> _refreshing = {};
@@ -225,17 +230,29 @@ class ComicService {
         for (var index = 0; index < meta.length; index++) {
           final entry = _map(meta[index]);
           final type = (entry['type'] ?? 'multiPartPage').toString();
+          final hasLoad = entry['load'] == true;
+          final hasNext = entry['loadNext'] == true;
           try {
-            final data = await sources
-                .callValue(userId, sourceKey, 'explore.$index.load', [page]);
+            final data = hasLoad || (!hasNext && entry['load'] == null)
+                ? await _exploreCall(userId, sourceKey, index, page,
+                    hasLoad: hasLoad, hasNext: hasNext)
+                : await _exploreNext(userId, sourceKey, index, page);
             final normalized = _normalizeExploreData(data, sourceKey);
+            Object? payload = type == 'mixed'
+                ? _mixedExplore(normalized, sourceKey)
+                : normalized;
+            if (!hasLoad && payload is Map) {
+              final next = _exploreNextCursor(normalized);
+              payload = {
+                ...payload.map((k, v) => MapEntry(k.toString(), v)),
+                'maxPage': next == null ? page : page + 1,
+              };
+            }
             pages.add({
               'index': index,
               'title': entry['title'] ?? source.name,
               'type': type,
-              'data': type == 'mixed'
-                  ? _mixedExplore(normalized, sourceKey)
-                  : normalized,
+              'data': payload,
               'error': null,
             });
           } catch (error) {
@@ -251,6 +268,83 @@ class ComicService {
         return {'source': sourceKey, 'page': page, 'pages': pages};
       },
     );
+  }
+
+  /// Calls an explore entry. Older imports have no `load`/`loadNext` flags, so
+  /// a missing `load` method is detected and retried through `loadNext`.
+  Future<Object?> _exploreCall(
+    int userId,
+    String sourceKey,
+    int index,
+    int page, {
+    required bool hasLoad,
+    required bool hasNext,
+  }) async {
+    if (hasLoad) {
+      return sources
+          .callValue(userId, sourceKey, 'explore.$index.load', [page]);
+    }
+    if (hasNext) {
+      return _exploreNext(userId, sourceKey, index, page);
+    }
+    try {
+      return await sources
+          .callValue(userId, sourceKey, 'explore.$index.load', [page]);
+    } catch (error) {
+      final text = error.toString();
+      if (!text.contains('Method not found: explore.$index.load')) rethrow;
+      return _exploreNext(userId, sourceKey, index, page);
+    }
+  }
+
+  Future<Object?> _exploreNext(
+    int userId,
+    String sourceKey,
+    int index,
+    int page,
+  ) async {
+    final key = '$userId|$sourceKey|$index';
+    if (page <= 1) {
+      _exploreCursors[key] = <Object?>[null];
+    }
+    final cursors = _exploreCursors.putIfAbsent(key, () => <Object?>[null]);
+    if (page <= 1) {
+      final data = await sources
+          .callValue(userId, sourceKey, 'explore.$index.loadNext', [null]);
+      cursors.add(_exploreNextCursor(data));
+      return data;
+    }
+    // Cursors[i] is the cursor that loads page i+1. Walk the chain until the
+    // requested page's cursor is known; after a restart or a cache hit this
+    // may require replaying earlier pages once.
+    while (cursors.length < page) {
+      final fetchPage = cursors.length;
+      final cursor = cursors[fetchPage - 1];
+      if (cursor == null) break;
+      final data = await sources
+          .callValue(userId, sourceKey, 'explore.$index.loadNext', [cursor]);
+      final next = _exploreNextCursor(data);
+      cursors.add(next);
+      if (next == null) break;
+    }
+    if (cursors.length < page || cursors[page - 1] == null) {
+      return <String, Object?>{'comics': <Object?>[], 'next': null};
+    }
+    final data = await sources.callValue(
+        userId, sourceKey, 'explore.$index.loadNext', [cursors[page - 1]]);
+    final next = _exploreNextCursor(data);
+    if (cursors.length == page) {
+      cursors.add(next);
+    }
+    return data;
+  }
+
+  Object? _exploreNextCursor(Object? data) {
+    if (data is! Map) return null;
+    final next = data['next'];
+    if (next == null) return null;
+    if (next is String) return next.isEmpty ? null : next;
+    return next;
   }
 
   /// Explore payloads differ by source type:
