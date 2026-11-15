@@ -1234,4 +1234,14 @@ Every acceptance item is backed by a reproducible command, output summary and
   (happy, mh1234, kavita, jcomic, goda intermittently), expired demo servers
   (komga), and sources whose site/API changed (comick chapter list, mh18
   selector, wnacg pages). They are reported with their real error messages.
-- CI/NAS: to be filled after deployment.
+- CI: run `43679275343` (commit `7ee9830`) succeeded (backend analyze/tests,
+  frontend typecheck/tests/build, Docker image push).
+- NAS: DB backed up to `data/venera.db.bak-20261115`; compose pull/up done,
+  container `Up (healthy)`, image digest
+  `sha256:94e630069c63d507afa033ab3947c7f6889fe57a88dc0f8141a79bec87fdfa6c`.
+  Authenticated checks against the real container all returned `readable`
+  with every stage `ok`: ehentai 19.1 s, Komiic 4.7 s, jm 10.3 s, manga_dex
+  11.6 s, nhentai 3.2 s, ccc 6.2 s, copy_manga 17.4 s, baozi 2.9 s.
+  e-hentai explore page 1 returned 25 comics with `maxPage: 2`, 261 chapter
+  pages and a 148698-byte WebP through `/api/image`; the temporary diagnostic
+  session was deleted after the checks.

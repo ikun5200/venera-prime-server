@@ -235,7 +235,9 @@ BLOCKERS (B-010/B-012/B-015 RESOLVED), DECISIONS (D-016..D-018) and EVIDENCE
   copy_manga, baozi and others. Remaining failures are upstream/network
   (Cloudflare challenges, DNS/TLS, expired demo servers, changed site/API
   layouts) and are recorded in `docs/BLOCKERS.md`. Tests: 74 backend / 30
-  frontend.
+  frontend. CI run `43679275343` passed; deployed to NAS with the DB backed up
+  first, and the real container re-checked ehentai/Komiic/jm/manga_dex/nhentai/
+  ccc/copy_manga/baozi as readable.
 
 ## Next
 
